@@ -2,6 +2,14 @@ import { useRef, useState } from 'react'
 import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { extractCompetencies } from '../lib/claude'
+import LoadingState from './LoadingState'
+
+const LOADING_MESSAGES = [
+  'Identifierar erfarenheter och projekt...',
+  'Kopplar ihop kompetenser och resultat...',
+  'Strukturerar din kompetensbank...',
+  'Nästan klart – sista finjusteringarna...',
+]
 
 const ACCEPTED_TYPES = '.pdf,.docx'
 
@@ -96,19 +104,27 @@ export default function FileUpload() {
 
   return (
     <div className="space-y-3">
-      {/* Drop zone */}
+      {/* Loading state replaces the drop zone while Claude is working */}
+      {isLoading && (
+        <LoadingState
+          title="Claude läser ditt CV..."
+          messages={LOADING_MESSAGES}
+        />
+      )}
+
+      {/* Drop zone – hidden while loading */}
+      {!isLoading && (
       <div
         onDragOver={(e) => {
           e.preventDefault()
-          if (!isLoading) setDragging(true)
+          setDragging(true)
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        onClick={() => !isLoading && inputRef.current?.click()}
+        onClick={() => inputRef.current?.click()}
         className={[
           'flex flex-col items-center justify-center gap-3',
-          'border-2 border-dashed rounded-xl p-10 transition-colors select-none',
-          isLoading ? 'cursor-default' : 'cursor-pointer',
+          'border-2 border-dashed rounded-xl p-10 transition-colors select-none cursor-pointer',
           dragging
             ? 'border-[#4A6FA5] bg-[#4A6FA5]/5'
             : 'border-[#2a2d3a] hover:border-[#4A6FA5]/50',
@@ -120,17 +136,9 @@ export default function FileUpload() {
           accept={ACCEPTED_TYPES}
           className="hidden"
           onChange={onInputChange}
-          disabled={isLoading}
         />
 
-        {isLoading ? (
-          <>
-            <Spinner />
-            <p className="text-white text-sm font-medium">
-              Claude analyserar ditt dokument...
-            </p>
-          </>
-        ) : selectedFile ? (
+        {selectedFile ? (
           <>
             <FileIcon />
             <div className="text-center">
@@ -154,6 +162,7 @@ export default function FileUpload() {
           </>
         )}
       </div>
+      )}
 
       {/* Analyse button – only visible when a file is selected */}
       {selectedFile && !isLoading && (
@@ -246,23 +255,6 @@ function FileIcon() {
   )
 }
 
-function Spinner() {
-  return (
-    <svg
-      className="animate-spin"
-      width="36"
-      height="36"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#4A6FA5"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <circle cx="12" cy="12" r="10" strokeOpacity="0.2" />
-      <path d="M12 2a10 10 0 0 1 10 10" />
-    </svg>
-  )
-}
 
 function CheckIcon() {
   return (

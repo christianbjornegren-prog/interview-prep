@@ -81,11 +81,14 @@ export async function extractCompetencies(file, fileType) {
   const data = await response.json()
   const rawText = data.content?.[0]?.text ?? ''
 
+  // Strip any markdown fences Claude may include despite the system prompt
+  const clean = rawText.replace(/```json|```/g, '').trim()
+
   let parsed
   try {
-    parsed = JSON.parse(rawText)
+    parsed = JSON.parse(clean)
   } catch {
-    throw new Error('Claude returnerade ogiltig JSON. Råsvar: ' + rawText.slice(0, 300))
+    throw new Error('Claude returnerade ogiltig JSON. Råsvar: ' + clean.slice(0, 300))
   }
 
   if (!Array.isArray(parsed.competencies)) {
