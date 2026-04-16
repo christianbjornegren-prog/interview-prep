@@ -67,7 +67,7 @@ export async function extractCompetencies(file, fileType) {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 4096,
+      max_tokens: 4000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: messageContent }],
     }),
@@ -79,22 +79,10 @@ export async function extractCompetencies(file, fileType) {
   }
 
   const data = await response.json()
-  const rawText = data.content?.[0]?.text ?? ''
-
-  // Strip any markdown fences Claude may include despite the system prompt
-  const clean = rawText.replace(/```json|```/g, '').trim()
-
-  let parsed
-  try {
-    parsed = JSON.parse(clean)
-  } catch {
-    throw new Error('Claude returnerade ogiltig JSON. Råsvar: ' + clean.slice(0, 300))
-  }
-
-  if (!Array.isArray(parsed.competencies)) {
-    throw new Error('Oväntat JSON-format från Claude – fältet "competencies" saknas.')
-  }
-
+  const rawText = data.content[0].text
+  const jsonMatch = rawText.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
+  const parsed = JSON.parse(jsonMatch[0])
   return parsed.competencies
 }
 
