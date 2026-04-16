@@ -123,9 +123,9 @@ export default function CompetencyList() {
     return counts
   }, [competencies])
 
-  const filtered = activeCategory
-    ? competencies.filter((c) => categorize(c).name === activeCategory)
-    : competencies
+  const activeCategoryObj = activeCategory
+    ? CATEGORIES.find((c) => c.name === activeCategory) ?? null
+    : null
 
   async function handleDelete(docId) {
     setDeletingId(docId)
@@ -202,22 +202,27 @@ export default function CompetencyList() {
         })}
       </div>
 
-      {/* Total / filtered count */}
+      {/* Total count */}
       <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
-        {activeCategory
-          ? `${filtered.length} kompetens${filtered.length === 1 ? '' : 'er'} i "${activeCategory}"`
-          : `${competencies.length} kompetens${competencies.length === 1 ? '' : 'er'} i din bank`}
+        {competencies.length} kompetens{competencies.length === 1 ? '' : 'er'} i din bank
       </p>
 
       <ul className="space-y-3">
-        {filtered.map((c) => (
-          <CompetencyCard
-            key={c.docId}
-            competency={c}
-            deleting={deletingId === c.docId}
-            onDelete={() => handleDelete(c.docId)}
-          />
-        ))}
+        {competencies.map((c) => {
+          const isMatch = activeCategoryObj
+            ? categorize(c).name === activeCategoryObj.name
+            : true
+          return (
+            <CompetencyCard
+              key={c.docId}
+              competency={c}
+              deleting={deletingId === c.docId}
+              onDelete={() => handleDelete(c.docId)}
+              highlighted={isMatch}
+              highlightColor={isMatch && activeCategoryObj ? activeCategoryObj.color : null}
+            />
+          )
+        })}
       </ul>
     </div>
   )
@@ -225,14 +230,20 @@ export default function CompetencyList() {
 
 // ── Card ──────────────────────────────────────────────────────────────────
 
-function CompetencyCard({ competency, deleting, onDelete }) {
+function CompetencyCard({ competency, deleting, onDelete, highlighted, highlightColor }) {
   const { title, description, tags, impact, context, sourceFile } = competency
   const [expanded, setExpanded] = useState(false)
 
   return (
     <li
-      className="rounded-xl border p-5 transition-colors"
-      style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+      className="rounded-xl border p-5 transition-all duration-300"
+      style={{
+        backgroundColor: '#1a1d27',
+        borderColor: highlightColor ?? '#2a2d3a',
+        borderLeftColor: highlightColor ?? '#2a2d3a',
+        borderLeftWidth: highlightColor ? '3px' : '1px',
+        opacity: highlighted ? 1 : 0.4,
+      }}
     >
       {/* Header row */}
       <div className="flex items-start justify-between gap-4">
