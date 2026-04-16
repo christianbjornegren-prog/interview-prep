@@ -10,28 +10,44 @@ const CATEGORIES = [
     color: '#4A6FA5',
     bg: '#1e2d45',
     textColor: '#7aa3d4',
-    tags: new Set(['ledarskap', 'styrning', 'governance', 'strategi']),
+    tags: new Set([
+      'ledarskap', 'styrning', 'governance', 'strategi',
+      'beslutsunderlag', 'power-bi', 'rapportering',
+      'strategisk-kommunikation', 'ledningsstöd',
+    ]),
   },
   {
     name: 'Digitalisering',
     color: '#7C5CBF',
     bg: '#221533',
     textColor: '#b19de0',
-    tags: new Set(['digitalisering', 'transformation', 'förändringsledning']),
+    tags: new Set([
+      'digitalisering', 'transformation', 'förändringsledning',
+      'processautomation', 'effektivisering', 'affärsnytta',
+      'digitaleffektivisering',
+    ]),
   },
   {
     name: 'IT-arkitektur',
     color: '#2A9D8F',
     bg: '#0d2b27',
     textColor: '#5ecfc3',
-    tags: new Set(['arkitektur', 'togaf', 'systemarkitektur', 'integration']),
+    tags: new Set([
+      'arkitektur', 'togaf', 'systemarkitektur', 'integration',
+      'kundportal', 'api-strategi', 'access-management',
+      'integrationsstrategi', 'skalbarhet',
+    ]),
   },
   {
     name: 'Molntjänster & Azure',
     color: '#0EA5E9',
     bg: '#0d2233',
     textColor: '#5bc4f5',
-    tags: new Set(['azure', 'cloud', 'microsoft']),
+    tags: new Set([
+      'azure', 'cloud', 'microsoft',
+      'cloud-migration', 'microsoft-azure', 'plattformsledning',
+      'teknisk-transformation',
+    ]),
   },
   {
     name: 'IT-säkerhet & compliance',
@@ -123,9 +139,9 @@ export default function CompetencyList() {
     return counts
   }, [competencies])
 
-  const activeCategoryObj = activeCategory
-    ? CATEGORIES.find((c) => c.name === activeCategory) ?? null
-    : null
+  const filtered = activeCategory
+    ? competencies.filter((c) => categorize(c).name === activeCategory)
+    : competencies
 
   async function handleDelete(docId) {
     setDeletingId(docId)
@@ -162,9 +178,8 @@ export default function CompetencyList() {
 
   return (
     <div className="space-y-5">
-      {/* Category overview */}
+      {/* Category filter chips */}
       <div className="flex flex-wrap gap-2">
-        {/* "Alla" chip */}
         <button
           onClick={() => setActiveCategory(null)}
           className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
@@ -177,7 +192,6 @@ export default function CompetencyList() {
           Alla ({competencies.length})
         </button>
 
-        {/* Category chips – only those with at least one competency */}
         {CATEGORIES.filter((cat) => (categoryCounts.get(cat.name) ?? 0) > 0).map((cat) => {
           const isActive = activeCategory === cat.name
           return (
@@ -202,27 +216,22 @@ export default function CompetencyList() {
         })}
       </div>
 
-      {/* Total count */}
+      {/* Count label */}
       <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
-        {competencies.length} kompetens{competencies.length === 1 ? '' : 'er'} i din bank
+        {activeCategory
+          ? `${filtered.length} kompetens${filtered.length === 1 ? '' : 'er'} i "${activeCategory}"`
+          : `${competencies.length} kompetens${competencies.length === 1 ? '' : 'er'} i din bank`}
       </p>
 
       <ul className="space-y-3">
-        {competencies.map((c) => {
-          const isMatch = activeCategoryObj
-            ? categorize(c).name === activeCategoryObj.name
-            : true
-          return (
-            <CompetencyCard
-              key={c.docId}
-              competency={c}
-              deleting={deletingId === c.docId}
-              onDelete={() => handleDelete(c.docId)}
-              highlighted={isMatch}
-              highlightColor={isMatch && activeCategoryObj ? activeCategoryObj.color : null}
-            />
-          )
-        })}
+        {filtered.map((c) => (
+          <CompetencyCard
+            key={c.docId}
+            competency={c}
+            deleting={deletingId === c.docId}
+            onDelete={() => handleDelete(c.docId)}
+          />
+        ))}
       </ul>
     </div>
   )
@@ -230,27 +239,23 @@ export default function CompetencyList() {
 
 // ── Card ──────────────────────────────────────────────────────────────────
 
-function CompetencyCard({ competency, deleting, onDelete, highlighted, highlightColor }) {
+function CompetencyCard({ competency, deleting, onDelete }) {
   const { title, description, tags, impact, context, sourceFile } = competency
   const [expanded, setExpanded] = useState(false)
 
   return (
     <li
-      className="rounded-xl border p-5 transition-all duration-300"
-      style={{
-        backgroundColor: '#1a1d27',
-        borderColor: highlightColor ?? '#2a2d3a',
-        borderLeftColor: highlightColor ?? '#2a2d3a',
-        borderLeftWidth: highlightColor ? '3px' : '1px',
-        opacity: highlighted ? 1 : 0.4,
-      }}
+      className="rounded-xl border p-5 transition-colors cursor-pointer"
+      style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+      onClick={() => setExpanded((v) => !v)}
     >
-      {/* Header row */}
+      {/* Always-visible header: title + tags + controls */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <h3 className="text-white font-semibold text-base leading-snug">{title}</h3>
+          <h3 className="text-white font-semibold text-base leading-snug select-none">
+            {title}
+          </h3>
 
-          {/* Tags */}
           {tags && tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {tags.map((tag, i) => (
@@ -266,20 +271,17 @@ function CompetencyCard({ competency, deleting, onDelete, highlighted, highlight
           )}
         </div>
 
-        {/* Action buttons */}
         <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            title={expanded ? 'Dölj detaljer' : 'Visa detaljer'}
-            className="p-1.5 rounded transition-colors"
-            style={{ color: '#6b7280' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
-          >
+          {/* Chevron – purely visual, click handled by li */}
+          <span className="p-1.5" style={{ color: '#6b7280' }}>
             <ChevronIcon expanded={expanded} />
-          </button>
+          </span>
+
           <button
-            onClick={onDelete}
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete()
+            }}
             disabled={deleting}
             title="Ta bort kompetens"
             className="p-1.5 rounded transition-colors disabled:opacity-40"
@@ -292,25 +294,28 @@ function CompetencyCard({ competency, deleting, onDelete, highlighted, highlight
         </div>
       </div>
 
-      {/* Description */}
-      {description && (
-        <p className="text-sm mt-3 leading-relaxed" style={{ color: '#d1d5db' }}>
-          {description}
-        </p>
-      )}
-
-      {/* Impact – always visible, italic */}
-      {impact && (
-        <p className="text-sm mt-2 leading-relaxed italic" style={{ color: '#9ca3af' }}>
-          {impact}
-        </p>
-      )}
-
-      {/* Expandable details */}
+      {/* Expandable: description + impact + meta */}
       {expanded && (
-        <div className="mt-4 pt-4 space-y-3 border-t" style={{ borderColor: '#2a2d3a' }}>
-          {context && <DetailRow label="Sammanhang" value={context} />}
-          {sourceFile && <DetailRow label="Källfil" value={sourceFile} />}
+        <div className="mt-3 space-y-2">
+          {description && (
+            <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+              {description}
+            </p>
+          )}
+          {impact && (
+            <p className="text-sm leading-relaxed italic" style={{ color: '#9ca3af' }}>
+              {impact}
+            </p>
+          )}
+          {(context || sourceFile) && (
+            <div
+              className="mt-3 pt-3 space-y-3 border-t"
+              style={{ borderColor: '#2a2d3a' }}
+            >
+              {context && <DetailRow label="Sammanhang" value={context} />}
+              {sourceFile && <DetailRow label="Källfil" value={sourceFile} />}
+            </div>
+          )}
         </div>
       )}
     </li>
