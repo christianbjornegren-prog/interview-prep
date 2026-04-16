@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'
-import { db } from '../lib/firebase'
+import { db, auth } from '../lib/firebase'
 import { extractCompetencies } from '../lib/claude'
 import LoadingState from './LoadingState'
 
@@ -55,7 +55,9 @@ export default function FileUpload() {
       const competencies = await extractCompetencies(selectedFile, fileType)
 
       // Duplicate check against existing Firestore titles
-      const existingSnap = await getDocs(collection(db, 'competencies'))
+      const uid = auth.currentUser.uid
+      const colRef = collection(db, 'users', uid, 'competencies')
+      const existingSnap = await getDocs(colRef)
       const existingTitles = new Set(
         existingSnap.docs.map((d) => (d.data().title ?? '').toLowerCase())
       )
@@ -66,7 +68,7 @@ export default function FileUpload() {
 
       await Promise.all(
         toSave.map((c) =>
-          addDoc(collection(db, 'competencies'), {
+          addDoc(colRef, {
             ...c,
             createdAt: serverTimestamp(),
             sourceFile: selectedFile.name,

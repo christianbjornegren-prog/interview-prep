@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { collection, onSnapshot, deleteDoc, doc, query, orderBy } from 'firebase/firestore'
-import { db } from '../lib/firebase'
+import { db, auth } from '../lib/firebase'
 
 // ── Tag colour categorisation ─────────────────────────────────────────────
 
@@ -39,7 +39,8 @@ export default function CompetencyList() {
   const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
-    const q = query(collection(db, 'competencies'), orderBy('createdAt', 'desc'))
+    const uid = auth.currentUser.uid
+    const q = query(collection(db, 'users', uid, 'competencies'), orderBy('createdAt', 'desc'))
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
@@ -57,7 +58,7 @@ export default function CompetencyList() {
   async function handleDelete(docId) {
     setDeletingId(docId)
     try {
-      await deleteDoc(doc(db, 'competencies', docId))
+      await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'competencies', docId))
     } catch (err) {
       console.error('Kunde inte ta bort kompetens:', err)
     } finally {
