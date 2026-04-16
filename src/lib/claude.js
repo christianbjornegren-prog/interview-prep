@@ -10,7 +10,8 @@ const SYSTEM_PROMPT =
   '- description: vad personen gjorde och hur (2-3 meningar)\n' +
   '- tags: 3-6 relevanta kompetenstaggar på svenska (t.ex. ledarskap, azure, förändringsledning)\n' +
   '- impact: konkret resultat eller värde som skapades\n' +
-  '- context: organisation och tidsperiod'
+  '- context: organisation och tidsperiod\n' +
+  'Var koncis i description-fältet – max 2 meningar. Prioritera kvalitet över kvantitet – extrahera max 15 kompetenser även om dokumentet innehåller fler.'
 
 /**
  * Extract competencies from a File object.
@@ -68,7 +69,7 @@ export async function extractCompetencies(file, fileType) {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 4000,
+      max_tokens: 8000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: messageContent }],
     }),
