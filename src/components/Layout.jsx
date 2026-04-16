@@ -1,5 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 
+// NavLink uses useLocation which works correctly inside HashRouter
+
 export default function Layout({ children }) {
   const location = useLocation()
 

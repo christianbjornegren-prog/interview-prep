@@ -2,36 +2,59 @@ const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
 const MODEL = 'claude-sonnet-4-5'
 
 const SYSTEM_PROMPT =
-  'Du är en karriärcoach som extraherar och strukturerar kompetenser från CV:n och professionella dokument. ' +
-  'Returnera ALLTID valid JSON, inget annat – ingen markdown, inga backticks.'
+  'Du är en karriärcoach som extraherar kompetenser från professionella dokument.\n' +
+  'Returnera ENDAST giltig JSON utan markdown eller backticks.\n' +
+  'Schema: { competencies: [{ id, title, description, tags, impact, context }] }\n' +
+  '- title: kort beskrivande rubrik (max 8 ord)\n' +
+  '- description: vad personen gjorde och hur (2-3 meningar)\n' +
+  '- tags: 3-6 relevanta kompetenstaggar på svenska (t.ex. ledarskap, azure, förändringsledning)\n' +
+  '- impact: konkret resultat eller värde som skapades\n' +
+  '- context: organisation och tidsperiod'
 
-const USER_PROMPT_TEMPLATE = `Analysera följande text och extrahera alla yrkeskompetenser.
-Returnera ett JSON-objekt med detta exakta schema (inga extra fält, inga kommentarer):
-{
-  "competencies": [
-    {
-      "id": "uuid-string",
-      "title": "Kompetensens titel",
-      "description": "Kort beskrivning av kompetensen",
-      "tags": ["tagg1", "tagg2"],
-      "impact": "Vilken påverkan/resultat kompetensen lett till",
-      "context": "I vilket sammanhang kompetensen användes"
+/**
+ * Extract competencies from a File object.
+ * @param {File} file - the uploaded File
+ * @param {'pdf'|'docx'} fileType
+ * @returns {Promise<Array>} array of competency objects
+ */
+export async function extractCompetencies(file, fileType) {
+  const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
+  if (!apiKey) {
+    throw new Error('Claude API-nyckel saknas. Kontrollera VITE_CLAUDE_API_KEY i .env.local.')
+  }
+
+  let messageContent
+
+  if (fileType === 'docx') {
+    const mammoth = (await import('mammoth')).default
+    const arrayBuffer = await file.arrayBuffer()
+    const { value: text } = await mammoth.extractRawText({ arrayBuffer })
+    if (!text.trim()) {
+      throw new Error('Kunde inte läsa text från DOCX-filen. Kontrollera att filen inte är skadad.')
     }
-  ]
-}
-
-Text att analysera:
-`
-
-/**
- * Sends plain text content to Claude and returns an array of extracted competencies.
- * @param {string} textContent – the raw text from the uploaded document
- * @returns {Promise<Array>} array of competency objects
- */
-export async function extractCompetencies(textContent) {
-  const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
-  if (!apiKey) {
-    throw new Error('Claude API-nyckel saknas. Kontrollera VITE_CLAUDE_API_KEY i .env.local.')
+    messageContent = [
+      {
+        type: 'text',
+        text: 'Analysera följande dokument och extrahera alla yrkeskompetenser:\n\n' + text,
+      },
+    ]
+  } else {
+    // PDF – send as base64 document block
+    const base64 = await fileToBase64(file)
+    messageContent = [
+      {
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'application/pdf',
+          data: base64,
+        },
+      },
+      {
+        type: 'text',
+        text: 'Analysera detta dokument och extrahera alla yrkeskompetenser.',
+      },
+    ]
   }
 
   const response = await fetch(CLAUDE_API_URL, {
@@ -46,12 +69,7 @@ export async function extractCompetencies(textContent) {
       model: MODEL,
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: USER_PROMPT_TEMPLATE + textContent,
-        },
-      ],
+      messages: [{ role: 'user', content: messageContent }],
     }),
   })
 
@@ -67,7 +85,7 @@ export async function extractCompetencies(textContent) {
   try {
     parsed = JSON.parse(rawText)
   } catch {
-    throw new Error('Claude returnerade ogiltig JSON. Råsvar: ' + rawText.slice(0, 200))
+    throw new Error('Claude returnerade ogiltig JSON. Råsvar: ' + rawText.slice(0, 300))
   }
 
   if (!Array.isArray(parsed.competencies)) {
@@ -77,69 +95,13 @@ export async function extractCompetencies(textContent) {
   return parsed.competencies
 }
 
-/**
- * Sends a PDF file (as base64) to Claude using the document content type.
- * @param {string} base64Data – base64-encoded PDF bytes
- * @returns {Promise<Array>} array of competency objects
- */
-export async function extractCompetenciesFromPDF(base64Data) {
-  const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
-  if (!apiKey) {
-    throw new Error('Claude API-nyckel saknas. Kontrollera VITE_CLAUDE_API_KEY i .env.local.')
-  }
+// ── Internal helpers ──────────────────────────────────────────────────────
 
-  const response = await fetch(CLAUDE_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: {
-                type: 'base64',
-                media_type: 'application/pdf',
-                data: base64Data,
-              },
-            },
-            {
-              type: 'text',
-              text: USER_PROMPT_TEMPLATE,
-            },
-          ],
-        },
-      ],
-    }),
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
   })
-
-  if (!response.ok) {
-    const errorBody = await response.text()
-    throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
-  }
-
-  const data = await response.json()
-  const rawText = data.content?.[0]?.text ?? ''
-
-  let parsed
-  try {
-    parsed = JSON.parse(rawText)
-  } catch {
-    throw new Error('Claude returnerade ogiltig JSON. Råsvar: ' + rawText.slice(0, 200))
-  }
-
-  if (!Array.isArray(parsed.competencies)) {
-    throw new Error('Oväntat JSON-format från Claude – fältet "competencies" saknas.')
-  }
-
-  return parsed.competencies
 }
