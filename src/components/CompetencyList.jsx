@@ -1,34 +1,92 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { collection, onSnapshot, deleteDoc, doc, query, orderBy } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 
-// ── Tag colour categorisation ─────────────────────────────────────────────
+// ── Category definitions ──────────────────────────────────────────────────
 
-const LEADERSHIP_TAGS = new Set([
-  'ledarskap', 'chef', 'manager', 'hr', 'team', 'teamledare', 'teamledning',
-  'personalansvar', 'mentorskap', 'coaching', 'strategisk', 'strategi',
-  'förändringsledning', 'förändring', 'organisationsutveckling',
-])
+const CATEGORIES = [
+  {
+    name: 'Ledning & styrning',
+    color: '#4A6FA5',
+    bg: '#1e2d45',
+    textColor: '#7aa3d4',
+    tags: new Set(['ledarskap', 'styrning', 'governance', 'strategi']),
+  },
+  {
+    name: 'Digitalisering',
+    color: '#7C5CBF',
+    bg: '#221533',
+    textColor: '#b19de0',
+    tags: new Set(['digitalisering', 'transformation', 'förändringsledning']),
+  },
+  {
+    name: 'IT-arkitektur',
+    color: '#2A9D8F',
+    bg: '#0d2b27',
+    textColor: '#5ecfc3',
+    tags: new Set(['arkitektur', 'togaf', 'systemarkitektur', 'integration']),
+  },
+  {
+    name: 'Molntjänster & Azure',
+    color: '#0EA5E9',
+    bg: '#0d2233',
+    textColor: '#5bc4f5',
+    tags: new Set(['azure', 'cloud', 'microsoft']),
+  },
+  {
+    name: 'IT-säkerhet & compliance',
+    color: '#E76F51',
+    bg: '#2b1a14',
+    textColor: '#f0a085',
+    tags: new Set(['säkerhet', 'gdpr', 'compliance', 'nis2']),
+  },
+  {
+    name: 'AI & innovation',
+    color: '#57A773',
+    bg: '#0d2b1a',
+    textColor: '#7dcc99',
+    tags: new Set(['ai', 'automation', 'innovation']),
+  },
+  {
+    name: 'Projektledning',
+    color: '#E9C46A',
+    bg: '#2b2414',
+    textColor: '#f0d48a',
+    tags: new Set(['projektledning', 'projektledare', 'portfolio']),
+  },
+  {
+    name: 'Övrigt',
+    color: '#6B7280',
+    bg: '#1e1f2a',
+    textColor: '#9ca3af',
+    tags: new Set(),
+  },
+]
 
-const TECH_TAGS = new Set([
-  'teknik', 'azure', 'aws', 'gcp', 'python', 'javascript', 'typescript',
-  'react', 'node', 'api', 'databas', 'sql', 'nosql', 'system', 'molnet',
-  'cloud', 'devops', 'ci/cd', 'docker', 'kubernetes', 'java', 'c#', '.net',
-  'programutveckling', 'mjukvaruutveckling', 'agile', 'scrum',
-])
+const MISC_CATEGORY = CATEGORIES[CATEGORIES.length - 1]
+
+function categorize(competency) {
+  const tags = (competency.tags || []).map((t) => t.toLowerCase())
+  let best = null
+  let bestCount = 0
+  for (const cat of CATEGORIES.slice(0, -1)) {
+    const count = tags.filter((t) => cat.tags.has(t)).length
+    if (count > bestCount) {
+      bestCount = count
+      best = cat
+    }
+  }
+  return best ?? MISC_CATEGORY
+}
 
 function tagStyle(tag) {
   const lower = tag.toLowerCase()
-  if (LEADERSHIP_TAGS.has(lower)) {
-    // slate-blue
-    return { backgroundColor: '#1e2d45', color: '#7aa3d4' }
+  for (const cat of CATEGORIES.slice(0, -1)) {
+    if (cat.tags.has(lower)) {
+      return { backgroundColor: cat.bg, color: cat.textColor }
+    }
   }
-  if (TECH_TAGS.has(lower)) {
-    // green
-    return { backgroundColor: '#0d2b1a', color: '#4ade80' }
-  }
-  // grey
-  return { backgroundColor: '#1e1f2a', color: '#9ca3af' }
+  return { backgroundColor: MISC_CATEGORY.bg, color: MISC_CATEGORY.textColor }
 }
 
 // ── Component ─────────────────────────────────────────────────────────────
@@ -37,6 +95,7 @@ export default function CompetencyList() {
   const [competencies, setCompetencies] = useState([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState(null)
+  const [activeCategory, setActiveCategory] = useState(null) // null = Alla
 
   useEffect(() => {
     const uid = auth.currentUser.uid
@@ -54,6 +113,19 @@ export default function CompetencyList() {
     )
     return unsubscribe
   }, [])
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map(CATEGORIES.map((c) => [c.name, 0]))
+    competencies.forEach((c) => {
+      const cat = categorize(c)
+      counts.set(cat.name, (counts.get(cat.name) ?? 0) + 1)
+    })
+    return counts
+  }, [competencies])
+
+  const filtered = activeCategory
+    ? competencies.filter((c) => categorize(c).name === activeCategory)
+    : competencies
 
   async function handleDelete(docId) {
     setDeletingId(docId)
@@ -89,14 +161,56 @@ export default function CompetencyList() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Total count header */}
+    <div className="space-y-5">
+      {/* Category overview */}
+      <div className="flex flex-wrap gap-2">
+        {/* "Alla" chip */}
+        <button
+          onClick={() => setActiveCategory(null)}
+          className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
+          style={
+            activeCategory === null
+              ? { backgroundColor: '#4A6FA5', color: '#fff' }
+              : { backgroundColor: '#1e2030', color: '#6b7280' }
+          }
+        >
+          Alla ({competencies.length})
+        </button>
+
+        {/* Category chips – only those with at least one competency */}
+        {CATEGORIES.filter((cat) => (categoryCounts.get(cat.name) ?? 0) > 0).map((cat) => {
+          const isActive = activeCategory === cat.name
+          return (
+            <button
+              key={cat.name}
+              onClick={() => setActiveCategory(isActive ? null : cat.name)}
+              className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
+              style={
+                isActive
+                  ? { backgroundColor: cat.color, color: '#fff' }
+                  : {
+                      backgroundColor: '#1e2030',
+                      color: '#9ca3af',
+                      borderLeft: `3px solid ${cat.color}`,
+                      paddingLeft: '0.625rem',
+                    }
+              }
+            >
+              {cat.name} ({categoryCounts.get(cat.name)})
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Total / filtered count */}
       <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
-        {competencies.length} kompetens{competencies.length === 1 ? '' : 'er'} i din bank
+        {activeCategory
+          ? `${filtered.length} kompetens${filtered.length === 1 ? '' : 'er'} i "${activeCategory}"`
+          : `${competencies.length} kompetens${competencies.length === 1 ? '' : 'er'} i din bank`}
       </p>
 
       <ul className="space-y-3">
-        {competencies.map((c) => (
+        {filtered.map((c) => (
           <CompetencyCard
             key={c.docId}
             competency={c}
@@ -123,9 +237,7 @@ function CompetencyCard({ competency, deleting, onDelete }) {
       {/* Header row */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <h3 className="text-white font-semibold text-base leading-snug">
-            {title}
-          </h3>
+          <h3 className="text-white font-semibold text-base leading-snug">{title}</h3>
 
           {/* Tags */}
           {tags && tags.length > 0 && (
@@ -185,10 +297,7 @@ function CompetencyCard({ competency, deleting, onDelete }) {
 
       {/* Expandable details */}
       {expanded && (
-        <div
-          className="mt-4 pt-4 space-y-3 border-t"
-          style={{ borderColor: '#2a2d3a' }}
-        >
+        <div className="mt-4 pt-4 space-y-3 border-t" style={{ borderColor: '#2a2d3a' }}>
           {context && <DetailRow label="Sammanhang" value={context} />}
           {sourceFile && <DetailRow label="Källfil" value={sourceFile} />}
         </div>
@@ -226,7 +335,10 @@ function ChevronIcon({ expanded }) {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      style={{ transition: 'transform 0.2s', transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+      style={{
+        transition: 'transform 0.2s',
+        transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+      }}
     >
       <polyline points="6 9 12 15 18 9" />
     </svg>

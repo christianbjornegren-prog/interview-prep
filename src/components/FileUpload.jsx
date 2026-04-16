@@ -2,14 +2,6 @@ import { useRef, useState } from 'react'
 import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 import { extractCompetencies } from '../lib/claude'
-import LoadingState from './LoadingState'
-
-const LOADING_MESSAGES = [
-  'Identifierar erfarenheter och projekt...',
-  'Kopplar ihop kompetenser och resultat...',
-  'Strukturerar din kompetensbank...',
-  'Nästan klart – sista finjusteringarna...',
-]
 
 const ACCEPTED_TYPES = '.pdf,.docx'
 
@@ -30,6 +22,13 @@ export default function FileUpload() {
   const [selectedFile, setSelectedFile] = useState(null)
   const [status, setStatus] = useState('idle') // idle | loading | success | error
   const [message, setMessage] = useState('')
+  const [progressMsg, setProgressMsg] = useState('')
+  const [progressPct, setProgressPct] = useState(0)
+
+  function onProgress(msg, pct) {
+    setProgressMsg(msg)
+    setProgressPct(pct)
+  }
 
   function handleFileSelect(file) {
     if (!file) return
@@ -50,9 +49,11 @@ export default function FileUpload() {
 
     setStatus('loading')
     setMessage('')
+    setProgressPct(0)
+    setProgressMsg('')
 
     try {
-      const competencies = await extractCompetencies(selectedFile, fileType)
+      const competencies = await extractCompetencies(selectedFile, fileType, onProgress)
 
       // Duplicate check against existing Firestore titles
       const uid = auth.currentUser.uid
@@ -66,15 +67,20 @@ export default function FileUpload() {
         (c) => !existingTitles.has((c.title ?? '').toLowerCase())
       )
 
-      await Promise.all(
-        toSave.map((c) =>
-          addDoc(colRef, {
-            ...c,
-            createdAt: serverTimestamp(),
-            sourceFile: selectedFile.name,
-          })
+      // Sequential writes with per-item progress
+      for (let i = 0; i < toSave.length; i++) {
+        onProgress(
+          `Sparar ${i + 1} av ${toSave.length}...`,
+          85 + (i / toSave.length) * 14
         )
-      )
+        await addDoc(colRef, {
+          ...toSave[i],
+          createdAt: serverTimestamp(),
+          sourceFile: selectedFile.name,
+        })
+      }
+
+      onProgress('Klart!', 100)
 
       const skipped = competencies.length - toSave.length
       let msg = `${toSave.length} kompetens${toSave.length === 1 ? '' : 'er'} extraherade och sparade.`
@@ -106,64 +112,89 @@ export default function FileUpload() {
 
   return (
     <div className="space-y-3">
-      {/* Loading state replaces the drop zone while Claude is working */}
+      {/* Progress state while Claude is working */}
       {isLoading && (
-        <LoadingState
-          title="Claude läser ditt CV..."
-          messages={LOADING_MESSAGES}
-        />
+        <div className="py-6 space-y-4">
+          <div className="text-center text-4xl select-none">☕</div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div
+                className="flex-1 h-1.5 rounded-full overflow-hidden"
+                style={{ backgroundColor: '#2a2d3a' }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${progressPct}%`,
+                    backgroundColor: '#4A6FA5',
+                    transition: 'width 0.5s ease',
+                  }}
+                />
+              </div>
+              <span
+                className="text-xs font-medium tabular-nums"
+                style={{ color: '#6b7280', minWidth: '2.5rem', textAlign: 'right' }}
+              >
+                {progressPct}%
+              </span>
+            </div>
+            <p className="text-sm text-center" style={{ color: '#9ca3af' }}>
+              {progressMsg}
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Drop zone – hidden while loading */}
       {!isLoading && (
-      <div
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDragging(true)
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-        onClick={() => inputRef.current?.click()}
-        className={[
-          'flex flex-col items-center justify-center gap-3',
-          'border-2 border-dashed rounded-xl p-10 transition-colors select-none cursor-pointer',
-          dragging
-            ? 'border-[#4A6FA5] bg-[#4A6FA5]/5'
-            : 'border-[#2a2d3a] hover:border-[#4A6FA5]/50',
-        ].join(' ')}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept={ACCEPTED_TYPES}
-          className="hidden"
-          onChange={onInputChange}
-        />
+        <div
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragging(true)
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          onClick={() => inputRef.current?.click()}
+          className={[
+            'flex flex-col items-center justify-center gap-3',
+            'border-2 border-dashed rounded-xl p-10 transition-colors select-none cursor-pointer',
+            dragging
+              ? 'border-[#4A6FA5] bg-[#4A6FA5]/5'
+              : 'border-[#2a2d3a] hover:border-[#4A6FA5]/50',
+          ].join(' ')}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept={ACCEPTED_TYPES}
+            className="hidden"
+            onChange={onInputChange}
+          />
 
-        {selectedFile ? (
-          <>
-            <FileIcon />
-            <div className="text-center">
-              <p className="text-white text-sm font-semibold">{selectedFile.name}</p>
-              <p className="text-[#6b7280] text-xs mt-1">
-                Klicka för att välja en annan fil
-              </p>
-            </div>
-          </>
-        ) : (
-          <>
-            <UploadIcon />
-            <div className="text-center">
-              <p className="text-white text-sm font-medium">
-                Dra och släpp ditt CV här
-              </p>
-              <p className="text-[#6b7280] text-xs mt-1">
-                eller klicka för att välja fil &mdash; PDF eller DOCX
-              </p>
-            </div>
-          </>
-        )}
-      </div>
+          {selectedFile ? (
+            <>
+              <FileIcon />
+              <div className="text-center">
+                <p className="text-white text-sm font-semibold">{selectedFile.name}</p>
+                <p className="text-[#6b7280] text-xs mt-1">
+                  Klicka för att välja en annan fil
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <UploadIcon />
+              <div className="text-center">
+                <p className="text-white text-sm font-medium">
+                  Dra och släpp ditt CV här
+                </p>
+                <p className="text-[#6b7280] text-xs mt-1">
+                  eller klicka för att välja fil &mdash; PDF eller DOCX
+                </p>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {/* Analyse button – only visible when a file is selected */}
@@ -172,12 +203,8 @@ export default function FileUpload() {
           onClick={handleAnalyze}
           className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors"
           style={{ backgroundColor: '#4A6FA5' }}
-          onMouseOver={(e) =>
-            (e.currentTarget.style.backgroundColor = '#5a82bc')
-          }
-          onMouseOut={(e) =>
-            (e.currentTarget.style.backgroundColor = '#4A6FA5')
-          }
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#5a82bc')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
         >
           Analysera dokument
         </button>
@@ -256,7 +283,6 @@ function FileIcon() {
     </svg>
   )
 }
-
 
 function CheckIcon() {
   return (

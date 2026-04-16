@@ -17,15 +17,18 @@ const SYSTEM_PROMPT =
  * Extract competencies from a File object.
  * @param {File} file - the uploaded File
  * @param {'pdf'|'docx'} fileType
+ * @param {(message: string, percent: number) => void} [onProgress]
  * @returns {Promise<Array>} array of competency objects
  */
-export async function extractCompetencies(file, fileType) {
+export async function extractCompetencies(file, fileType, onProgress = () => {}) {
   const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
   if (!apiKey) {
     throw new Error('Claude API-nyckel saknas. Kontrollera VITE_CLAUDE_API_KEY i .env.local.')
   }
 
   let messageContent
+
+  onProgress('Läser dokumentet...', 10)
 
   if (fileType === 'docx') {
     const mammoth = (await import('mammoth')).default
@@ -59,6 +62,7 @@ export async function extractCompetencies(file, fileType) {
     ]
   }
 
+  onProgress('Skickar till Claude...', 25)
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',
     headers: {
@@ -74,16 +78,19 @@ export async function extractCompetencies(file, fileType) {
       messages: [{ role: 'user', content: messageContent }],
     }),
   })
+  onProgress('Claude analyserar...', 40)
 
   if (!response.ok) {
     const errorBody = await response.text()
     throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
   }
 
+  onProgress('Bearbetar svar...', 75)
   const data = await response.json()
   const rawText = data.content[0].text
   const jsonMatch = rawText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
+  onProgress('Strukturerar...', 85)
   const parsed = JSON.parse(jsonMatch[0])
   return parsed.competencies
 }
