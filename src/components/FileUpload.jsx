@@ -2,7 +2,14 @@ import { useRef, useState } from 'react'
 import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 import { extractCompetencies } from '../lib/claude'
-import ProgressIndicator from './ProgressIndicator'
+import StepIndicator, { percentToStep } from './StepIndicator'
+
+const CV_STEPS = [
+  { label: 'Läser dokumentet',       subtext: 'Förbereder din fil...' },
+  { label: 'Skickar till Claude',    subtext: 'Väntar på svar från Claude...' },
+  { label: 'Analyserar kompetenser', subtext: 'Bearbetar extraherade kompetenser...' },
+  { label: 'Sparar till din bank',   subtext: 'Skriver kompetenser till databasen...' },
+]
 
 const ACCEPTED_TYPES = '.pdf,.docx'
 
@@ -23,11 +30,9 @@ export default function FileUpload() {
   const [selectedFile, setSelectedFile] = useState(null)
   const [status, setStatus] = useState('idle') // idle | loading | success | error
   const [message, setMessage] = useState('')
-  const [progressMsg, setProgressMsg] = useState('')
   const [progressPct, setProgressPct] = useState(0)
 
-  function onProgress(msg, pct) {
-    setProgressMsg(msg)
+  function onProgress(_msg, pct) {
     setProgressPct(pct)
   }
 
@@ -51,7 +56,6 @@ export default function FileUpload() {
     setStatus('loading')
     setMessage('')
     setProgressPct(0)
-    setProgressMsg('')
 
     try {
       const competencies = await extractCompetencies(selectedFile, fileType, onProgress)
@@ -68,11 +72,12 @@ export default function FileUpload() {
         (c) => !existingTitles.has((c.title ?? '').toLowerCase())
       )
 
-      // Sequential writes with per-item progress
+      // Step 3: save to Firestore (85-99 %)
+      onProgress('Sparar till din bank...', 87)
       for (let i = 0; i < toSave.length; i++) {
         onProgress(
           `Sparar ${i + 1} av ${toSave.length}...`,
-          85 + (i / toSave.length) * 14
+          88 + (i / Math.max(toSave.length, 1)) * 11,
         )
         await addDoc(colRef, {
           ...toSave[i],
@@ -81,13 +86,14 @@ export default function FileUpload() {
         })
       }
 
-      onProgress('Klart!', 100)
-
       const skipped = competencies.length - toSave.length
       let msg = `${toSave.length} kompetens${toSave.length === 1 ? '' : 'er'} extraherade och sparade.`
       if (skipped > 0)
         msg += ` ${skipped} dubblett${skipped === 1 ? '' : 'er'} hoppades över.`
 
+      // Show all-done state for 1 second before revealing success banner
+      onProgress('Klart!', 100)
+      await new Promise((r) => setTimeout(r, 1000))
       setStatus('success')
       setMessage(msg)
       setSelectedFile(null)
@@ -113,9 +119,9 @@ export default function FileUpload() {
 
   return (
     <div className="space-y-3">
-      {/* Progress state while Claude is working */}
+      {/* Step indicator while Claude is working */}
       {isLoading && (
-        <ProgressIndicator percent={progressPct} message={progressMsg} />
+        <StepIndicator steps={CV_STEPS} currentStep={percentToStep(progressPct)} />
       )}
 
       {/* Drop zone – hidden while loading */}

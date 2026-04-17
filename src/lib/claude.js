@@ -62,7 +62,7 @@ export async function extractCompetencies(file, fileType, onProgress = () => {})
     ]
   }
 
-  onProgress('Skickar till Claude...', 25)
+  onProgress('Skickar till Claude...', 30)
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',
     headers: {
@@ -78,19 +78,17 @@ export async function extractCompetencies(file, fileType, onProgress = () => {})
       messages: [{ role: 'user', content: messageContent }],
     }),
   })
-  onProgress('Claude analyserar...', 40)
 
   if (!response.ok) {
     const errorBody = await response.text()
     throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
   }
 
-  onProgress('Bearbetar svar...', 75)
+  onProgress('Analyserar kompetenser...', 60)
   const data = await response.json()
   const rawText = data.content[0].text
   const jsonMatch = rawText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
-  onProgress('Strukturerar...', 85)
   const parsed = JSON.parse(jsonMatch[0])
   return parsed.competencies
 }
@@ -161,8 +159,7 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
   parts.push('', '## Kandidatens kompetensbank', JSON.stringify(competencySummary, null, 2))
   const userMessage = parts.join('\n')
 
-  onProgress('Identifierar nyckelkrav...', 30)
-  onProgress('Matchar mot din kompetensbank...', 55)
+  onProgress('Matchar mot kompetensbanken...', 30)
 
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',
@@ -180,19 +177,18 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
     }),
   })
 
-  onProgress('Genererar intervjufrågor...', 75)
-
   if (!response.ok) {
     const errorBody = await response.text()
     throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
   }
 
+  onProgress('Genererar intervjufrågor...', 65)
   const data = await response.json()
   const rawText = data.content[0].text
   const jsonMatch = rawText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
 
-  onProgress('Sätter ihop gap-analys...', 90)
+  onProgress('Skapar gap-analys...', 90)
   const parsed = JSON.parse(jsonMatch[0])
   return parsed
 }

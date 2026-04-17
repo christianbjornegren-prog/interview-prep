@@ -11,7 +11,14 @@ import {
 } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 import { analyzeJobPosting } from '../lib/claude'
-import ProgressIndicator from '../components/ProgressIndicator'
+import StepIndicator, { percentToStep } from '../components/StepIndicator'
+
+const JOB_STEPS = [
+  { label: 'Läser jobbannonsen',          subtext: 'Förbereder analysen...' },
+  { label: 'Matchar mot kompetensbanken', subtext: 'Jämför krav mot dina kompetenser...' },
+  { label: 'Genererar intervjufrågor',    subtext: 'Claude skapar skräddarsydda frågor...' },
+  { label: 'Skapar gap-analys',           subtext: 'Identifierar styrkor och gap...' },
+]
 
 // ── Page shell ────────────────────────────────────────────────────────────
 
@@ -155,11 +162,9 @@ function JobCreate({ onBack, onCreated }) {
   const [companyInfo, setCompanyInfo] = useState('')
   const [status, setStatus] = useState('idle') // idle | loading | error
   const [errorMsg, setErrorMsg] = useState('')
-  const [progressMsg, setProgressMsg] = useState('')
   const [progressPct, setProgressPct] = useState(0)
 
-  function onProgress(msg, pct) {
-    setProgressMsg(msg)
+  function onProgress(_msg, pct) {
     setProgressPct(pct)
   }
 
@@ -173,7 +178,6 @@ function JobCreate({ onBack, onCreated }) {
     setStatus('loading')
     setErrorMsg('')
     setProgressPct(0)
-    setProgressMsg('')
 
     try {
       // Fetch the competency bank to pass to Claude
@@ -196,9 +200,10 @@ function JobCreate({ onBack, onCreated }) {
         createdAt: serverTimestamp(),
       })
 
+      // Show all-done state for 1 second before navigating to detail
       onProgress('Klart!', 100)
-      // Small delay so the user sees "Klart!"
-      setTimeout(() => onCreated(docRef.id), 350)
+      await new Promise((r) => setTimeout(r, 1000))
+      onCreated(docRef.id)
     } catch (err) {
       console.error(err)
       setStatus('error')
@@ -226,7 +231,7 @@ function JobCreate({ onBack, onCreated }) {
       </div>
 
       {isLoading ? (
-        <ProgressIndicator percent={progressPct} message={progressMsg} />
+        <StepIndicator steps={JOB_STEPS} currentStep={percentToStep(progressPct)} />
       ) : (
         <>
           <div className="space-y-2">
