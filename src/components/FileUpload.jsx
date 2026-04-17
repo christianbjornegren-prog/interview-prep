@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 import { extractCompetencies } from '../lib/claude'
+import ProgressIndicator from './ProgressIndicator'
 
 const ACCEPTED_TYPES = '.pdf,.docx'
 
@@ -114,35 +115,7 @@ export default function FileUpload() {
     <div className="space-y-3">
       {/* Progress state while Claude is working */}
       {isLoading && (
-        <div className="py-6 space-y-4">
-          <div className="text-center text-4xl select-none">☕</div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div
-                className="flex-1 h-1.5 rounded-full overflow-hidden"
-                style={{ backgroundColor: '#2a2d3a' }}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${progressPct}%`,
-                    backgroundColor: '#4A6FA5',
-                    transition: 'width 0.5s ease',
-                  }}
-                />
-              </div>
-              <span
-                className="text-xs font-medium tabular-nums"
-                style={{ color: '#6b7280', minWidth: '2.5rem', textAlign: 'right' }}
-              >
-                {progressPct}%
-              </span>
-            </div>
-            <p className="text-sm text-center" style={{ color: '#9ca3af' }}>
-              {progressMsg}
-            </p>
-          </div>
-        </div>
+        <ProgressIndicator percent={progressPct} message={progressMsg} />
       )}
 
       {/* Drop zone – hidden while loading */}
