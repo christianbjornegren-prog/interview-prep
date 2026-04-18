@@ -10,7 +10,7 @@ import {
 import { auth, db } from '../lib/firebase'
 
 const TOKEN_ENDPOINT =
-  'https://interview-prep-n70yk4w86-christianbjornegren-progs-projects.vercel.app/api/getRealtimeToken'
+  'https://interview-prep-liard-three.vercel.app/api/getRealtimeToken'
 
 const REALTIME_MODEL = 'gpt-4o-realtime-preview-2024-12-17'
 
