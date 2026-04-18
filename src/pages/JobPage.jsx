@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   collection,
   addDoc,
@@ -312,6 +313,7 @@ const STRENGTH_STYLE = {
 }
 
 function JobDetail({ job, onBack }) {
+  const navigate = useNavigate()
   const [competencies, setCompetencies] = useState([])
 
   useEffect(() => {
@@ -499,19 +501,19 @@ function JobDetail({ job, onBack }) {
         )}
       </section>
 
-      {/* Simulation CTA (disabled for now) */}
+      {/* Simulation CTA */}
       <div>
         <button
-          disabled
-          className="w-full py-3 rounded-lg text-sm font-semibold cursor-not-allowed"
-          style={{
-            backgroundColor: '#1a1d27',
-            color: '#6b7280',
-            border: '1px solid #2a2d3a',
+          onClick={() => navigate(`/intervju/${job.docId}`)}
+          disabled={questions.length === 0}
+          className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          style={{ backgroundColor: '#4A6FA5' }}
+          onMouseOver={(e) => {
+            if (questions.length > 0) e.currentTarget.style.backgroundColor = '#5a82bc'
           }}
-          title="Kommer i nästa steg"
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
         >
-          Starta intervjusimulering (kommer snart)
+          Starta intervjusimulering
         </button>
       </div>
     </div>
