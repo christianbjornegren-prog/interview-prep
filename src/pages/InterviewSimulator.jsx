@@ -146,10 +146,46 @@ export default function InterviewSimulator() {
       console.log('5. DataChannel skapad')
       addLog('✓ DataChannel skapad')
       dcRef.current = dc
+
       dc.addEventListener('open', () => {
-        console.log('9. DataChannel öppen – skickar session.update')
         addLog('✓ DataChannel öppen – skickar session.update')
-        sendSessionUpdate(dc)
+
+        dc.send(
+          JSON.stringify({
+            type: 'session.update',
+            session: {
+              instructions: buildInstructions(),
+              voice: 'shimmer',
+              turn_detection: { type: 'server_vad' },
+              modalities: ['audio', 'text'],
+              input_audio_transcription: { model: 'whisper-1' },
+            },
+          })
+        )
+
+        setTimeout(() => {
+          dc.send(
+            JSON.stringify({
+              type: 'response.create',
+              response: {
+                modalities: ['audio', 'text'],
+                instructions:
+                  'Börja intervjun nu med din hälsningsfras på svenska.',
+              },
+            })
+          )
+          addLog('✓ response.create skickat – väntar på AI...')
+        }, 500)
+      })
+
+      dc.addEventListener('open', () => addLog('DC readyState: ' + dc.readyState))
+      dc.addEventListener('error', (e) =>
+        addLog('FEL DataChannel: ' + (e.message ?? 'okänt fel'))
+      )
+      dc.addEventListener('close', () => addLog('DataChannel stängd'))
+      dc.addEventListener('message', (e) => {
+        const preview = typeof e.data === 'string' ? e.data.slice(0, 80) : '[binär]'
+        addLog('Meddelande: ' + preview)
       })
       dc.addEventListener('message', onDataChannelMessage)
 
@@ -191,13 +227,13 @@ export default function InterviewSimulator() {
     }
   }
 
-  function sendSessionUpdate(dc) {
+  function buildInstructions() {
     const questions = job?.questions ?? []
     const questionLines = questions
       .map((q, i) => `${i + 1}. ${q.question}`)
       .join('\n')
 
-    const instructions = [
+    return [
       `Du är ${interviewerName}, en erfaren och vänlig intervjuare från ${job?.company || 'företaget'}.`,
       `Du genomför en jobbintervju för rollen "${job?.jobTitle || 'rollen'}" på svenska.`,
       '',
@@ -213,28 +249,6 @@ export default function InterviewSimulator() {
       'Frågor att gå igenom i ordning:',
       questionLines,
     ].join('\n')
-
-    dc.send(
-      JSON.stringify({
-        type: 'session.update',
-        session: {
-          instructions,
-          voice: 'shimmer',
-          turn_detection: { type: 'server_vad' },
-          input_audio_transcription: { model: 'whisper-1' },
-        },
-      })
-    )
-
-    dc.send(
-      JSON.stringify({
-        type: 'response.create',
-        response: {
-          modalities: ['audio', 'text'],
-          instructions: 'Börja intervjun nu med din hälsningsfras.',
-        },
-      })
-    )
   }
 
   function onDataChannelMessage(evt) {
