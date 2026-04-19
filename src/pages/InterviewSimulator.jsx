@@ -8,6 +8,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
+import DebugPanel from '../components/DebugPanel'
 
 const TOKEN_ENDPOINT =
   'https://interview-prep-liard-three.vercel.app/api/getRealtimeToken'
@@ -40,6 +41,10 @@ export default function InterviewSimulator() {
   const [speaker, setSpeaker] = useState('silent') // ai | user | silent
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0)
   const [transcript, setTranscript] = useState([]) // { role, text }
+  const [logs, setLogs] = useState([])
+
+  const addLog = (msg) =>
+    setLogs((prev) => [`${new Date().toLocaleTimeString()} ${msg}`, ...prev])
 
   // WebRTC refs (not state – we don't need re-renders)
   const pcRef = useRef(null)
@@ -102,12 +107,14 @@ export default function InterviewSimulator() {
     try {
       // 1. Get ephemeral token from Vercel proxy
       console.log('1. Hämtar token...')
+      addLog('🔄 Hämtar token...')
       const tokenRes = await fetch(TOKEN_ENDPOINT, { method: 'POST' })
       if (!tokenRes.ok) {
         throw new Error(`Token-proxy svarade ${tokenRes.status}`)
       }
       const tokenData = await tokenRes.json()
       console.log('2. Token mottagen:', tokenData)
+      addLog('✓ Token mottagen')
       const ephemeralKey = tokenData?.client_secret?.value
       if (!ephemeralKey) {
         throw new Error('Fick ingen ephemeral token från proxyn.')
@@ -115,11 +122,13 @@ export default function InterviewSimulator() {
 
       // 2. Create peer connection + remote audio sink
       console.log('3. Skapar RTCPeerConnection...')
+      addLog('🔄 Skapar RTCPeerConnection...')
       const pc = new RTCPeerConnection()
       pcRef.current = pc
 
       pc.ontrack = (event) => {
         console.log('10. Remote track mottagen:', event.streams)
+        addLog('✓ Remote track mottagen: ' + event.streams.length + ' streams')
         if (audioRef.current) {
           audioRef.current.srcObject = event.streams[0]
         }
@@ -128,20 +137,24 @@ export default function InterviewSimulator() {
       // 3. Local microphone
       const localStream = await navigator.mediaDevices.getUserMedia({ audio: true })
       console.log('4. Mikrofon hämtad')
+      addLog('✓ Mikrofon hämtad')
       localStreamRef.current = localStream
       localStream.getTracks().forEach((t) => pc.addTrack(t, localStream))
 
       // 4. Data channel for events
       const dc = pc.createDataChannel('oai-events')
       console.log('5. DataChannel skapad')
+      addLog('✓ DataChannel skapad')
       dcRef.current = dc
       dc.addEventListener('open', () => {
         console.log('9. DataChannel öppen – skickar session.update')
+        addLog('✓ DataChannel öppen – skickar session.update')
         sendSessionUpdate(dc)
       })
       dc.addEventListener('message', onDataChannelMessage)
 
       // 5. SDP offer/answer with OpenAI Realtime
+      addLog('🔄 Skapar SDP offer...')
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
       console.log('6. SDP offer skapad')
@@ -161,13 +174,17 @@ export default function InterviewSimulator() {
         throw new Error(`OpenAI Realtime svarade ${sdpRes.status}`)
       }
       const answerSdp = await sdpRes.text()
+      const answer = { type: 'answer', sdp: answerSdp }
       console.log('7. SDP answer mottagen')
-      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+      addLog('✓ SDP answer mottagen: ' + answer?.type)
+      await pc.setRemoteDescription(answer)
       console.log('8. Remote description satt')
+      addLog('✓ Remote description satt')
 
       setPhase('active')
     } catch (err) {
       console.error('Kunde inte starta intervjun:', err)
+      addLog('FEL: ' + (err.message ?? 'okänt fel'))
       setStartError(err.message ?? 'Något gick fel vid start.')
       teardownConnection()
       setPhase('prep')
@@ -300,28 +317,36 @@ export default function InterviewSimulator() {
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
+  const debugPanel = <DebugPanel logs={logs} onClear={() => setLogs([])} />
+
   if (loadingJob) {
     return (
-      <p className="text-sm py-8" style={{ color: '#6b7280' }}>
-        Laddar jobbannons...
-      </p>
+      <>
+        <p className="text-sm py-8" style={{ color: '#6b7280' }}>
+          Laddar jobbannons...
+        </p>
+        {debugPanel}
+      </>
     )
   }
 
   if (loadError || !job) {
     return (
-      <div className="space-y-4">
-        <button
-          onClick={() => navigate('/jobb')}
-          className="text-sm transition-colors"
-          style={{ color: '#6b7280' }}
-        >
-          ← Tillbaka till jobbannonser
-        </button>
-        <p className="text-sm" style={{ color: '#f87171' }}>
-          {loadError || 'Hittade ingen jobbannons.'}
-        </p>
-      </div>
+      <>
+        <div className="space-y-4">
+          <button
+            onClick={() => navigate('/jobb')}
+            className="text-sm transition-colors"
+            style={{ color: '#6b7280' }}
+          >
+            ← Tillbaka till jobbannonser
+          </button>
+          <p className="text-sm" style={{ color: '#f87171' }}>
+            {loadError || 'Hittade ingen jobbannons.'}
+          </p>
+        </div>
+        {debugPanel}
+      </>
     )
   }
 
@@ -330,6 +355,7 @@ export default function InterviewSimulator() {
 
   if (phase === 'active' || phase === 'ending' || phase === 'connecting') {
     return (
+      <>
       <div className="space-y-10">
         <audio ref={audioRef} autoPlay />
         <div>
@@ -391,11 +417,14 @@ export default function InterviewSimulator() {
           </p>
         )}
       </div>
+      {debugPanel}
+      </>
     )
   }
 
   // phase === 'prep'
   return (
+    <>
     <div className="space-y-8">
       <div>
         <button
@@ -450,6 +479,8 @@ export default function InterviewSimulator() {
         </p>
       )}
     </div>
+    {debugPanel}
+    </>
   )
 }
 
