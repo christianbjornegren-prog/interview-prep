@@ -101,21 +101,25 @@ export default function InterviewSimulator() {
     setPhase('connecting')
     try {
       // 1. Get ephemeral token from Vercel proxy
+      console.log('1. Hämtar token...')
       const tokenRes = await fetch(TOKEN_ENDPOINT, { method: 'POST' })
       if (!tokenRes.ok) {
         throw new Error(`Token-proxy svarade ${tokenRes.status}`)
       }
       const tokenData = await tokenRes.json()
+      console.log('2. Token mottagen:', tokenData)
       const ephemeralKey = tokenData?.client_secret?.value
       if (!ephemeralKey) {
         throw new Error('Fick ingen ephemeral token från proxyn.')
       }
 
       // 2. Create peer connection + remote audio sink
+      console.log('3. Skapar RTCPeerConnection...')
       const pc = new RTCPeerConnection()
       pcRef.current = pc
 
       pc.ontrack = (event) => {
+        console.log('10. Remote track mottagen:', event.streams)
         if (audioRef.current) {
           audioRef.current.srcObject = event.streams[0]
         }
@@ -123,18 +127,24 @@ export default function InterviewSimulator() {
 
       // 3. Local microphone
       const localStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      console.log('4. Mikrofon hämtad')
       localStreamRef.current = localStream
       localStream.getTracks().forEach((t) => pc.addTrack(t, localStream))
 
       // 4. Data channel for events
       const dc = pc.createDataChannel('oai-events')
+      console.log('5. DataChannel skapad')
       dcRef.current = dc
-      dc.addEventListener('open', () => sendSessionUpdate(dc))
+      dc.addEventListener('open', () => {
+        console.log('9. DataChannel öppen – skickar session.update')
+        sendSessionUpdate(dc)
+      })
       dc.addEventListener('message', onDataChannelMessage)
 
       // 5. SDP offer/answer with OpenAI Realtime
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
+      console.log('6. SDP offer skapad')
 
       const sdpRes = await fetch(
         `https://api.openai.com/v1/realtime?model=${REALTIME_MODEL}`,
@@ -151,7 +161,9 @@ export default function InterviewSimulator() {
         throw new Error(`OpenAI Realtime svarade ${sdpRes.status}`)
       }
       const answerSdp = await sdpRes.text()
+      console.log('7. SDP answer mottagen')
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+      console.log('8. Remote description satt')
 
       setPhase('active')
     } catch (err) {
