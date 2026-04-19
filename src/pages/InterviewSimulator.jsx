@@ -123,7 +123,14 @@ export default function InterviewSimulator() {
       // 2. Create peer connection + remote audio sink
       console.log('3. Skapar RTCPeerConnection...')
       addLog('🔄 Skapar RTCPeerConnection...')
-      const pc = new RTCPeerConnection()
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun.openai.com:3478' },
+        ],
+        iceTransportPolicy: 'all',
+      })
       pcRef.current = pc
 
       pc.oniceconnectionstatechange = () => {
