@@ -126,6 +126,16 @@ export default function InterviewSimulator() {
       const pc = new RTCPeerConnection()
       pcRef.current = pc
 
+      pc.oniceconnectionstatechange = () => {
+        addLog('ICE state: ' + pc.iceConnectionState)
+      }
+      pc.onicecandidate = (e) => {
+        addLog('ICE candidate: ' + (e.candidate ? e.candidate.type : 'null/done'))
+      }
+      pc.onconnectionstatechange = () => {
+        addLog('Connection state: ' + pc.connectionState)
+      }
+
       pc.ontrack = (event) => {
         console.log('10. Remote track mottagen:', event.streams)
         addLog('✓ Remote track mottagen: ' + event.streams.length + ' streams')
@@ -147,8 +157,10 @@ export default function InterviewSimulator() {
       addLog('✓ DataChannel skapad')
       dcRef.current = dc
 
-      dc.addEventListener('open', () => {
-        addLog('✓ DataChannel öppen – skickar session.update')
+      let sessionStarted = false
+      const startSession = () => {
+        if (sessionStarted) return
+        sessionStarted = true
 
         dc.send(
           JSON.stringify({
@@ -176,12 +188,26 @@ export default function InterviewSimulator() {
           )
           addLog('✓ response.create skickat – väntar på AI...')
         }, 500)
+      }
+
+      dc.addEventListener('open', () => {
+        addLog('✓ DataChannel öppen – skickar session.update')
+        startSession()
       })
 
       dc.addEventListener('open', () => addLog('DC readyState: ' + dc.readyState))
       dc.addEventListener('error', (e) =>
         addLog('FEL DataChannel: ' + (e.message ?? 'okänt fel'))
       )
+
+      // Fallback – om open-eventet missas
+      setTimeout(() => {
+        addLog('DC readyState efter 5s: ' + dc.readyState)
+        if (dc.readyState === 'open' && !sessionStarted) {
+          addLog('DC var öppen men event missades – skickar session.update nu')
+          startSession()
+        }
+      }, 5000)
       dc.addEventListener('close', () => addLog('DataChannel stängd'))
       dc.addEventListener('message', (e) => {
         const preview = typeof e.data === 'string' ? e.data.slice(0, 80) : '[binär]'
