@@ -45,7 +45,7 @@ export default function InterviewSimulator() {
   const pcRef = useRef(null)
   const dcRef = useRef(null)
   const localStreamRef = useRef(null)
-  const audioElRef = useRef(null)
+  const audioRef = useRef(null)
   const aiDeltaRef = useRef('')
 
   // ── Load job ─────────────────────────────────────────────────────────────
@@ -115,11 +115,10 @@ export default function InterviewSimulator() {
       const pc = new RTCPeerConnection()
       pcRef.current = pc
 
-      const audioEl = audioElRef.current ?? new Audio()
-      audioEl.autoplay = true
-      audioElRef.current = audioEl
-      pc.ontrack = (e) => {
-        audioEl.srcObject = e.streams[0]
+      pc.ontrack = (event) => {
+        if (audioRef.current) {
+          audioRef.current.srcObject = event.streams[0]
+        }
       }
 
       // 3. Local microphone
@@ -186,16 +185,27 @@ export default function InterviewSimulator() {
       questionLines,
     ].join('\n')
 
-    const event = {
-      type: 'session.update',
-      session: {
-        instructions,
-        voice: 'shimmer',
-        turn_detection: { type: 'server_vad' },
-        input_audio_transcription: { model: 'whisper-1' },
-      },
-    }
-    dc.send(JSON.stringify(event))
+    dc.send(
+      JSON.stringify({
+        type: 'session.update',
+        session: {
+          instructions,
+          voice: 'shimmer',
+          turn_detection: { type: 'server_vad' },
+          input_audio_transcription: { model: 'whisper-1' },
+        },
+      })
+    )
+
+    dc.send(
+      JSON.stringify({
+        type: 'response.create',
+        response: {
+          modalities: ['audio', 'text'],
+          instructions: 'Börja intervjun nu med din hälsningsfras.',
+        },
+      })
+    )
   }
 
   function onDataChannelMessage(evt) {
@@ -309,6 +319,7 @@ export default function InterviewSimulator() {
   if (phase === 'active' || phase === 'ending' || phase === 'connecting') {
     return (
       <div className="space-y-10">
+        <audio ref={audioRef} autoPlay />
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">
             Intervju med {interviewerName}
