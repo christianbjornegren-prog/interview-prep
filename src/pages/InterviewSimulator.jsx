@@ -14,8 +14,8 @@ const TOKEN_ENDPOINT =
   'https://interview-prep-liard-three.vercel.app/api/getRealtimeToken'
 
 const REALTIME_MODEL = 'gpt-4o-realtime-preview-2024-12-17'
-const REALTIME_WS_URL = `wss://api.openai.com/v1/realtime?model=${REALTIME_MODEL}`
-const SAMPLE_RATE = 24000
+
+const FALLBACK_ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }]
 
 const INTERVIEWER_NAMES = [
   'Anna Lindström',
@@ -26,33 +26,6 @@ const INTERVIEWER_NAMES = [
 
 function pickInterviewer() {
   return INTERVIEWER_NAMES[Math.floor(Math.random() * INTERVIEWER_NAMES.length)]
-}
-
-// ── PCM16 / base64 helpers ─────────────────────────────────────────────────
-function floatTo16BitPCM(float32) {
-  const out = new Int16Array(float32.length)
-  for (let i = 0; i < float32.length; i++) {
-    const s = Math.max(-1, Math.min(1, float32[i]))
-    out[i] = s < 0 ? s * 0x8000 : s * 0x7fff
-  }
-  return out
-}
-
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  const chunk = 0x8000
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk))
-  }
-  return btoa(binary)
-}
-
-function base64ToInt16Array(base64) {
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return new Int16Array(bytes.buffer)
 }
 
 export default function InterviewSimulator() {
@@ -75,14 +48,11 @@ export default function InterviewSimulator() {
   const addLog = (msg) =>
     setLogs((prev) => [`${new Date().toLocaleTimeString()} ${msg}`, ...prev])
 
-  // Connection refs
-  const wsRef = useRef(null)
-  const audioCtxRef = useRef(null)
-  const micSourceRef = useRef(null)
-  const micProcessorRef = useRef(null)
-  const mutedGainRef = useRef(null)
+  // WebRTC refs
+  const pcRef = useRef(null)
+  const dcRef = useRef(null)
   const localStreamRef = useRef(null)
-  const nextStartTimeRef = useRef(0)
+  const audioRef = useRef(null)
   const aiDeltaRef = useRef('')
 
   // ── Load job ─────────────────────────────────────────────────────────────
@@ -121,28 +91,15 @@ export default function InterviewSimulator() {
 
   function teardownConnection() {
     try {
-      micProcessorRef.current?.disconnect()
+      dcRef.current?.close()
     } catch {}
     try {
-      micSourceRef.current?.disconnect()
-    } catch {}
-    try {
-      mutedGainRef.current?.disconnect()
-    } catch {}
-    try {
-      wsRef.current?.close()
-    } catch {}
-    try {
-      audioCtxRef.current?.close()
+      pcRef.current?.close()
     } catch {}
     localStreamRef.current?.getTracks().forEach((t) => t.stop())
-    micProcessorRef.current = null
-    micSourceRef.current = null
-    mutedGainRef.current = null
-    wsRef.current = null
-    audioCtxRef.current = null
+    dcRef.current = null
+    pcRef.current = null
     localStreamRef.current = null
-    nextStartTimeRef.current = 0
   }
 
   // ── Start the interview ──────────────────────────────────────────────────
@@ -150,44 +107,66 @@ export default function InterviewSimulator() {
     setStartError('')
     setPhase('connecting')
     try {
-      addLog('🔄 Hämtar token...')
-      const tokenRes = await fetch(TOKEN_ENDPOINT, { method: 'POST' })
-      if (!tokenRes.ok) {
-        throw new Error(`Token-proxy svarade ${tokenRes.status}`)
-      }
-      const tokenData = await tokenRes.json()
-      const ephemeralKey = tokenData?.client_secret?.value
-      if (!ephemeralKey) {
-        throw new Error('Fick ingen ephemeral token från proxyn.')
-      }
-      addLog('✓ Token mottagen')
-
-      addLog('🔄 Skapar AudioContext (' + SAMPLE_RATE + ' Hz)...')
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)({
-        sampleRate: SAMPLE_RATE,
-      })
-      audioCtxRef.current = audioCtx
-      nextStartTimeRef.current = 0
-
+      // 1. getUserMedia FÖRST – direkt user gesture, innan några awaits
       addLog('🔄 Hämtar mikrofon...')
       const localStream = await navigator.mediaDevices.getUserMedia({ audio: true })
       localStreamRef.current = localStream
       addLog('✓ Mikrofon hämtad')
 
-      addLog('🔄 Öppnar WebSocket mot OpenAI Realtime...')
-      const ws = new WebSocket(REALTIME_WS_URL, [
-        'realtime',
-        `openai-insecure-api-key.${ephemeralKey}`,
-        'openai-beta.realtime-v1',
-      ])
-      wsRef.current = ws
+      // 2. Hämta ephemeral token från Vercel-proxyn
+      addLog('🔄 Hämtar token...')
+      const tokenRes = await fetch(TOKEN_ENDPOINT, { method: 'POST' })
+      if (!tokenRes.ok) {
+        throw new Error(`Token-proxy svarade ${tokenRes.status}`)
+      }
+      const data = await tokenRes.json()
+      addLog('Token svar: ' + JSON.stringify(data).slice(0, 300))
+      const ephemeralKey = data?.client_secret?.value
+      if (!ephemeralKey) {
+        throw new Error('Fick ingen ephemeral token från proxyn.')
+      }
+      addLog('✓ Token mottagen')
+
+      // 3. ICE-servrar från token-svaret om de finns, annars fallback
+      const iceServers = data.ice_servers || FALLBACK_ICE_SERVERS
+      addLog('ICE servers: ' + JSON.stringify(iceServers).slice(0, 200))
+
+      // 4. RTCPeerConnection
+      addLog('🔄 Skapar RTCPeerConnection...')
+      const pc = new RTCPeerConnection({ iceServers })
+      pcRef.current = pc
+
+      pc.oniceconnectionstatechange = () => {
+        addLog('ICE state: ' + pc.iceConnectionState)
+      }
+      pc.onicecandidate = (e) => {
+        addLog('ICE candidate: ' + (e.candidate ? e.candidate.type : 'null/done'))
+      }
+      pc.onconnectionstatechange = () => {
+        addLog('Connection state: ' + pc.connectionState)
+      }
+
+      pc.ontrack = (event) => {
+        addLog('✓ Remote track mottagen: ' + event.streams.length + ' streams')
+        if (audioRef.current) {
+          audioRef.current.srcObject = event.streams[0]
+        }
+      }
+
+      // 5. Lägg till mikrofon-tracks
+      localStream.getTracks().forEach((t) => pc.addTrack(t, localStream))
+
+      // 6. DataChannel
+      const dc = pc.createDataChannel('oai-events')
+      addLog('✓ DataChannel skapad')
+      dcRef.current = dc
 
       let sessionStarted = false
       const startSession = () => {
         if (sessionStarted) return
         sessionStarted = true
 
-        ws.send(
+        dc.send(
           JSON.stringify({
             type: 'session.update',
             session: {
@@ -195,16 +174,14 @@ export default function InterviewSimulator() {
               voice: 'shimmer',
               turn_detection: { type: 'server_vad' },
               modalities: ['audio', 'text'],
-              input_audio_format: 'pcm16',
-              output_audio_format: 'pcm16',
               input_audio_transcription: { model: 'whisper-1' },
             },
           })
         )
 
         setTimeout(() => {
-          if (ws.readyState !== WebSocket.OPEN) return
-          ws.send(
+          if (dc.readyState !== 'open') return
+          dc.send(
             JSON.stringify({
               type: 'response.create',
               response: {
@@ -218,38 +195,56 @@ export default function InterviewSimulator() {
         }, 500)
       }
 
-      ws.addEventListener('open', () => {
-        addLog('✓ WebSocket öppen – skickar session.update')
-        addLog('WS readyState: ' + ws.readyState)
+      dc.addEventListener('open', () => {
+        addLog('✓ DataChannel öppen – skickar session.update')
+        addLog('DC readyState: ' + dc.readyState)
         startSession()
-        setupMicCapture()
-        setPhase('active')
       })
-
-      ws.addEventListener('error', () => {
-        addLog('FEL WebSocket: anslutning misslyckades')
-      })
-
-      ws.addEventListener('close', (e) => {
-        addLog('WebSocket stängd: ' + e.code + (e.reason ? ' – ' + e.reason : ''))
-      })
-
-      ws.addEventListener('message', (e) => {
+      dc.addEventListener('error', (e) =>
+        addLog('FEL DataChannel: ' + (e.message ?? 'okänt fel'))
+      )
+      dc.addEventListener('close', () => addLog('DataChannel stängd'))
+      dc.addEventListener('message', (e) => {
         const preview = typeof e.data === 'string' ? e.data.slice(0, 80) : '[binär]'
         addLog('Meddelande: ' + preview)
-        onWebSocketMessage(e)
       })
+      dc.addEventListener('message', onDataChannelMessage)
 
       // Fallback – om open-eventet missas
       setTimeout(() => {
-        addLog('WS readyState efter 5s: ' + ws.readyState)
-        if (ws.readyState === WebSocket.OPEN && !sessionStarted) {
-          addLog('WS var öppen men event missades – skickar session.update nu')
+        addLog('DC readyState efter 5s: ' + dc.readyState)
+        if (dc.readyState === 'open' && !sessionStarted) {
+          addLog('DC var öppen men event missades – skickar session.update nu')
           startSession()
-          setupMicCapture()
-          setPhase('active')
         }
       }, 5000)
+
+      // 7. SDP offer/answer
+      addLog('🔄 Skapar SDP offer...')
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+
+      const sdpRes = await fetch(
+        `https://api.openai.com/v1/realtime?model=${REALTIME_MODEL}`,
+        {
+          method: 'POST',
+          body: offer.sdp,
+          headers: {
+            Authorization: `Bearer ${ephemeralKey}`,
+            'Content-Type': 'application/sdp',
+          },
+        }
+      )
+      if (!sdpRes.ok) {
+        throw new Error(`OpenAI Realtime svarade ${sdpRes.status}`)
+      }
+      const answerSdp = await sdpRes.text()
+      const answer = { type: 'answer', sdp: answerSdp }
+      addLog('✓ SDP answer mottagen: ' + answer?.type)
+      await pc.setRemoteDescription(answer)
+      addLog('✓ Remote description satt')
+
+      setPhase('active')
     } catch (err) {
       console.error('Kunde inte starta intervjun:', err)
       addLog('FEL: ' + (err.message ?? 'okänt fel'))
@@ -257,64 +252,6 @@ export default function InterviewSimulator() {
       teardownConnection()
       setPhase('prep')
     }
-  }
-
-  function setupMicCapture() {
-    const audioCtx = audioCtxRef.current
-    const stream = localStreamRef.current
-    const ws = wsRef.current
-    if (!audioCtx || !stream || !ws) return
-
-    const source = audioCtx.createMediaStreamSource(stream)
-    const processor = audioCtx.createScriptProcessor(4096, 1, 1)
-    const muted = audioCtx.createGain()
-    muted.gain.value = 0
-
-    processor.onaudioprocess = (e) => {
-      if (ws.readyState !== WebSocket.OPEN) return
-      const float32 = e.inputBuffer.getChannelData(0)
-      const pcm16 = floatTo16BitPCM(float32)
-      const base64 = arrayBufferToBase64(pcm16.buffer)
-      ws.send(
-        JSON.stringify({
-          type: 'input_audio_buffer.append',
-          audio: base64,
-        })
-      )
-    }
-
-    source.connect(processor)
-    processor.connect(muted)
-    muted.connect(audioCtx.destination)
-
-    micSourceRef.current = source
-    micProcessorRef.current = processor
-    mutedGainRef.current = muted
-    addLog('✓ Mikrofon-capture aktiv (PCM16 @ ' + audioCtx.sampleRate + ' Hz)')
-  }
-
-  function playAudioChunk(base64) {
-    const audioCtx = audioCtxRef.current
-    if (!audioCtx) return
-
-    const int16 = base64ToInt16Array(base64)
-    if (int16.length === 0) return
-
-    const float32 = new Float32Array(int16.length)
-    for (let i = 0; i < int16.length; i++) {
-      float32[i] = int16[i] / 0x8000
-    }
-
-    const buffer = audioCtx.createBuffer(1, float32.length, SAMPLE_RATE)
-    buffer.copyToChannel(float32, 0)
-
-    const src = audioCtx.createBufferSource()
-    src.buffer = buffer
-    src.connect(audioCtx.destination)
-
-    const startAt = Math.max(audioCtx.currentTime, nextStartTimeRef.current)
-    src.start(startAt)
-    nextStartTimeRef.current = startAt + buffer.duration
   }
 
   function buildInstructions() {
@@ -341,7 +278,7 @@ export default function InterviewSimulator() {
     ].join('\n')
   }
 
-  function onWebSocketMessage(evt) {
+  function onDataChannelMessage(evt) {
     let msg
     try {
       msg = JSON.parse(evt.data)
@@ -359,7 +296,6 @@ export default function InterviewSimulator() {
       case 'response.audio.delta':
       case 'response.output_audio.delta':
         setSpeaker('ai')
-        if (typeof msg.delta === 'string') playAudioChunk(msg.delta)
         break
       case 'response.audio_transcript.delta':
       case 'response.output_audio_transcript.delta':
@@ -465,6 +401,7 @@ export default function InterviewSimulator() {
     return (
       <>
         <div className="space-y-10">
+          <audio ref={audioRef} autoPlay />
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">
               Intervju med {interviewerName}
