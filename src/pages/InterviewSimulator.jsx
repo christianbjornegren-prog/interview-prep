@@ -14,6 +14,8 @@ const TOKEN_ENDPOINT =
   'https://interview-prep-liard-three.vercel.app/api/getRealtimeToken'
 
 const REALTIME_MODEL = 'gpt-4o-realtime-preview-2024-12-17'
+const REALTIME_WS_URL = `wss://api.openai.com/v1/realtime?model=${REALTIME_MODEL}`
+const SAMPLE_RATE = 24000
 
 const INTERVIEWER_NAMES = [
   'Anna Lindström',
@@ -24,6 +26,33 @@ const INTERVIEWER_NAMES = [
 
 function pickInterviewer() {
   return INTERVIEWER_NAMES[Math.floor(Math.random() * INTERVIEWER_NAMES.length)]
+}
+
+// ── PCM16 / base64 helpers ─────────────────────────────────────────────────
+function floatTo16BitPCM(float32) {
+  const out = new Int16Array(float32.length)
+  for (let i = 0; i < float32.length; i++) {
+    const s = Math.max(-1, Math.min(1, float32[i]))
+    out[i] = s < 0 ? s * 0x8000 : s * 0x7fff
+  }
+  return out
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
+
+function base64ToInt16Array(base64) {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new Int16Array(bytes.buffer)
 }
 
 export default function InterviewSimulator() {
@@ -46,11 +75,14 @@ export default function InterviewSimulator() {
   const addLog = (msg) =>
     setLogs((prev) => [`${new Date().toLocaleTimeString()} ${msg}`, ...prev])
 
-  // WebRTC refs (not state – we don't need re-renders)
-  const pcRef = useRef(null)
-  const dcRef = useRef(null)
+  // Connection refs
+  const wsRef = useRef(null)
+  const audioCtxRef = useRef(null)
+  const micSourceRef = useRef(null)
+  const micProcessorRef = useRef(null)
+  const mutedGainRef = useRef(null)
   const localStreamRef = useRef(null)
-  const audioRef = useRef(null)
+  const nextStartTimeRef = useRef(0)
   const aiDeltaRef = useRef('')
 
   // ── Load job ─────────────────────────────────────────────────────────────
@@ -89,15 +121,28 @@ export default function InterviewSimulator() {
 
   function teardownConnection() {
     try {
-      dcRef.current?.close()
+      micProcessorRef.current?.disconnect()
     } catch {}
     try {
-      pcRef.current?.close()
+      micSourceRef.current?.disconnect()
+    } catch {}
+    try {
+      mutedGainRef.current?.disconnect()
+    } catch {}
+    try {
+      wsRef.current?.close()
+    } catch {}
+    try {
+      audioCtxRef.current?.close()
     } catch {}
     localStreamRef.current?.getTracks().forEach((t) => t.stop())
-    dcRef.current = null
-    pcRef.current = null
+    micProcessorRef.current = null
+    micSourceRef.current = null
+    mutedGainRef.current = null
+    wsRef.current = null
+    audioCtxRef.current = null
     localStreamRef.current = null
+    nextStartTimeRef.current = 0
   }
 
   // ── Start the interview ──────────────────────────────────────────────────
@@ -105,71 +150,44 @@ export default function InterviewSimulator() {
     setStartError('')
     setPhase('connecting')
     try {
-      // 1. Get ephemeral token from Vercel proxy
-      console.log('1. Hämtar token...')
       addLog('🔄 Hämtar token...')
       const tokenRes = await fetch(TOKEN_ENDPOINT, { method: 'POST' })
       if (!tokenRes.ok) {
         throw new Error(`Token-proxy svarade ${tokenRes.status}`)
       }
       const tokenData = await tokenRes.json()
-      console.log('2. Token mottagen:', tokenData)
-      addLog('✓ Token mottagen')
       const ephemeralKey = tokenData?.client_secret?.value
       if (!ephemeralKey) {
         throw new Error('Fick ingen ephemeral token från proxyn.')
       }
+      addLog('✓ Token mottagen')
 
-      // 2. Create peer connection + remote audio sink
-      console.log('3. Skapar RTCPeerConnection...')
-      addLog('🔄 Skapar RTCPeerConnection...')
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun.openai.com:3478' },
-        ],
-        iceTransportPolicy: 'all',
+      addLog('🔄 Skapar AudioContext (' + SAMPLE_RATE + ' Hz)...')
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+        sampleRate: SAMPLE_RATE,
       })
-      pcRef.current = pc
+      audioCtxRef.current = audioCtx
+      nextStartTimeRef.current = 0
 
-      pc.oniceconnectionstatechange = () => {
-        addLog('ICE state: ' + pc.iceConnectionState)
-      }
-      pc.onicecandidate = (e) => {
-        addLog('ICE candidate: ' + (e.candidate ? e.candidate.type : 'null/done'))
-      }
-      pc.onconnectionstatechange = () => {
-        addLog('Connection state: ' + pc.connectionState)
-      }
-
-      pc.ontrack = (event) => {
-        console.log('10. Remote track mottagen:', event.streams)
-        addLog('✓ Remote track mottagen: ' + event.streams.length + ' streams')
-        if (audioRef.current) {
-          audioRef.current.srcObject = event.streams[0]
-        }
-      }
-
-      // 3. Local microphone
+      addLog('🔄 Hämtar mikrofon...')
       const localStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      console.log('4. Mikrofon hämtad')
-      addLog('✓ Mikrofon hämtad')
       localStreamRef.current = localStream
-      localStream.getTracks().forEach((t) => pc.addTrack(t, localStream))
+      addLog('✓ Mikrofon hämtad')
 
-      // 4. Data channel for events
-      const dc = pc.createDataChannel('oai-events')
-      console.log('5. DataChannel skapad')
-      addLog('✓ DataChannel skapad')
-      dcRef.current = dc
+      addLog('🔄 Öppnar WebSocket mot OpenAI Realtime...')
+      const ws = new WebSocket(REALTIME_WS_URL, [
+        'realtime',
+        `openai-insecure-api-key.${ephemeralKey}`,
+        'openai-beta.realtime-v1',
+      ])
+      wsRef.current = ws
 
       let sessionStarted = false
       const startSession = () => {
         if (sessionStarted) return
         sessionStarted = true
 
-        dc.send(
+        ws.send(
           JSON.stringify({
             type: 'session.update',
             session: {
@@ -177,13 +195,16 @@ export default function InterviewSimulator() {
               voice: 'shimmer',
               turn_detection: { type: 'server_vad' },
               modalities: ['audio', 'text'],
+              input_audio_format: 'pcm16',
+              output_audio_format: 'pcm16',
               input_audio_transcription: { model: 'whisper-1' },
             },
           })
         )
 
         setTimeout(() => {
-          dc.send(
+          if (ws.readyState !== WebSocket.OPEN) return
+          ws.send(
             JSON.stringify({
               type: 'response.create',
               response: {
@@ -197,60 +218,38 @@ export default function InterviewSimulator() {
         }, 500)
       }
 
-      dc.addEventListener('open', () => {
-        addLog('✓ DataChannel öppen – skickar session.update')
+      ws.addEventListener('open', () => {
+        addLog('✓ WebSocket öppen – skickar session.update')
+        addLog('WS readyState: ' + ws.readyState)
         startSession()
+        setupMicCapture()
+        setPhase('active')
       })
 
-      dc.addEventListener('open', () => addLog('DC readyState: ' + dc.readyState))
-      dc.addEventListener('error', (e) =>
-        addLog('FEL DataChannel: ' + (e.message ?? 'okänt fel'))
-      )
+      ws.addEventListener('error', () => {
+        addLog('FEL WebSocket: anslutning misslyckades')
+      })
+
+      ws.addEventListener('close', (e) => {
+        addLog('WebSocket stängd: ' + e.code + (e.reason ? ' – ' + e.reason : ''))
+      })
+
+      ws.addEventListener('message', (e) => {
+        const preview = typeof e.data === 'string' ? e.data.slice(0, 80) : '[binär]'
+        addLog('Meddelande: ' + preview)
+        onWebSocketMessage(e)
+      })
 
       // Fallback – om open-eventet missas
       setTimeout(() => {
-        addLog('DC readyState efter 5s: ' + dc.readyState)
-        if (dc.readyState === 'open' && !sessionStarted) {
-          addLog('DC var öppen men event missades – skickar session.update nu')
+        addLog('WS readyState efter 5s: ' + ws.readyState)
+        if (ws.readyState === WebSocket.OPEN && !sessionStarted) {
+          addLog('WS var öppen men event missades – skickar session.update nu')
           startSession()
+          setupMicCapture()
+          setPhase('active')
         }
       }, 5000)
-      dc.addEventListener('close', () => addLog('DataChannel stängd'))
-      dc.addEventListener('message', (e) => {
-        const preview = typeof e.data === 'string' ? e.data.slice(0, 80) : '[binär]'
-        addLog('Meddelande: ' + preview)
-      })
-      dc.addEventListener('message', onDataChannelMessage)
-
-      // 5. SDP offer/answer with OpenAI Realtime
-      addLog('🔄 Skapar SDP offer...')
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-      console.log('6. SDP offer skapad')
-
-      const sdpRes = await fetch(
-        `https://api.openai.com/v1/realtime?model=${REALTIME_MODEL}`,
-        {
-          method: 'POST',
-          body: offer.sdp,
-          headers: {
-            Authorization: `Bearer ${ephemeralKey}`,
-            'Content-Type': 'application/sdp',
-          },
-        }
-      )
-      if (!sdpRes.ok) {
-        throw new Error(`OpenAI Realtime svarade ${sdpRes.status}`)
-      }
-      const answerSdp = await sdpRes.text()
-      const answer = { type: 'answer', sdp: answerSdp }
-      console.log('7. SDP answer mottagen')
-      addLog('✓ SDP answer mottagen: ' + answer?.type)
-      await pc.setRemoteDescription(answer)
-      console.log('8. Remote description satt')
-      addLog('✓ Remote description satt')
-
-      setPhase('active')
     } catch (err) {
       console.error('Kunde inte starta intervjun:', err)
       addLog('FEL: ' + (err.message ?? 'okänt fel'))
@@ -258,6 +257,64 @@ export default function InterviewSimulator() {
       teardownConnection()
       setPhase('prep')
     }
+  }
+
+  function setupMicCapture() {
+    const audioCtx = audioCtxRef.current
+    const stream = localStreamRef.current
+    const ws = wsRef.current
+    if (!audioCtx || !stream || !ws) return
+
+    const source = audioCtx.createMediaStreamSource(stream)
+    const processor = audioCtx.createScriptProcessor(4096, 1, 1)
+    const muted = audioCtx.createGain()
+    muted.gain.value = 0
+
+    processor.onaudioprocess = (e) => {
+      if (ws.readyState !== WebSocket.OPEN) return
+      const float32 = e.inputBuffer.getChannelData(0)
+      const pcm16 = floatTo16BitPCM(float32)
+      const base64 = arrayBufferToBase64(pcm16.buffer)
+      ws.send(
+        JSON.stringify({
+          type: 'input_audio_buffer.append',
+          audio: base64,
+        })
+      )
+    }
+
+    source.connect(processor)
+    processor.connect(muted)
+    muted.connect(audioCtx.destination)
+
+    micSourceRef.current = source
+    micProcessorRef.current = processor
+    mutedGainRef.current = muted
+    addLog('✓ Mikrofon-capture aktiv (PCM16 @ ' + audioCtx.sampleRate + ' Hz)')
+  }
+
+  function playAudioChunk(base64) {
+    const audioCtx = audioCtxRef.current
+    if (!audioCtx) return
+
+    const int16 = base64ToInt16Array(base64)
+    if (int16.length === 0) return
+
+    const float32 = new Float32Array(int16.length)
+    for (let i = 0; i < int16.length; i++) {
+      float32[i] = int16[i] / 0x8000
+    }
+
+    const buffer = audioCtx.createBuffer(1, float32.length, SAMPLE_RATE)
+    buffer.copyToChannel(float32, 0)
+
+    const src = audioCtx.createBufferSource()
+    src.buffer = buffer
+    src.connect(audioCtx.destination)
+
+    const startAt = Math.max(audioCtx.currentTime, nextStartTimeRef.current)
+    src.start(startAt)
+    nextStartTimeRef.current = startAt + buffer.duration
   }
 
   function buildInstructions() {
@@ -284,7 +341,7 @@ export default function InterviewSimulator() {
     ].join('\n')
   }
 
-  function onDataChannelMessage(evt) {
+  function onWebSocketMessage(evt) {
     let msg
     try {
       msg = JSON.parse(evt.data)
@@ -302,6 +359,7 @@ export default function InterviewSimulator() {
       case 'response.audio.delta':
       case 'response.output_audio.delta':
         setSpeaker('ai')
+        if (typeof msg.delta === 'string') playAudioChunk(msg.delta)
         break
       case 'response.audio_transcript.delta':
       case 'response.output_audio_transcript.delta':
@@ -329,6 +387,9 @@ export default function InterviewSimulator() {
       }
       case 'response.done':
         setSpeaker('silent')
+        break
+      case 'error':
+        addLog('FEL från OpenAI: ' + (msg.error?.message ?? JSON.stringify(msg.error)))
         break
       default:
         break
@@ -403,68 +464,67 @@ export default function InterviewSimulator() {
   if (phase === 'active' || phase === 'ending' || phase === 'connecting') {
     return (
       <>
-      <div className="space-y-10">
-        <audio ref={audioRef} autoPlay />
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            Intervju med {interviewerName}
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
-            {job.jobTitle}
-            {job.company ? ` · ${job.company}` : ''}
-          </p>
-        </div>
-
-        <div className="flex flex-col items-center gap-6">
-          <SpeakerCircle speaker={speaker} connecting={phase === 'connecting'} />
-          <p className="text-xs uppercase tracking-widest" style={{ color: '#6b7280' }}>
-            {phase === 'connecting'
-              ? 'Ansluter...'
-              : speaker === 'ai'
-              ? `${interviewerName} pratar`
-              : speaker === 'user'
-              ? 'Du pratar'
-              : 'Tyst'}
-          </p>
-        </div>
-
-        {questions.length > 0 && currentQuestion && (
-          <div
-            className="rounded-xl border p-5 space-y-2"
-            style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
-          >
-            <p
-              className="text-xs font-semibold uppercase tracking-widest"
-              style={{ color: '#4A6FA5' }}
-            >
-              Fråga {Math.min(currentQuestionIdx + 1, questions.length)} av {questions.length}
-            </p>
-            <p className="text-sm leading-relaxed text-white">
-              {currentQuestion.question}
+        <div className="space-y-10">
+          <div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">
+              Intervju med {interviewerName}
+            </h1>
+            <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
+              {job.jobTitle}
+              {job.company ? ` · ${job.company}` : ''}
             </p>
           </div>
-        )}
 
-        <div className="flex justify-center">
-          <button
-            onClick={endInterview}
-            disabled={phase === 'ending'}
-            className="px-6 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60"
-            style={{ backgroundColor: '#c0392b' }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e04a3a')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#c0392b')}
-          >
-            {phase === 'ending' ? 'Sparar...' : 'Avsluta intervju'}
-          </button>
+          <div className="flex flex-col items-center gap-6">
+            <SpeakerCircle speaker={speaker} connecting={phase === 'connecting'} />
+            <p className="text-xs uppercase tracking-widest" style={{ color: '#6b7280' }}>
+              {phase === 'connecting'
+                ? 'Ansluter...'
+                : speaker === 'ai'
+                ? `${interviewerName} pratar`
+                : speaker === 'user'
+                ? 'Du pratar'
+                : 'Tyst'}
+            </p>
+          </div>
+
+          {questions.length > 0 && currentQuestion && (
+            <div
+              className="rounded-xl border p-5 space-y-2"
+              style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+            >
+              <p
+                className="text-xs font-semibold uppercase tracking-widest"
+                style={{ color: '#4A6FA5' }}
+              >
+                Fråga {Math.min(currentQuestionIdx + 1, questions.length)} av {questions.length}
+              </p>
+              <p className="text-sm leading-relaxed text-white">
+                {currentQuestion.question}
+              </p>
+            </div>
+          )}
+
+          <div className="flex justify-center">
+            <button
+              onClick={endInterview}
+              disabled={phase === 'ending'}
+              className="px-6 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60"
+              style={{ backgroundColor: '#c0392b' }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e04a3a')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#c0392b')}
+            >
+              {phase === 'ending' ? 'Sparar...' : 'Avsluta intervju'}
+            </button>
+          </div>
+
+          {startError && (
+            <p className="text-sm text-center" style={{ color: '#f87171' }}>
+              {startError}
+            </p>
+          )}
         </div>
-
-        {startError && (
-          <p className="text-sm text-center" style={{ color: '#f87171' }}>
-            {startError}
-          </p>
-        )}
-      </div>
-      {debugPanel}
+        {debugPanel}
       </>
     )
   }
@@ -472,61 +532,61 @@ export default function InterviewSimulator() {
   // phase === 'prep'
   return (
     <>
-    <div className="space-y-8">
-      <div>
-        <button
-          onClick={() => navigate('/jobb')}
-          className="text-sm transition-colors"
-          style={{ color: '#6b7280' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+      <div className="space-y-8">
+        <div>
+          <button
+            onClick={() => navigate('/jobb')}
+            className="text-sm transition-colors"
+            style={{ color: '#6b7280' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
+            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          >
+            ← Tillbaka
+          </button>
+        </div>
+
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">
+            Intervjusimulering
+          </h1>
+          <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
+            Träna på att svara på frågorna i en realistisk röstintervju.
+          </p>
+        </div>
+
+        <div
+          className="rounded-xl border p-6 space-y-5"
+          style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
         >
-          ← Tillbaka
+          <InfoRow label="Roll" value={job.jobTitle || '—'} />
+          <InfoRow label="Företag" value={job.company || '—'} />
+          <InfoRow label="Intervjuare" value={interviewerName} />
+          <InfoRow
+            label="Antal frågor"
+            value={`${questions.length} ${questions.length === 1 ? 'fråga' : 'frågor'}`}
+          />
+        </div>
+
+        <button
+          onClick={startInterview}
+          disabled={questions.length === 0}
+          className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          style={{ backgroundColor: '#4A6FA5' }}
+          onMouseOver={(e) => {
+            if (questions.length > 0) e.currentTarget.style.backgroundColor = '#5a82bc'
+          }}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+        >
+          Starta intervju
         </button>
+
+        {startError && (
+          <p className="text-sm" style={{ color: '#f87171' }}>
+            {startError}
+          </p>
+        )}
       </div>
-
-      <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">
-          Intervjusimulering
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
-          Träna på att svara på frågorna i en realistisk röstintervju.
-        </p>
-      </div>
-
-      <div
-        className="rounded-xl border p-6 space-y-5"
-        style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
-      >
-        <InfoRow label="Roll" value={job.jobTitle || '—'} />
-        <InfoRow label="Företag" value={job.company || '—'} />
-        <InfoRow label="Intervjuare" value={interviewerName} />
-        <InfoRow
-          label="Antal frågor"
-          value={`${questions.length} ${questions.length === 1 ? 'fråga' : 'frågor'}`}
-        />
-      </div>
-
-      <button
-        onClick={startInterview}
-        disabled={questions.length === 0}
-        className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-        style={{ backgroundColor: '#4A6FA5' }}
-        onMouseOver={(e) => {
-          if (questions.length > 0) e.currentTarget.style.backgroundColor = '#5a82bc'
-        }}
-        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
-      >
-        Starta intervju
-      </button>
-
-      {startError && (
-        <p className="text-sm" style={{ color: '#f87171' }}>
-          {startError}
-        </p>
-      )}
-    </div>
-    {debugPanel}
+      {debugPanel}
     </>
   )
 }
