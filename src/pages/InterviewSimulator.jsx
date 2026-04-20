@@ -111,17 +111,14 @@ export default function InterviewSimulator() {
       const company = job?.company || 'företaget'
       const questions = job?.questions ?? []
 
+      addLog('✓ Startar intervju...')
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       addLog('✓ Mikrofon hämtad')
       localStreamRef.current = stream
 
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-      })
+      const pc = new RTCPeerConnection()
       pcRef.current = pc
-
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
-      addLog('✓ Track tillagd')
 
       pc.ontrack = (e) => {
         audioRef.current.srcObject = e.streams[0]
@@ -129,23 +126,26 @@ export default function InterviewSimulator() {
         addLog('✓ Remote audio kopplad')
       }
 
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+      addLog('✓ Track tillagd')
+
       const dc = pc.createDataChannel('oai-events')
       addLog('✓ DataChannel skapad')
       dcRef.current = dc
 
       dc.onopen = () => {
-        addLog('✓ DataChannel ÖPPEN – skickar session.update')
+        addLog('✓ DataChannel ÖPPEN')
         dc.send(JSON.stringify({
           type: 'session.update',
           session: {
-            instructions: `Du är ${interviewerName}, en erfaren rekryterare som genomför
-        en jobbintervju på svenska för rollen ${jobTitle} på ${company}.
-        Börja med att hälsa och presentera dig kort.
-        Ställ sedan frågorna i ordning, en i taget.
-        Vänta på svar efter varje fråga innan du går vidare.
-        Bekräfta kort (max en mening) och ställ nästa fråga.
-        Frågorna:
-        ${questions.map((q, i) => `${i + 1}. ${q.question}`).join('\n')}`,
+            type: 'realtime',
+            instructions: `Du är ${interviewerName}, en erfaren rekryterare
+            som genomför en jobbintervju på svenska för rollen ${jobTitle} på ${company}.
+            Börja med att hälsa och presentera dig kort på svenska.
+            Ställ sedan frågorna i ordning, en i taget.
+            Vänta på svar. Bekräfta kort och gå vidare.
+            Frågorna:
+            ${questions.map((q, i) => `${i + 1}. ${q.question}`).join('\n')}`,
             voice: 'shimmer',
             turn_detection: { type: 'server_vad' },
             modalities: ['audio', 'text'],
@@ -159,93 +159,44 @@ export default function InterviewSimulator() {
               instructions: 'Hälsa och presentera dig nu på svenska.',
             },
           }))
-          addLog('✓ response.create skickat – väntar på AI...')
+          addLog('✓ response.create skickat')
         }, 500)
       }
 
       dc.onmessage = (e) => {
-        addLog('MSG: ' + e.data.slice(0, 80))
+        addLog('MSG: ' + e.data.slice(0, 100))
         onDataChannelMessage(e)
       }
-      dc.onerror = (e) => addLog('FEL DC: ' + JSON.stringify(e))
+      dc.onerror = (e) => addLog('FEL DC: ' + e.message)
       dc.onclose = () => addLog('DC stängd')
 
-      pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          addLog('ICE: ' + e.candidate.type)
-        } else {
-          addLog('ICE: done')
-        }
-      }
+      pc.onicecandidate = (e) =>
+        addLog('ICE: ' + (e.candidate ? e.candidate.type : 'done'))
       pc.oniceconnectionstatechange = () =>
         addLog('ICE state: ' + pc.iceConnectionState)
       pc.onconnectionstatechange = () =>
         addLog('Connection: ' + pc.connectionState)
 
-      const tokenRes = await fetch(TOKEN_ENDPOINT, { method: 'POST' })
-      const data = await tokenRes.json()
-      const token = data.client_secret.value
-      addLog('✓ Token hämtad')
-
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
-      addLog('✓ Local description satt – väntar på ICE gathering')
+      addLog('✓ Local description satt – skickar SDP till proxy...')
 
-      await new Promise((resolve) => {
-        let resolved = false
-        const done = () => {
-          if (!resolved) {
-            resolved = true
-            resolve()
-          }
-        }
-
-        pc.onicegatheringstatechange = () => {
-          addLog('Gathering: ' + pc.iceGatheringState)
-          if (pc.iceGatheringState === 'complete') done()
-        }
-
-        setTimeout(() => {
-          addLog(
-            'Gathering timeout – skickar med ' +
-              pc.localDescription.sdp.split('a=candidate').length +
-              ' kandidater'
-          )
-          done()
-        }, 5000)
+      const instructions = `Du är ${interviewerName} på ${company}.`
+      const sdpRes = await fetch(TOKEN_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/sdp',
+          'x-instructions': instructions,
+        },
+        body: pc.localDescription.sdp,
       })
 
-      const types = pc.localDescription.sdp.match(/typ \w+/g)
-      addLog(
-        'Kandidattyper vi skickar: ' +
-          [...new Set(types ?? [])].join(', ')
-      )
-
-      const sdpRes = await fetch(
-        `https://api.openai.com/v1/realtime?model=${REALTIME_MODEL}`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/sdp',
-          },
-          body: pc.localDescription.sdp,
-        }
-      )
       const answerSdp = await sdpRes.text()
       addLog('✓ SDP answer mottagen, längd: ' + answerSdp.length)
-      addLog('FULL SDP:\n' + answerSdp)
-      addLog('SDP answer rader: ' + answerSdp.split('\n').length)
-
-      const answerCandidates = answerSdp.match(/a=candidate/g)
-      addLog('Kandidater i OpenAI answer: ' + (answerCandidates?.length || 0))
-
-      const lines = answerSdp.split('\n')
-      const candidates = lines.filter((l) => l.startsWith('a=candidate'))
-      candidates.forEach((c) => addLog('OpenAI candidate: ' + c))
+      addLog('Kandidater i svar: ' + (answerSdp.match(/a=candidate/g)?.length || 0))
 
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
-      addLog('✓ Remote description satt – ICE förhandlar...')
+      addLog('✓ Remote description satt – väntar på anslutning...')
 
       setPhase('active')
     } catch (err) {
