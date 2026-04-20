@@ -209,7 +209,7 @@ export default function InterviewSimulator() {
           setTimeout(() => {
             addLog('ICE gathering timeout – skickar ändå')
             resolve()
-          }, 8000)
+          }, 15000)
         }
       })
 
