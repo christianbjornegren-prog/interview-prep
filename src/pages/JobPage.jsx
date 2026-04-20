@@ -502,7 +502,7 @@ function JobDetail({ job, onBack }) {
       </section>
 
       {/* Simulation CTA */}
-      <div>
+      <div className="space-y-3">
         <button
           onClick={() => navigate(`/intervju/${job.docId}`)}
           disabled={questions.length === 0}
@@ -515,6 +515,21 @@ function JobDetail({ job, onBack }) {
         >
           Starta intervjusimulering
         </button>
+        <button
+          onClick={() => navigate(`/intervju-tts/${job.docId}`)}
+          disabled={questions.length === 0}
+          className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          style={{ backgroundColor: '#2A9D8F' }}
+          onMouseOver={(e) => {
+            if (questions.length > 0) e.currentTarget.style.backgroundColor = '#34b8a8'
+          }}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2A9D8F')}
+        >
+          🎤 Starta intervju (röst & text)
+        </button>
+        <p className="text-xs text-center" style={{ color: '#6b7280' }}>
+          Röst & text = push-to-talk med Whisper transkription
+        </p>
       </div>
     </div>
   )
