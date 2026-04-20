@@ -132,6 +132,14 @@ export default function InterviewSimulator() {
           import.meta.env.VITE_METERED_USERNAME?.slice(0, 10) +
           '...'
       )
+      addLog(
+        'TURN user: ' +
+          (import.meta.env.VITE_METERED_USERNAME ? 'finns' : 'SAKNAS')
+      )
+      addLog(
+        'TURN cred: ' +
+          (import.meta.env.VITE_METERED_CREDENTIAL ? 'finns' : 'SAKNAS')
+      )
 
       pc.oniceconnectionstatechange = () =>
         addLog('ICE state: ' + pc.iceConnectionState)
