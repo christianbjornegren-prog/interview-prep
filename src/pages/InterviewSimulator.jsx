@@ -112,9 +112,26 @@ export default function InterviewSimulator() {
       localStreamRef.current = stream
 
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          {
+            urls: [
+              'turn:global.relay.metered.ca:80',
+              'turn:global.relay.metered.ca:80?transport=tcp',
+              'turn:global.relay.metered.ca:443',
+              'turns:global.relay.metered.ca:443?transport=tcp',
+            ],
+            username: import.meta.env.VITE_METERED_USERNAME,
+            credential: import.meta.env.VITE_METERED_CREDENTIAL,
+          },
+        ],
       })
       pcRef.current = pc
+      addLog(
+        'TURN username: ' +
+          import.meta.env.VITE_METERED_USERNAME?.slice(0, 10) +
+          '...'
+      )
 
       pc.oniceconnectionstatechange = () =>
         addLog('ICE state: ' + pc.iceConnectionState)
@@ -181,9 +198,13 @@ export default function InterviewSimulator() {
       addLog('✓ Local description satt')
 
       await new Promise((resolve) => {
+        const timeout = setTimeout(resolve, 3000)
         pc.onicecandidate = (e) => {
           addLog('ICE: ' + (e.candidate ? e.candidate.type : 'done'))
-          if (!e.candidate) resolve()
+          if (!e.candidate) {
+            clearTimeout(timeout)
+            resolve()
+          }
         }
       })
       addLog('✓ ICE-kandidater klara – skickar SDP')
