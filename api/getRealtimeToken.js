@@ -20,7 +20,7 @@ export default async function handler(req, res) {
       turn_detection: { type: 'server_vad' },
     }
 
-    const boundary = '----FormBoundary' + Date.now()
+    const boundary = 'FormBoundary' + Date.now()
 
     const CRLF = '\r\n'
     const parts = []
