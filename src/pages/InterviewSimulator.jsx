@@ -121,6 +121,9 @@ export default function InterviewSimulator() {
       }
       const data = await tokenRes.json()
       addLog('Token FULL: ' + JSON.stringify(data))
+      Object.keys(data).forEach((key) => {
+        addLog('KEY: ' + key + ' = ' + JSON.stringify(data[key]).slice(0, 150))
+      })
       addLog('client_secret: ' + JSON.stringify(data.client_secret))
       addLog('ice_servers i token: ' + JSON.stringify(data.ice_servers))
       const ephemeralToken = data.client_secret?.value
