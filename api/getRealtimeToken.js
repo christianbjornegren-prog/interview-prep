@@ -20,29 +20,37 @@ export default async function handler(req, res) {
       turn_detection: { type: 'server_vad' },
     }
 
-    const boundary = '----FormBoundary' + Math.random().toString(36).slice(2)
+    const boundary = '----FormBoundary' + Date.now()
 
-    const body = [
-      `--${boundary}`,
-      'Content-Disposition: form-data; name="sdp"; filename="offer.sdp"',
-      'Content-Type: application/sdp',
-      '',
-      sdp,
-      `--${boundary}`,
-      'Content-Disposition: form-data; name="session"',
-      'Content-Type: application/json',
-      '',
-      JSON.stringify(sessionConfig),
-      `--${boundary}--`,
-    ].join('\r\n')
+    const CRLF = '\r\n'
+    const parts = []
 
-    console.log('Skickar till OpenAI...')
+    parts.push(`--${boundary}`)
+    parts.push(`Content-Disposition: form-data; name="sdp"; filename="offer.sdp"`)
+    parts.push(`Content-Type: application/sdp`)
+    parts.push('')
+    parts.push(sdp)
+
+    parts.push(`--${boundary}`)
+    parts.push(`Content-Disposition: form-data; name="session"`)
+    parts.push(`Content-Type: application/json`)
+    parts.push('')
+    parts.push(JSON.stringify(sessionConfig))
+
+    parts.push(`--${boundary}--`)
+    parts.push('')
+
+    const body = parts.join(CRLF)
+
+    console.log('Boundary:', boundary)
+    console.log('Body preview:', body.slice(0, 300))
 
     const r = await fetch('https://api.openai.com/v1/realtime/calls', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': Buffer.byteLength(body).toString(),
       },
       body,
     })
