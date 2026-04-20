@@ -120,9 +120,12 @@ export default function InterviewSimulator() {
         throw new Error(`Token-proxy svarade ${tokenRes.status}`)
       }
       const data = await tokenRes.json()
-      addLog('Token svar: ' + JSON.stringify(data).slice(0, 300))
-      const ephemeralKey = data?.client_secret?.value
-      if (!ephemeralKey) {
+      addLog('Token FULL: ' + JSON.stringify(data))
+      addLog('client_secret: ' + JSON.stringify(data.client_secret))
+      addLog('ice_servers i token: ' + JSON.stringify(data.ice_servers))
+      const ephemeralToken = data.client_secret?.value
+      addLog('Ephemeral token finns: ' + !!ephemeralToken)
+      if (!ephemeralToken) {
         throw new Error('Fick ingen ephemeral token från proxyn.')
       }
       addLog('✓ Token mottagen')
@@ -230,7 +233,7 @@ export default function InterviewSimulator() {
           method: 'POST',
           body: offer.sdp,
           headers: {
-            Authorization: `Bearer ${ephemeralKey}`,
+            Authorization: `Bearer ${ephemeralToken}`,
             'Content-Type': 'application/sdp',
           },
         }
