@@ -115,21 +115,7 @@ export default function InterviewSimulator() {
       addLog('✓ Mikrofon hämtad')
       localStreamRef.current = stream
 
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          {
-            urls: [
-              'turn:global.relay.metered.ca:80',
-              'turn:global.relay.metered.ca:80?transport=tcp',
-              'turn:global.relay.metered.ca:443',
-              'turns:global.relay.metered.ca:443?transport=tcp',
-            ],
-            username: import.meta.env.VITE_METERED_USERNAME,
-            credential: import.meta.env.VITE_METERED_CREDENTIAL,
-          },
-        ],
-      })
+      const pc = new RTCPeerConnection()
       pcRef.current = pc
 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream))
@@ -216,11 +202,15 @@ export default function InterviewSimulator() {
       )
       const answerSdp = await sdpRes.text()
       addLog('✓ SDP answer mottagen, längd: ' + answerSdp.length)
-      addLog('SDP answer råtext: ' + answerSdp.slice(0, 500))
+      addLog('FULL SDP:\n' + answerSdp)
       addLog('SDP answer rader: ' + answerSdp.split('\n').length)
 
       const answerCandidates = answerSdp.match(/a=candidate/g)
       addLog('Kandidater i OpenAI answer: ' + (answerCandidates?.length || 0))
+
+      const lines = answerSdp.split('\n')
+      const candidates = lines.filter((l) => l.startsWith('a=candidate'))
+      candidates.forEach((c) => addLog('OpenAI candidate: ' + c))
 
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
       addLog('✓ Remote description satt – ICE förhandlar...')
