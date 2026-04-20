@@ -8,6 +8,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
+import DebugPanel from '../components/DebugPanel'
 
 const VERCEL_WHISPER =
   'https://interview-prep-liard-three.vercel.app/api/whisper'
@@ -40,6 +41,12 @@ export default function InterviewSimulatorTTS() {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
+  const [logs, setLogs] = useState([])
+  const addLog = (msg) =>
+    setLogs((prev) => [
+      ...prev,
+      `${new Date().toLocaleTimeString()} ${msg}`,
+    ])
 
   const interviewerName = useMemo(() => pickInterviewer(), [])
   const audioRef = useRef(null)
@@ -105,24 +112,38 @@ export default function InterviewSimulatorTTS() {
     }
 
     setIsSpeaking(true)
+    addLog('🔄 Hämtar TTS...')
     try {
       const r = await fetch(VERCEL_TTS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, voice: 'shimmer' }),
       })
-      if (!r.ok) throw new Error('TTS misslyckades')
+      if (!r.ok) {
+        const errText = await r.text()
+        throw new Error('TTS fel: ' + errText)
+      }
 
-      const blob = await r.blob()
+      const arrayBuffer = await r.arrayBuffer()
+      const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' })
       const url = URL.createObjectURL(blob)
-      const audio = new Audio(url)
+      addLog('✓ TTS blob mottagen, storlek: ' + blob.size + ' type: ' + blob.type)
+
+      const audio = new Audio()
+      audio.src = url
       audioRef.current = audio
 
-      await audio.play()
+      addLog('▶ Spelar upp ljud...')
       await new Promise((resolve, reject) => {
-        audio.onended = resolve
-        audio.onerror = reject
+        audio.oncanplaythrough = () => audio.play().then(resolve).catch(reject)
+        audio.onerror = (e) => reject(new Error('Audio error: ' + e.type))
+        audio.load()
       })
+
+      await new Promise((resolve) => {
+        audio.onended = resolve
+      })
+      addLog('✓ Uppspelning klar')
       URL.revokeObjectURL(url)
       audioRef.current = null
     } finally {
@@ -178,6 +199,7 @@ export default function InterviewSimulatorTTS() {
       recorder.start(100)
       setIsRecording(true)
       setStatusMessage('Spelar in – släpp när du är klar')
+      addLog('🎤 Startar inspelning...')
     } catch (err) {
       console.error('Kunde inte starta inspelning:', err)
       setErrorMsg(err.message ?? 'Kunde inte starta inspelning.')
@@ -192,11 +214,13 @@ export default function InterviewSimulatorTTS() {
     recorder.stream.getTracks().forEach((t) => t.stop())
     setIsRecording(false)
     setIsProcessing(true)
+    addLog('⏹ Inspelning stoppad')
   }
 
   async function processAnswer(audioBlob) {
     try {
       setStatusMessage('Transkriberar ditt svar...')
+      addLog('🔄 Skickar till Whisper...')
       const whisperRes = await fetch(VERCEL_WHISPER, {
         method: 'POST',
         headers: { 'Content-Type': 'audio/webm' },
@@ -204,6 +228,7 @@ export default function InterviewSimulatorTTS() {
       })
       const { text: userText } = await whisperRes.json()
       if (!userText) throw new Error('Inget tal detekterat')
+      addLog('✓ Whisper svar: ' + userText)
       addToTranscript('candidate', userText)
 
       setStatusMessage('Förbereder svar...')
@@ -237,6 +262,7 @@ export default function InterviewSimulatorTTS() {
       }
     } catch (error) {
       console.error(error)
+      addLog('FEL: ' + error.message)
       setErrorMsg(error.message)
       setStatusMessage('Fel: ' + error.message + ' – försök igen')
     } finally {
@@ -317,6 +343,7 @@ export default function InterviewSimulatorTTS() {
 
   if (phase === 'preparing') {
     return (
+      <>
       <div className="space-y-8">
         <button
           onClick={() => navigate('/jobb')}
@@ -376,6 +403,8 @@ export default function InterviewSimulatorTTS() {
           </p>
         )}
       </div>
+      <DebugPanel logs={logs} onClear={() => setLogs([])} />
+      </>
     )
   }
 
@@ -388,6 +417,7 @@ export default function InterviewSimulatorTTS() {
     : 'idle'
 
   return (
+    <>
     <div className="space-y-10">
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight">
@@ -478,8 +508,11 @@ export default function InterviewSimulatorTTS() {
         </p>
       )}
     </div>
+    <DebugPanel logs={logs} onClear={() => setLogs([])} />
+    </>
   )
 }
+
 
 function InfoRow({ label, value }) {
   return (
