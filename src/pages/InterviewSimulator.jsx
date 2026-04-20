@@ -193,6 +193,7 @@ export default function InterviewSimulator() {
 
       const answerSdp = await sdpRes.text()
       addLog('✓ SDP answer mottagen, längd: ' + answerSdp.length)
+      addLog('SDP råsvar: ' + answerSdp.slice(0, 300))
       addLog('Kandidater i svar: ' + (answerSdp.match(/a=candidate/g)?.length || 0))
 
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
