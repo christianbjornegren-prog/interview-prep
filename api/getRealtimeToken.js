@@ -45,6 +45,9 @@ export default async function handler(req, res) {
     console.log('OpenAI response status:', r.status)
 
     const answerSdp = await r.text()
+    console.log('OpenAI status:', r.status)
+    console.log('OpenAI response:', answerSdp)
+    console.log('OpenAI headers:', Object.fromEntries(r.headers))
     res.setHeader('Content-Type', 'application/sdp')
     res.status(r.status).send(answerSdp)
   } catch (error) {
