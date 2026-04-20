@@ -107,71 +107,37 @@ export default function InterviewSimulator() {
     setStartError('')
     setPhase('connecting')
     try {
-      // 1. getUserMedia FÖRST – direkt user gesture, innan några awaits
-      addLog('🔄 Hämtar mikrofon...')
-      const localStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      localStreamRef.current = localStream
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       addLog('✓ Mikrofon hämtad')
+      localStreamRef.current = stream
 
-      // 2. Hämta ephemeral token från Vercel-proxyn
-      addLog('🔄 Hämtar token...')
-      const tokenRes = await fetch(TOKEN_ENDPOINT, { method: 'POST' })
-      if (!tokenRes.ok) {
-        throw new Error(`Token-proxy svarade ${tokenRes.status}`)
-      }
-      const data = await tokenRes.json()
-      addLog('Token FULL: ' + JSON.stringify(data))
-      Object.keys(data).forEach((key) => {
-        addLog('KEY: ' + key + ' = ' + JSON.stringify(data[key]).slice(0, 150))
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
       })
-      addLog('client_secret: ' + JSON.stringify(data.client_secret))
-      addLog('ice_servers i token: ' + JSON.stringify(data.ice_servers))
-      const ephemeralToken = data.client_secret?.value
-      addLog('Ephemeral token finns: ' + !!ephemeralToken)
-      if (!ephemeralToken) {
-        throw new Error('Fick ingen ephemeral token från proxyn.')
-      }
-      addLog('✓ Token mottagen')
-
-      // 3. ICE-servrar från token-svaret om de finns, annars fallback
-      const iceServers = data.ice_servers || FALLBACK_ICE_SERVERS
-      addLog('ICE servers: ' + JSON.stringify(iceServers).slice(0, 200))
-
-      // 4. RTCPeerConnection
-      addLog('🔄 Skapar RTCPeerConnection...')
-      const pc = new RTCPeerConnection({ iceServers })
       pcRef.current = pc
 
-      pc.oniceconnectionstatechange = () => {
+      pc.oniceconnectionstatechange = () =>
         addLog('ICE state: ' + pc.iceConnectionState)
-      }
-      pc.onicecandidate = (e) => {
-        addLog('ICE candidate: ' + (e.candidate ? e.candidate.type : 'null/done'))
-      }
-      pc.onconnectionstatechange = () => {
+      pc.onconnectionstatechange = () =>
         addLog('Connection state: ' + pc.connectionState)
-      }
 
-      pc.ontrack = (event) => {
-        addLog('✓ Remote track mottagen: ' + event.streams.length + ' streams')
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+      addLog('✓ Track tillagd')
+
+      pc.ontrack = (e) => {
         if (audioRef.current) {
-          audioRef.current.srcObject = event.streams[0]
+          audioRef.current.srcObject = e.streams[0]
+          audioRef.current.play().catch(() => {})
         }
+        addLog('✓ Remote audio kopplad')
       }
 
-      // 5. Lägg till mikrofon-tracks
-      localStream.getTracks().forEach((t) => pc.addTrack(t, localStream))
-
-      // 6. DataChannel
       const dc = pc.createDataChannel('oai-events')
       addLog('✓ DataChannel skapad')
       dcRef.current = dc
 
-      let sessionStarted = false
-      const startSession = () => {
-        if (sessionStarted) return
-        sessionStarted = true
-
+      dc.onopen = () => {
+        addLog('✓ DataChannel ÖPPEN – skickar session.update')
         dc.send(
           JSON.stringify({
             type: 'session.update',
@@ -180,13 +146,10 @@ export default function InterviewSimulator() {
               voice: 'shimmer',
               turn_detection: { type: 'server_vad' },
               modalities: ['audio', 'text'],
-              input_audio_transcription: { model: 'whisper-1' },
             },
           })
         )
-
         setTimeout(() => {
-          if (dc.readyState !== 'open') return
           dc.send(
             JSON.stringify({
               type: 'response.create',
@@ -197,58 +160,50 @@ export default function InterviewSimulator() {
               },
             })
           )
-          addLog('✓ response.create skickat – väntar på AI...')
+          addLog('✓ response.create skickat')
         }, 500)
       }
 
-      dc.addEventListener('open', () => {
-        addLog('✓ DataChannel öppen – skickar session.update')
-        addLog('DC readyState: ' + dc.readyState)
-        startSession()
-      })
-      dc.addEventListener('error', (e) =>
-        addLog('FEL DataChannel: ' + (e.message ?? 'okänt fel'))
-      )
-      dc.addEventListener('close', () => addLog('DataChannel stängd'))
-      dc.addEventListener('message', (e) => {
-        const preview = typeof e.data === 'string' ? e.data.slice(0, 80) : '[binär]'
-        addLog('Meddelande: ' + preview)
-      })
-      dc.addEventListener('message', onDataChannelMessage)
+      dc.onmessage = (e) => {
+        addLog('MSG: ' + (typeof e.data === 'string' ? e.data.slice(0, 80) : '[binär]'))
+        onDataChannelMessage(e)
+      }
+      dc.onerror = (e) => addLog('FEL DC: ' + JSON.stringify(e))
+      dc.onclose = () => addLog('DC stängd')
 
-      // Fallback – om open-eventet missas
-      setTimeout(() => {
-        addLog('DC readyState efter 5s: ' + dc.readyState)
-        if (dc.readyState === 'open' && !sessionStarted) {
-          addLog('DC var öppen men event missades – skickar session.update nu')
-          startSession()
-        }
-      }, 5000)
+      const tokenRes = await fetch(TOKEN_ENDPOINT, { method: 'POST' })
+      const data = await tokenRes.json()
+      const token = data.client_secret.value
+      addLog('✓ Token mottagen: ' + token.slice(0, 20) + '...')
 
-      // 7. SDP offer/answer
-      addLog('🔄 Skapar SDP offer...')
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
+      addLog('✓ Local description satt')
+
+      await new Promise((resolve) => {
+        pc.onicecandidate = (e) => {
+          addLog('ICE: ' + (e.candidate ? e.candidate.type : 'done'))
+          if (!e.candidate) resolve()
+        }
+      })
+      addLog('✓ ICE-kandidater klara – skickar SDP')
 
       const sdpRes = await fetch(
         `https://api.openai.com/v1/realtime?model=${REALTIME_MODEL}`,
         {
           method: 'POST',
-          body: offer.sdp,
           headers: {
-            Authorization: `Bearer ${ephemeralToken}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/sdp',
           },
+          body: pc.localDescription.sdp,
         }
       )
-      if (!sdpRes.ok) {
-        throw new Error(`OpenAI Realtime svarade ${sdpRes.status}`)
-      }
       const answerSdp = await sdpRes.text()
-      const answer = { type: 'answer', sdp: answerSdp }
-      addLog('✓ SDP answer mottagen: ' + answer?.type)
-      await pc.setRemoteDescription(answer)
-      addLog('✓ Remote description satt')
+      addLog('✓ SDP answer mottagen, längd: ' + answerSdp.length)
+
+      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+      addLog('✓ Remote description satt – väntar på DataChannel...')
 
       setPhase('active')
     } catch (err) {

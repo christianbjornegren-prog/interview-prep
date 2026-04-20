@@ -2,6 +2,15 @@ import { useState } from 'react'
 
 export default function DebugPanel({ logs = [], onClear }) {
   const [expanded, setExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(logs.join('\n'))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {}
+  }
 
   return (
     <div
@@ -58,9 +67,25 @@ export default function DebugPanel({ logs = [], onClear }) {
           style={{
             display: 'flex',
             justifyContent: 'flex-end',
+            gap: '6px',
             padding: '6px 14px 0',
           }}
         >
+          <button
+            onClick={handleCopy}
+            style={{
+              background: 'transparent',
+              border: '1px solid #2a2d3a',
+              color: copied ? '#22c55e' : '#9ca3af',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              fontFamily: 'inherit',
+              fontSize: '10px',
+              cursor: 'pointer',
+            }}
+          >
+            {copied ? '✓ Kopierat!' : 'Kopiera'}
+          </button>
           <button
             onClick={onClear}
             style={{
