@@ -1,8 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export default function DebugPanel({ logs = [], onClear }) {
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
+  const bottomRef = useRef(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [logs])
 
   async function handleCopy() {
     try {
@@ -113,7 +118,10 @@ export default function DebugPanel({ logs = [], onClear }) {
           {logs.length === 0 ? (
             <p style={{ color: '#6b7280' }}>Inga loggar ännu.</p>
           ) : (
-            logs.map((line, i) => <LogRow key={i} line={line} />)
+            <>
+              {logs.map((line, i) => <LogRow key={i} line={line} />)}
+              <div ref={bottomRef} />
+            </>
           )}
         </div>
       </div>

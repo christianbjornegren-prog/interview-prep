@@ -46,7 +46,7 @@ export default function InterviewSimulator() {
   const [logs, setLogs] = useState([])
 
   const addLog = (msg) =>
-    setLogs((prev) => [`${new Date().toLocaleTimeString()} ${msg}`, ...prev])
+    setLogs((prev) => [...prev, `${new Date().toLocaleTimeString()} ${msg}`])
 
   // WebRTC refs
   const pcRef = useRef(null)
@@ -107,6 +107,10 @@ export default function InterviewSimulator() {
     setStartError('')
     setPhase('connecting')
     try {
+      const jobTitle = job?.jobTitle || 'rollen'
+      const company = job?.company || 'företaget'
+      const questions = job?.questions ?? []
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       addLog('✓ Mikrofon hämtad')
       localStreamRef.current = stream
@@ -127,33 +131,13 @@ export default function InterviewSimulator() {
         ],
       })
       pcRef.current = pc
-      addLog(
-        'TURN username: ' +
-          import.meta.env.VITE_METERED_USERNAME?.slice(0, 10) +
-          '...'
-      )
-      addLog(
-        'TURN user: ' +
-          (import.meta.env.VITE_METERED_USERNAME ? 'finns' : 'SAKNAS')
-      )
-      addLog(
-        'TURN cred: ' +
-          (import.meta.env.VITE_METERED_CREDENTIAL ? 'finns' : 'SAKNAS')
-      )
-
-      pc.oniceconnectionstatechange = () =>
-        addLog('ICE state: ' + pc.iceConnectionState)
-      pc.onconnectionstatechange = () =>
-        addLog('Connection state: ' + pc.connectionState)
 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream))
       addLog('✓ Track tillagd')
 
       pc.ontrack = (e) => {
-        if (audioRef.current) {
-          audioRef.current.srcObject = e.streams[0]
-          audioRef.current.play().catch(() => {})
-        }
+        audioRef.current.srcObject = e.streams[0]
+        audioRef.current.play()
         addLog('✓ Remote audio kopplad')
       }
 
@@ -163,59 +147,56 @@ export default function InterviewSimulator() {
 
       dc.onopen = () => {
         addLog('✓ DataChannel ÖPPEN – skickar session.update')
-        dc.send(
-          JSON.stringify({
-            type: 'session.update',
-            session: {
-              instructions: buildInstructions(),
-              voice: 'shimmer',
-              turn_detection: { type: 'server_vad' },
-              modalities: ['audio', 'text'],
-            },
-          })
-        )
+        dc.send(JSON.stringify({
+          type: 'session.update',
+          session: {
+            instructions: `Du är ${interviewerName}, en erfaren rekryterare som genomför
+        en jobbintervju på svenska för rollen ${jobTitle} på ${company}.
+        Börja med att hälsa och presentera dig kort.
+        Ställ sedan frågorna i ordning, en i taget.
+        Vänta på svar efter varje fråga innan du går vidare.
+        Bekräfta kort (max en mening) och ställ nästa fråga.
+        Frågorna:
+        ${questions.map((q, i) => `${i + 1}. ${q.question}`).join('\n')}`,
+            voice: 'shimmer',
+            turn_detection: { type: 'server_vad' },
+            modalities: ['audio', 'text'],
+          },
+        }))
         setTimeout(() => {
-          dc.send(
-            JSON.stringify({
-              type: 'response.create',
-              response: {
-                modalities: ['audio', 'text'],
-                instructions:
-                  'Börja intervjun nu med din hälsningsfras på svenska.',
-              },
-            })
-          )
-          addLog('✓ response.create skickat')
+          dc.send(JSON.stringify({
+            type: 'response.create',
+            response: {
+              modalities: ['audio', 'text'],
+              instructions: 'Hälsa och presentera dig nu på svenska.',
+            },
+          }))
+          addLog('✓ response.create skickat – väntar på AI...')
         }, 500)
       }
 
       dc.onmessage = (e) => {
-        addLog('MSG: ' + (typeof e.data === 'string' ? e.data.slice(0, 80) : '[binär]'))
+        addLog('MSG: ' + e.data.slice(0, 80))
         onDataChannelMessage(e)
       }
       dc.onerror = (e) => addLog('FEL DC: ' + JSON.stringify(e))
       dc.onclose = () => addLog('DC stängd')
 
+      pc.onicecandidate = (e) =>
+        addLog('ICE: ' + (e.candidate ? e.candidate.type : 'done'))
+      pc.oniceconnectionstatechange = () =>
+        addLog('ICE state: ' + pc.iceConnectionState)
+      pc.onconnectionstatechange = () =>
+        addLog('Connection: ' + pc.connectionState)
+
       const tokenRes = await fetch(TOKEN_ENDPOINT, { method: 'POST' })
       const data = await tokenRes.json()
       const token = data.client_secret.value
-      addLog('✓ Token mottagen: ' + token.slice(0, 20) + '...')
+      addLog('✓ Token hämtad')
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
       addLog('✓ Local description satt')
-
-      await new Promise((resolve) => {
-        const timeout = setTimeout(resolve, 3000)
-        pc.onicecandidate = (e) => {
-          addLog('ICE: ' + (e.candidate ? e.candidate.type : 'done'))
-          if (!e.candidate) {
-            clearTimeout(timeout)
-            resolve()
-          }
-        }
-      })
-      addLog('✓ ICE-kandidater klara – skickar SDP')
 
       const sdpRes = await fetch(
         `https://api.openai.com/v1/realtime?model=${REALTIME_MODEL}`,
@@ -232,7 +213,7 @@ export default function InterviewSimulator() {
       addLog('✓ SDP answer mottagen, längd: ' + answerSdp.length)
 
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
-      addLog('✓ Remote description satt – väntar på DataChannel...')
+      addLog('✓ Remote description satt – ICE förhandlar...')
 
       setPhase('active')
     } catch (err) {
