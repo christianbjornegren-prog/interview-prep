@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import CompetencyBank from './pages/CompetencyBank'
 import JobPage from './pages/JobPage'
 import InterviewSimulator from './pages/InterviewSimulator'
+import InterviewSimulatorTTS from './pages/InterviewSimulatorTTS'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
             <Route path="/kompetensbank" element={<CompetencyBank />} />
             <Route path="/jobb" element={<JobPage />} />
             <Route path="/intervju/:jobId" element={<InterviewSimulator />} />
+            <Route path="/intervju-tts/:jobId" element={<InterviewSimulatorTTS />} />
           </Routes>
         </Layout>
       </HashRouter>
