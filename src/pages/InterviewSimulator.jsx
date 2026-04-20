@@ -115,7 +115,9 @@ export default function InterviewSimulator() {
       addLog('✓ Mikrofon hämtad')
       localStreamRef.current = stream
 
-      const pc = new RTCPeerConnection()
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      })
       pcRef.current = pc
 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream))
@@ -187,7 +189,37 @@ export default function InterviewSimulator() {
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
-      addLog('✓ Local description satt – skickar SDP direkt')
+      addLog('✓ Local description satt – väntar på ICE gathering')
+
+      await new Promise((resolve) => {
+        let resolved = false
+        const done = () => {
+          if (!resolved) {
+            resolved = true
+            resolve()
+          }
+        }
+
+        pc.onicegatheringstatechange = () => {
+          addLog('Gathering: ' + pc.iceGatheringState)
+          if (pc.iceGatheringState === 'complete') done()
+        }
+
+        setTimeout(() => {
+          addLog(
+            'Gathering timeout – skickar med ' +
+              pc.localDescription.sdp.split('a=candidate').length +
+              ' kandidater'
+          )
+          done()
+        }, 5000)
+      })
+
+      const types = pc.localDescription.sdp.match(/typ \w+/g)
+      addLog(
+        'Kandidattyper vi skickar: ' +
+          [...new Set(types ?? [])].join(', ')
+      )
 
       const sdpRes = await fetch(
         `https://api.openai.com/v1/realtime?model=${REALTIME_MODEL}`,
