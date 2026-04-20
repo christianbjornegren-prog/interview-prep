@@ -232,6 +232,11 @@ export default function InterviewSimulator() {
       )
       const answerSdp = await sdpRes.text()
       addLog('✓ SDP answer mottagen, längd: ' + answerSdp.length)
+      addLog('SDP answer råtext: ' + answerSdp.slice(0, 500))
+      addLog('SDP answer rader: ' + answerSdp.split('\n').length)
+
+      const answerCandidates = answerSdp.match(/a=candidate/g)
+      addLog('Kandidater i OpenAI answer: ' + (answerCandidates?.length || 0))
 
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
       addLog('✓ Remote description satt – ICE förhandlar...')
