@@ -182,8 +182,13 @@ export default function InterviewSimulator() {
       dc.onerror = (e) => addLog('FEL DC: ' + JSON.stringify(e))
       dc.onclose = () => addLog('DC stängd')
 
-      pc.onicecandidate = (e) =>
-        addLog('ICE: ' + (e.candidate ? e.candidate.type : 'done'))
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          addLog('ICE: ' + e.candidate.type)
+        } else {
+          addLog('ICE: done')
+        }
+      }
       pc.oniceconnectionstatechange = () =>
         addLog('ICE state: ' + pc.iceConnectionState)
       pc.onconnectionstatechange = () =>
@@ -196,28 +201,7 @@ export default function InterviewSimulator() {
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
-      addLog('✓ Local description satt – väntar på ICE gathering...')
-
-      await new Promise((resolve) => {
-        if (pc.iceGatheringState === 'complete') {
-          resolve()
-        } else {
-          pc.addEventListener('icegatheringstatechange', () => {
-            addLog('ICE gathering state: ' + pc.iceGatheringState)
-            if (pc.iceGatheringState === 'complete') resolve()
-          })
-          setTimeout(() => {
-            addLog('ICE gathering timeout – skickar ändå')
-            resolve()
-          }, 15000)
-        }
-      })
-
-      addLog(
-        '✓ ICE gathering klar – skickar SDP med ' +
-          pc.localDescription.sdp.split('a=candidate').length +
-          ' kandidater'
-      )
+      addLog('✓ Local description satt – skickar SDP direkt')
 
       const sdpRes = await fetch(
         `https://api.openai.com/v1/realtime?model=${REALTIME_MODEL}`,
