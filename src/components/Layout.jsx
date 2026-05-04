@@ -36,9 +36,6 @@ export default function Layout({ children }) {
             <NavLink to="/kompetensbank" active={location.pathname === '/kompetensbank'}>
               Kompetensbank
             </NavLink>
-            <NavLink to="/jobb" active={location.pathname === '/jobb'}>
-              Jobbannons
-            </NavLink>
 
             {user && (
               <>

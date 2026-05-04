@@ -10,21 +10,26 @@ import { auth } from '../lib/firebase'
 
 const AuthContext = createContext(null)
 
-/** Returns the currently signed-in Firebase User object. */
+/** Returns the currently signed-in Firebase User object, or null. */
 export function useAuth() {
   return useContext(AuthContext)
 }
 
 export { auth }
 
+export async function signInWithGoogle() {
+  const provider = new GoogleAuthProvider()
+  await signInWithPopup(auth, provider)
+}
+
 // ── AuthGate ──────────────────────────────────────────────────────────────
 
 /**
- * Wraps the app. Shows a Google sign-in screen until the user is
- * authenticated, then renders children with the user in context.
+ * Auth context provider. Shows a loading screen while auth resolves,
+ * then renders children with user (or null) in context.
+ * Does NOT block unauthenticated access – use RequireAuth for that.
  */
 export default function AuthGate({ children }) {
-  // undefined = still resolving, null = signed out, User = signed in
   const [user, setUser] = useState(undefined)
 
   useEffect(() => {
@@ -32,19 +37,22 @@ export default function AuthGate({ children }) {
   }, [])
 
   if (user === undefined) return <CheckingScreen />
-  if (!user) return <SignInScreen />
 
   return <AuthContext.Provider value={user}>{children}</AuthContext.Provider>
 }
 
-// ── Sign-in screen ────────────────────────────────────────────────────────
+// ── RequireAuth ───────────────────────────────────────────────────────────
 
-async function signInWithGoogle() {
-  const provider = new GoogleAuthProvider()
-  await signInWithPopup(auth, provider)
+/** Renders children for authenticated users, sign-in screen otherwise. */
+export function RequireAuth({ children }) {
+  const user = useAuth()
+  if (!user) return <SignInScreen />
+  return children
 }
 
-function SignInScreen() {
+// ── Sign-in screen ────────────────────────────────────────────────────────
+
+export function SignInScreen() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -65,7 +73,6 @@ function SignInScreen() {
       className="min-h-screen flex flex-col items-center justify-center gap-8 px-6"
       style={{ backgroundColor: '#0f1117' }}
     >
-      {/* Logo */}
       <div className="flex items-center gap-3">
         <div
           className="w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold text-white"
@@ -78,7 +85,6 @@ function SignInScreen() {
         </span>
       </div>
 
-      {/* Card */}
       <div
         className="w-full max-w-sm rounded-2xl border p-8 flex flex-col items-center gap-6"
         style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
@@ -119,6 +125,8 @@ function SignInScreen() {
     </div>
   )
 }
+
+// ── Screens ───────────────────────────────────────────────────────────────
 
 function CheckingScreen() {
   return (

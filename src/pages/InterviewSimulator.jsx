@@ -334,7 +334,7 @@ export default function InterviewSimulator() {
       <>
         <div className="space-y-4">
           <button
-            onClick={() => navigate('/jobb')}
+            onClick={() => navigate('/')}
             className="text-sm transition-colors"
             style={{ color: '#6b7280' }}
           >
@@ -427,7 +427,7 @@ export default function InterviewSimulator() {
       <div className="space-y-8">
         <div>
           <button
-            onClick={() => navigate('/jobb')}
+            onClick={() => navigate('/')}
             className="text-sm transition-colors"
             style={{ color: '#6b7280' }}
             onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
