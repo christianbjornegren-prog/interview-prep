@@ -1,5 +1,5 @@
-import { HashRouter, Routes, Route } from 'react-router-dom'
-import AuthGate, { RequireAuth } from './components/AuthGate'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import AuthGate, { RequireAuth, useUser } from './components/AuthGate'
 import Layout from './components/Layout'
 import DebugPanel from './components/DebugPanel'
 import Home from './pages/Home'
@@ -9,6 +9,21 @@ import JobPage from './pages/JobPage'
 import InterviewSimulator from './pages/InterviewSimulator'
 import InterviewSimulatorTTS from './pages/InterviewSimulatorTTS'
 import FeedbackPage from './pages/FeedbackPage'
+import AdminPage from './pages/AdminPage'
+import SäljarePage from './pages/SäljarePage'
+import KonsultProfilPage from './pages/KonsultProfilPage'
+
+function RequireAdmin({ children }) {
+  const { role } = useUser()
+  if (role !== 'admin') return <Navigate to="/" replace />
+  return children
+}
+
+function RequireSäljarOrAdmin({ children }) {
+  const { role } = useUser()
+  if (role !== 'admin' && role !== 'säljare') return <Navigate to="/" replace />
+  return children
+}
 
 export default function App() {
   return (
@@ -40,6 +55,18 @@ export default function App() {
             <Route
               path="/feedback/:jobId/:feedbackId"
               element={<RequireAuth><FeedbackPage /></RequireAuth>}
+            />
+            <Route
+              path="/admin"
+              element={<RequireAuth><RequireAdmin><AdminPage /></RequireAdmin></RequireAuth>}
+            />
+            <Route
+              path="/konsulter"
+              element={<RequireAuth><RequireSäljarOrAdmin><SäljarePage /></RequireSäljarOrAdmin></RequireAuth>}
+            />
+            <Route
+              path="/konsulter/:uid"
+              element={<RequireAuth><RequireSäljarOrAdmin><KonsultProfilPage /></RequireSäljarOrAdmin></RequireAuth>}
             />
           </Routes>
         </Layout>

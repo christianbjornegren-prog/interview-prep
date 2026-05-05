@@ -89,8 +89,11 @@ export default function InterviewSimulatorTTS() {
     () => pickVoiceAndName(),
     []
   )
+  const [showConfirmAbort, setShowConfirmAbort] = useState(false)
+
   const audioRef = useRef(null)
   const mediaRecorderRef = useRef(null)
+  const streamRef = useRef(null)
   const audioChunksRef = useRef([])
   const transcriptRef = useRef(transcript)
   const currentQuestionIndexRef = useRef(0)
@@ -146,13 +149,17 @@ export default function InterviewSimulatorTTS() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause()
+      const audio = audioRef.current
+      if (audio) {
+        audio.pause()
+        audio.src = ''
         audioRef.current = null
       }
-      if (mediaRecorderRef.current?.stream) {
-        mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop())
+      const recorder = mediaRecorderRef.current
+      if (recorder && recorder.state !== 'inactive') {
+        recorder.stop()
       }
+      streamRef.current?.getTracks().forEach((t) => t.stop())
     }
   }, [])
 
@@ -258,6 +265,7 @@ export default function InterviewSimulatorTTS() {
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : 'audio/webm'
@@ -285,7 +293,7 @@ export default function InterviewSimulatorTTS() {
     const recorder = mediaRecorderRef.current
     if (!recorder) return
     recorder.stop()
-    recorder.stream.getTracks().forEach((t) => t.stop())
+    streamRef.current?.getTracks().forEach((t) => t.stop())
     setInterviewState(STATES.PROCESSING)
   }
 
@@ -394,14 +402,18 @@ export default function InterviewSimulatorTTS() {
   }
 
   function endInterview() {
-    if (audioRef.current) {
-      audioRef.current.pause()
+    const audio = audioRef.current
+    if (audio) {
+      audio.pause()
+      audio.src = ''
       audioRef.current = null
     }
-    if (mediaRecorderRef.current?.stream) {
-      mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop())
+    const recorder = mediaRecorderRef.current
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop()
     }
-    navigate(`/jobb/${jobId}`)
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    navigate(-1)
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -453,14 +465,56 @@ export default function InterviewSimulatorTTS() {
   return (
     <div className="space-y-10">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">
-          Intervju med {interviewerName}
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
-          {job.jobTitle}
-          {job.company ? ` · ${job.company}` : ''}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">
+            Intervju med {interviewerName}
+          </h1>
+          <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
+            {job.jobTitle}
+            {job.company ? ` · ${job.company}` : ''}
+          </p>
+        </div>
+
+        {interviewState !== STATES.FINISHED && (
+          <div className="shrink-0 pt-1">
+            {showConfirmAbort ? (
+              <div className="text-right space-y-2">
+                <p className="text-xs" style={{ color: '#9ca3af' }}>
+                  Avsluta intervjun? Ditt svar sparas inte.
+                </p>
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    onClick={() => setShowConfirmAbort(false)}
+                    className="text-xs px-3 py-1.5 rounded-md transition-colors"
+                    style={{ backgroundColor: '#2a2d3a', color: '#9ca3af' }}
+                    onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
+                    onMouseOut={(e) => (e.currentTarget.style.color = '#9ca3af')}
+                  >
+                    Fortsätt intervjun
+                  </button>
+                  <button
+                    onClick={endInterview}
+                    className="text-xs px-3 py-1.5 rounded-md font-semibold"
+                    style={{ backgroundColor: '#7f1d1d', color: '#f87171' }}
+                  >
+                    Ja, avsluta
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowConfirmAbort(true)}
+                className="text-xs font-medium transition-colors"
+                style={{ color: '#ef4444' }}
+                onMouseOver={(e) => (e.currentTarget.style.color = '#fca5a5')}
+                onMouseOut={(e) => (e.currentTarget.style.color = '#ef4444')}
+              >
+                ✕ Avsluta intervju
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Progress bar */}
@@ -514,7 +568,7 @@ export default function InterviewSimulatorTTS() {
 
       {/* Recording button */}
       {showButton && (
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center">
           <button
             onClick={handleRecordingToggle}
             className="px-8 py-4 rounded-full text-white text-base font-semibold transition-colors select-none"
@@ -525,16 +579,6 @@ export default function InterviewSimulatorTTS() {
             }}
           >
             {interviewState === STATES.RECORDING ? '⏹ Klar' : '🎙 Klicka för att svara'}
-          </button>
-
-          <button
-            onClick={endInterview}
-            className="text-xs transition-colors"
-            style={{ color: '#6b7280' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
-          >
-            Avsluta intervju
           </button>
         </div>
       )}

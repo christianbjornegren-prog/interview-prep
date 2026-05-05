@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 import { analyzeJobPosting } from '../lib/claude'
@@ -15,6 +15,9 @@ const JOB_STEPS = [
 
 export default function JobCreate() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const targetUid = location.state?.targetUid ?? null
+  const targetName = location.state?.targetName ?? null
   const [jobText, setJobText] = useState('')
   const [companyInfo, setCompanyInfo] = useState('')
   const [status, setStatus] = useState('idle') // idle | loading | error
@@ -37,7 +40,7 @@ export default function JobCreate() {
     setProgressPct(0)
 
     try {
-      const uid = auth.currentUser.uid
+      const uid = targetUid ?? auth.currentUser.uid
       const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
       const competencies = compSnap.docs.map((d) => ({ docId: d.id, ...d.data() }))
 
@@ -59,7 +62,7 @@ export default function JobCreate() {
       logger.info(CATEGORIES.APP, 'Job created', { jobId: docRef.id })
       onProgress('Klart!', 100)
       await new Promise((r) => setTimeout(r, 1000))
-      navigate(`/jobb/${docRef.id}`)
+      navigate(targetUid ? `/konsulter/${targetUid}` : `/jobb/${docRef.id}`)
     } catch (err) {
       console.error(err)
       logger.error(CATEGORIES.APP, 'Job creation failed', { error: err.message })
@@ -76,12 +79,14 @@ export default function JobCreate() {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Nytt uppdrag</h1>
           <p className="mt-1 text-sm" style={{ color: '#6b7280' }}>
-            Klistra in en jobbannons så analyserar AI:n krav och matchning mot din kompetensbank.
+            {targetName
+              ? `Klistra in en jobbannons för ${targetName}.`
+              : 'Klistra in en jobbannons så analyserar AI:n krav och matchning mot din kompetensbank.'}
           </p>
         </div>
         {!isLoading && (
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(targetUid ? `/konsulter/${targetUid}` : '/')}
             className="text-sm transition-colors shrink-0"
             style={{ color: '#6b7280' }}
             onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}

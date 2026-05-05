@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
-import { useAuth } from './AuthGate'
+import { useAuth, useUser } from './AuthGate'
 import { auth } from '../lib/firebase'
 
 // NavLink uses useLocation which works correctly inside HashRouter
@@ -8,6 +8,7 @@ import { auth } from '../lib/firebase'
 export default function Layout({ children }) {
   const location = useLocation()
   const user = useAuth()
+  const { role } = useUser()
 
   async function handleSignOut() {
     await signOut(auth)
@@ -33,15 +34,28 @@ export default function Layout({ children }) {
 
           {/* Nav links + user info */}
           <div className="flex items-center gap-1">
-            <NavLink to="/" active={location.pathname === '/'}>
-              Mina uppdrag
-            </NavLink>
-            <NavLink to="/kompetensbank" active={location.pathname === '/kompetensbank'}>
-              Kompetensbank
-            </NavLink>
-
             {user && (
               <>
+                <NavLink to="/" active={location.pathname === '/'}>
+                  Mina uppdrag
+                </NavLink>
+                <NavLink to="/kompetensbank" active={location.pathname === '/kompetensbank'}>
+                  Kompetensbank
+                </NavLink>
+                {(role === 'admin' || role === 'säljare') && (
+                  <NavLink
+                    to="/konsulter"
+                    active={location.pathname.startsWith('/konsulter')}
+                  >
+                    Konsulter
+                  </NavLink>
+                )}
+                {role === 'admin' && (
+                  <NavLink to="/admin" active={location.pathname === '/admin'}>
+                    Användarhantering
+                  </NavLink>
+                )}
+
                 {/* Divider */}
                 <span
                   className="mx-2 h-4 w-px"

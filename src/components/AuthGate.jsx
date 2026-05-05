@@ -2,43 +2,112 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import {
   GoogleAuthProvider,
   signInWithPopup,
+  signOut,
   onAuthStateChanged,
 } from 'firebase/auth'
-import { auth } from '../lib/firebase'
+import { auth, db, doc, getDoc, setDoc, serverTimestamp } from '../lib/firebase'
+
+// ── IAM config ────────────────────────────────────────────────────────────
+
+const ALLOWED_DOMAIN = 'boulder.se'
+const ADMIN_WHITELIST = ['christian.bjornegren@gmail.com']
+const SÄLJARE_WHITELIST = ['filip.almstrom@boulder.se']
+
+function isAllowed(email) {
+  if (ADMIN_WHITELIST.includes(email)) return true
+  if (email.endsWith('@' + ALLOWED_DOMAIN)) return true
+  return false
+}
 
 // ── Auth context ──────────────────────────────────────────────────────────
 
 const AuthContext = createContext(null)
+const UserContext = createContext({ user: null, role: null })
 
 /** Returns the currently signed-in Firebase User object, or null. */
 export function useAuth() {
   return useContext(AuthContext)
 }
 
+/** Returns { user, role } where role is the Firestore role string. */
+export function useUser() {
+  return useContext(UserContext)
+}
+
 export { auth }
 
+/**
+ * Signs in with Google popup, then checks domain/whitelist.
+ * Throws with message 'ACCESS_DENIED' if the email is not allowed.
+ */
 export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider()
-  await signInWithPopup(auth, provider)
+  const result = await signInWithPopup(auth, provider)
+  if (!isAllowed(result.user.email)) {
+    await signOut(auth)
+    throw new Error('ACCESS_DENIED')
+  }
 }
 
 // ── AuthGate ──────────────────────────────────────────────────────────────
 
 /**
- * Auth context provider. Shows a loading screen while auth resolves,
- * then renders children with user (or null) in context.
- * Does NOT block unauthenticated access – use RequireAuth for that.
+ * Auth context provider. isInitializing stays true until the first
+ * onAuthStateChanged event resolves (prevents flash on page refresh).
+ * Domain check lives in signInWithGoogle – never here.
  */
 export default function AuthGate({ children }) {
-  const [user, setUser] = useState(undefined)
+  const [user, setUser] = useState(null)
+  const [role, setRole] = useState(null)
+  const [isInitializing, setIsInitializing] = useState(true)
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (u) => setUser(u ?? null))
+    return onAuthStateChanged(auth, async (u) => {
+      if (!u) {
+        setUser(null)
+        setRole(null)
+        setIsInitializing(false)
+        return
+      }
+
+      // Fetch or create user profile; default to 'konsult' on any error
+      try {
+        const userRef = doc(db, 'users', u.uid)
+        const snap = await getDoc(userRef)
+        let userRole
+        if (!snap.exists()) {
+          userRole = ADMIN_WHITELIST.includes(u.email) ? 'admin'
+                   : SÄLJARE_WHITELIST.includes(u.email) ? 'säljare'
+                   : 'konsult'
+          await setDoc(userRef, {
+            email: u.email,
+            name: u.displayName,
+            role: userRole,
+            createdAt: serverTimestamp(),
+          })
+        } else {
+          userRole = snap.data().role ?? 'konsult'
+        }
+        setRole(userRole)
+      } catch (err) {
+        console.error('Kunde inte hämta användarroll:', err)
+        setRole('konsult')
+      }
+
+      setUser(u)
+      setIsInitializing(false)
+    })
   }, [])
 
-  if (user === undefined) return <CheckingScreen />
+  if (isInitializing) return <CheckingScreen />
 
-  return <AuthContext.Provider value={user}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={user}>
+      <UserContext.Provider value={{ user, role }}>
+        {children}
+      </UserContext.Provider>
+    </AuthContext.Provider>
+  )
 }
 
 // ── RequireAuth ───────────────────────────────────────────────────────────
@@ -62,8 +131,14 @@ export function SignInScreen() {
     try {
       await signInWithGoogle()
     } catch (err) {
-      console.error(err)
-      setError('Inloggning misslyckades. Försök igen.')
+      if (err.message === 'ACCESS_DENIED') {
+        setError(
+          'Åtkomst nekad. Endast Boulder-konton (@boulder.se) är tillåtna att logga in.'
+        )
+      } else {
+        console.error(err)
+        setError('Inloggning misslyckades. Försök igen.')
+      }
       setLoading(false)
     }
   }
@@ -113,7 +188,7 @@ export function SignInScreen() {
         </button>
 
         {error && (
-          <p className="text-xs text-center" style={{ color: '#f87171' }}>
+          <p className="text-xs text-center leading-relaxed" style={{ color: '#f87171' }}>
             {error}
           </p>
         )}

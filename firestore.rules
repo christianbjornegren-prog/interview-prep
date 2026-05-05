@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+    }
+    function isAdmin() { return getRole() == 'admin' }
+    function isSäljare() { return getRole() == 'säljare' }
+    function isOwner(uid) { return request.auth.uid == uid }
+
+    match /users/{uid} {
+      allow read: if request.auth != null &&
+        (isOwner(uid) || isAdmin() || isSäljare())
+      allow write: if request.auth != null &&
+        (isOwner(uid) || isAdmin())
+    }
+
+    match /users/{uid}/competencies/{docId} {
+      allow read: if request.auth != null &&
+        (isOwner(uid) || isAdmin() || isSäljare())
+      allow write: if request.auth != null &&
+        (isOwner(uid) || isAdmin() || isSäljare())
+    }
+
+    match /users/{uid}/jobs/{jobId} {
+      allow read: if request.auth != null &&
+        (isOwner(uid) || isAdmin() || isSäljare())
+      allow write: if request.auth != null &&
+        (isOwner(uid) || isAdmin() || isSäljare())
+    }
+
+    match /users/{uid}/jobs/{jobId}/feedback/{feedbackId} {
+      allow read, write: if request.auth != null &&
+        (isOwner(uid) || isAdmin())
+    }
+  }
+}

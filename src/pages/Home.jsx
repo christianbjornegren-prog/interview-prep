@@ -21,15 +21,15 @@ export default function Home() {
 
 const STEPS = [
   {
-    title: 'Ladda upp CV',
+    title: 'Ladda upp ditt CV',
     desc: 'AI:n extraherar dina kompetenser automatiskt från PDF eller DOCX.',
   },
   {
-    title: 'Lägg till uppdrag',
+    title: 'Lägg till en jobbannons',
     desc: 'Klistra in en jobbannons och få matchningsanalys mot din profil.',
   },
   {
-    title: 'Träna',
+    title: 'Träna med AI-intervjuare',
     desc: 'Genomför AI-drivna intervjuer skräddarsydda efter uppdraget.',
   },
 ]
@@ -43,8 +43,12 @@ function Onboarding() {
     setError('')
     try {
       await signInWithGoogle()
-    } catch {
-      setError('Inloggning misslyckades. Försök igen.')
+    } catch (err) {
+      if (err.message === 'ACCESS_DENIED') {
+        setError('Åtkomst nekad. Endast Boulder-konton (@boulder.se) är tillåtna att logga in.')
+      } else {
+        setError('Inloggning misslyckades. Försök igen.')
+      }
       setLoading(false)
     }
   }
@@ -100,7 +104,7 @@ function Onboarding() {
           onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
         >
           <GoogleIcon />
-          {loading ? 'Loggar in...' : 'Kom igång med Google'}
+          {loading ? 'Loggar in...' : 'Logga in med Google'}
         </button>
         {error && (
           <p className="text-xs" style={{ color: '#f87171' }}>
