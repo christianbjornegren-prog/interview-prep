@@ -5,13 +5,17 @@ import {
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth'
-import { auth, db, doc, getDoc, setDoc, serverTimestamp } from '../lib/firebase'
+import {
+  auth, db, doc, collection,
+  getDoc, getDocs, setDoc, addDoc, deleteDoc,
+  serverTimestamp,
+} from '../lib/firebase'
 
 // ── IAM config ────────────────────────────────────────────────────────────
 
 const ALLOWED_DOMAIN = 'boulder.se'
 const ADMIN_WHITELIST = ['christian.bjornegren@gmail.com']
-const SÄLJARE_WHITELIST = ['filip.almstrom@boulder.se']
+const SÄLJARE_WHITELIST = ['filip.almstrom@boulder.se', 'johanna@boulder.se']
 
 function isAllowed(email) {
   if (ADMIN_WHITELIST.includes(email)) return true
@@ -22,7 +26,7 @@ function isAllowed(email) {
 // ── Auth context ──────────────────────────────────────────────────────────
 
 const AuthContext = createContext(null)
-const UserContext = createContext({ user: null, role: null })
+const UserContext = createContext({ user: null, role: null, profileActivated: false, clearProfileActivated: () => {} })
 
 /** Returns the currently signed-in Firebase User object, or null. */
 export function useAuth() {
@@ -60,6 +64,7 @@ export default function AuthGate({ children }) {
   const [user, setUser] = useState(null)
   const [role, setRole] = useState(null)
   const [isInitializing, setIsInitializing] = useState(true)
+  const [profileActivated, setProfileActivated] = useState(false)
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
@@ -79,6 +84,28 @@ export default function AuthGate({ children }) {
           userRole = ADMIN_WHITELIST.includes(u.email) ? 'admin'
                    : SÄLJARE_WHITELIST.includes(u.email) ? 'säljare'
                    : 'konsult'
+
+          // Copy any pending profile prepared by a säljare
+          try {
+            const pendingRef = doc(db, 'pendingProfiles', u.email)
+            const pendingSnap = await getDoc(pendingRef)
+            if (pendingSnap.exists()) {
+              const pending = pendingSnap.data()
+              const compCol = collection(db, 'users', u.uid, 'competencies')
+              const jobCol  = collection(db, 'users', u.uid, 'jobs')
+              for (const { createdAt: _ct, ...comp } of (pending.competencies ?? [])) {
+                await addDoc(compCol, { ...comp, createdAt: serverTimestamp() })
+              }
+              for (const { createdAt: _ct, id: _id, ...job } of (pending.jobs ?? [])) {
+                await addDoc(jobCol, { ...job, createdAt: serverTimestamp() })
+              }
+              await deleteDoc(pendingRef)
+              setProfileActivated(true)
+            }
+          } catch (err) {
+            console.warn('Kunde inte kopiera pending-profil:', err)
+          }
+
           await setDoc(userRef, {
             email: u.email,
             name: u.displayName,
@@ -103,7 +130,7 @@ export default function AuthGate({ children }) {
 
   return (
     <AuthContext.Provider value={user}>
-      <UserContext.Provider value={{ user, role }}>
+      <UserContext.Provider value={{ user, role, profileActivated, clearProfileActivated: () => setProfileActivated(false) }}>
         {children}
       </UserContext.Provider>
     </AuthContext.Provider>

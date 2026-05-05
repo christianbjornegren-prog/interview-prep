@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  collection,
   db,
   doc,
   getDoc,
-  getDocs,
-  addDoc,
-  serverTimestamp,
+  updateDoc,
+  arrayUnion,
 } from '../lib/firebase'
-import FileUpload from '../components/FileUpload'
+import { extractCompetencies } from '../lib/claude'
+import StepIndicator, { percentToStep } from '../components/StepIndicator'
 
 // ── Category definitions (mirrors CompetencyList) ─────────────────────────
 
@@ -52,39 +51,26 @@ function tagStyle(tag) {
 
 // ── Main component ────────────────────────────────────────────────────────
 
-export default function KonsultProfilPage() {
-  const { uid } = useParams()
+export default function PendingProfilPage() {
+  const { email: encodedEmail } = useParams()
+  const email = decodeURIComponent(encodedEmail)
   const navigate = useNavigate()
 
-  const [konsult, setKonsult] = useState(null)
-  const [competencies, setCompetencies] = useState([])
-  const [jobs, setJobs] = useState([])
+  const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('kompetensbank')
-  const [expandedJob, setExpandedJob] = useState(null)
   const [openCats, setOpenCats] = useState(new Set())
+  const [expandedJob, setExpandedJob] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showCvUpload, setShowCvUpload] = useState(false)
 
-  async function loadCompetencies() {
-    const snap = await getDocs(collection(db, 'users', uid, 'competencies'))
-    setCompetencies(snap.docs.map((d) => ({ docId: d.id, ...d.data() })))
+  async function loadProfile() {
+    const snap = await getDoc(doc(db, 'pendingProfiles', email))
+    if (snap.exists()) setProfile({ email, ...snap.data() })
+    setLoading(false)
   }
 
-  useEffect(() => {
-    async function load() {
-      const [userSnap, compSnap, jobsSnap] = await Promise.all([
-        getDoc(doc(db, 'users', uid)),
-        getDocs(collection(db, 'users', uid, 'competencies')),
-        getDocs(collection(db, 'users', uid, 'jobs')),
-      ])
-      if (userSnap.exists()) setKonsult({ uid, ...userSnap.data() })
-      setCompetencies(compSnap.docs.map((d) => ({ docId: d.id, ...d.data() })))
-      setJobs(jobsSnap.docs.map((d) => ({ docId: d.id, ...d.data() })))
-      setLoading(false)
-    }
-    load()
-  }, [uid])
+  useEffect(() => { loadProfile() }, [email])
 
   function toggleCat(name) {
     setOpenCats((prev) => {
@@ -97,10 +83,12 @@ export default function KonsultProfilPage() {
   if (loading) {
     return <p className="text-sm py-8" style={{ color: '#6b7280' }}>Laddar profil...</p>
   }
-
-  if (!konsult) {
-    return <p className="text-sm py-8" style={{ color: '#f87171' }}>Konsulten hittades inte.</p>
+  if (!profile) {
+    return <p className="text-sm py-8" style={{ color: '#f87171' }}>Profilen hittades inte.</p>
   }
+
+  const competencies = profile.competencies ?? []
+  const jobs = profile.jobs ?? []
 
   const tabs = [
     { id: 'kompetensbank', label: 'Kompetensbank' },
@@ -121,11 +109,26 @@ export default function KonsultProfilPage() {
           ← Konsulter
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            {konsult.name ?? konsult.email}
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: '#6b7280' }}>{konsult.email}</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-white tracking-tight">
+              {profile.name ?? email}
+            </h1>
+            <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: '#4d3e1a', color: '#f0d48a' }}>
+              Väntande
+            </span>
+          </div>
+          <p className="text-sm mt-0.5" style={{ color: '#6b7280' }}>{email}</p>
         </div>
+      </div>
+
+      {/* Pending banner */}
+      <div
+        className="rounded-xl border px-5 py-4"
+        style={{ backgroundColor: '#1a1d27', borderColor: '#4d3e1a' }}
+      >
+        <p className="text-sm" style={{ color: '#f0d48a' }}>
+          Konsulten har inte loggat in än. Kompetenser och uppdrag du lägger till här kopieras automatiskt till deras konto när de loggar in första gången.
+        </p>
       </div>
 
       {/* Tabs */}
@@ -160,7 +163,7 @@ export default function KonsultProfilPage() {
                 onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
                 onMouseOut={(e) => (e.currentTarget.style.color = '#9ca3af')}
               >
-                {showCvUpload ? '↑ Stäng CV-uppladdning' : '+ Ladda upp CV åt konsulten'}
+                {showCvUpload ? '↑ Stäng CV-uppladdning' : '+ Ladda upp CV'}
               </button>
               <button
                 onClick={() => setShowAddModal(true)}
@@ -176,7 +179,11 @@ export default function KonsultProfilPage() {
 
           {showCvUpload && (
             <div className="rounded-xl border p-5" style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}>
-              <FileUpload targetUid={uid} onSuccess={loadCompetencies} />
+              <PendingFileUpload
+                email={email}
+                existingCompetencies={competencies}
+                onSuccess={loadProfile}
+              />
             </div>
           )}
 
@@ -202,7 +209,14 @@ export default function KonsultProfilPage() {
               {jobs.length} uppdrag
             </p>
             <button
-              onClick={() => navigate('/jobb/ny', { state: { targetUid: uid, targetName: konsult.name ?? konsult.email } })}
+              onClick={() =>
+                navigate('/jobb/ny', {
+                  state: {
+                    pendingEmail: email,
+                    pendingName: profile.name ?? email,
+                  },
+                })
+              }
               className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-colors"
               style={{ backgroundColor: '#4A6FA5' }}
               onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#5a82bc')}
@@ -218,12 +232,12 @@ export default function KonsultProfilPage() {
             </div>
           ) : (
             <ul className="space-y-3">
-              {jobs.map((job) => (
+              {jobs.map((job, i) => (
                 <JobItem
-                  key={job.docId}
+                  key={job.id ?? i}
                   job={job}
-                  expanded={expandedJob === job.docId}
-                  onToggle={() => setExpandedJob(expandedJob === job.docId ? null : job.docId)}
+                  expanded={expandedJob === (job.id ?? i)}
+                  onToggle={() => setExpandedJob(expandedJob === (job.id ?? i) ? null : (job.id ?? i))}
                 />
               ))}
             </ul>
@@ -231,13 +245,161 @@ export default function KonsultProfilPage() {
         </div>
       )}
 
-      {/* Add competency modal */}
       {showAddModal && (
-        <AddCompetencyModal
-          uid={uid}
+        <PendingAddCompetencyModal
+          email={email}
           onClose={() => setShowAddModal(false)}
-          onAdded={() => loadCompetencies()}
+          onAdded={loadProfile}
         />
+      )}
+    </div>
+  )
+}
+
+// ── CV upload for pending profiles ────────────────────────────────────────
+
+const CV_STEPS = [
+  { label: 'Läser dokumentet',       subtext: 'Förbereder din fil...' },
+  { label: 'Skickar till Claude',    subtext: 'Väntar på svar från Claude...' },
+  { label: 'Analyserar kompetenser', subtext: 'Bearbetar extraherade kompetenser...' },
+  { label: 'Sparar till profilen',   subtext: 'Skriver kompetenser till databasen...' },
+]
+
+const ACCEPTED_TYPES = '.pdf,.docx'
+
+function getFileType(file) {
+  if (file.type === 'application/pdf') return 'pdf'
+  if (
+    file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    file.name.endsWith('.docx')
+  )
+    return 'docx'
+  return null
+}
+
+function PendingFileUpload({ email, existingCompetencies, onSuccess }) {
+  const inputRef = useRef(null)
+  const [dragging, setDragging] = useState(false)
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [status, setStatus] = useState('idle')
+  const [message, setMessage] = useState('')
+  const [progressPct, setProgressPct] = useState(0)
+
+  function onProgress(_msg, pct) { setProgressPct(pct) }
+
+  function handleFileSelect(file) {
+    if (!file) return
+    if (!getFileType(file)) {
+      setStatus('error')
+      setMessage('Otillåtet filformat. Ladda upp en PDF- eller DOCX-fil.')
+      setSelectedFile(null)
+      return
+    }
+    setSelectedFile(file)
+    setStatus('idle')
+    setMessage('')
+  }
+
+  async function handleAnalyze() {
+    if (!selectedFile) return
+    const fileType = getFileType(selectedFile)
+    setStatus('loading')
+    setMessage('')
+    setProgressPct(0)
+
+    try {
+      const competencies = await extractCompetencies(selectedFile, fileType, onProgress)
+
+      const existingTitles = new Set(
+        existingCompetencies.map((c) => (c.title ?? '').toLowerCase())
+      )
+      const toSave = competencies.filter(
+        (c) => !existingTitles.has((c.title ?? '').toLowerCase())
+      )
+
+      onProgress('Sparar till profilen...', 87)
+      const pendingRef = doc(db, 'pendingProfiles', email)
+      for (let i = 0; i < toSave.length; i++) {
+        onProgress(`Sparar ${i + 1} av ${toSave.length}...`, 88 + (i / Math.max(toSave.length, 1)) * 11)
+        const { createdAt: _ct, ...comp } = toSave[i]
+        await updateDoc(pendingRef, {
+          competencies: arrayUnion({ ...comp, sourceFile: selectedFile.name }),
+        })
+      }
+
+      const skipped = competencies.length - toSave.length
+      let msg = `${toSave.length} kompetens${toSave.length === 1 ? '' : 'er'} sparade.`
+      if (skipped > 0) msg += ` ${skipped} dubblett${skipped === 1 ? '' : 'er'} hoppades över.`
+
+      onProgress('Klart!', 100)
+      await new Promise((r) => setTimeout(r, 1000))
+      setStatus('success')
+      setMessage(msg)
+      setSelectedFile(null)
+      onSuccess?.()
+    } catch (err) {
+      console.error(err)
+      setStatus('error')
+      setMessage(err.message ?? 'Något gick fel. Försök igen.')
+    }
+  }
+
+  const isLoading = status === 'loading'
+
+  return (
+    <div className="space-y-3">
+      {isLoading && (
+        <StepIndicator steps={CV_STEPS} currentStep={percentToStep(progressPct)} />
+      )}
+
+      {!isLoading && (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); handleFileSelect(e.dataTransfer.files?.[0]) }}
+          onClick={() => inputRef.current?.click()}
+          className={[
+            'flex flex-col items-center justify-center gap-3',
+            'border-2 border-dashed rounded-xl p-10 transition-colors select-none cursor-pointer',
+            dragging ? 'border-[#4A6FA5] bg-[#4A6FA5]/5' : 'border-[#2a2d3a] hover:border-[#4A6FA5]/50',
+          ].join(' ')}
+        >
+          <input ref={inputRef} type="file" accept={ACCEPTED_TYPES} className="hidden" onChange={(e) => { handleFileSelect(e.target.files?.[0]); e.target.value = '' }} />
+          {selectedFile ? (
+            <div className="text-center">
+              <p className="text-white text-sm font-semibold">{selectedFile.name}</p>
+              <p className="text-[#6b7280] text-xs mt-1">Klicka för att välja en annan fil</p>
+            </div>
+          ) : (
+            <div className="text-center">
+              <p className="text-white text-sm font-medium">Dra och släpp CV här</p>
+              <p className="text-[#6b7280] text-xs mt-1">eller klicka för att välja fil &mdash; PDF eller DOCX</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedFile && !isLoading && (
+        <button
+          onClick={handleAnalyze}
+          className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors"
+          style={{ backgroundColor: '#4A6FA5' }}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#5a82bc')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+        >
+          Analysera dokument
+        </button>
+      )}
+
+      {status === 'success' && (
+        <div className="rounded-lg px-4 py-3 text-sm" style={{ backgroundColor: '#0d2b1a', border: '1px solid #1a4d2e', color: '#4ade80' }}>
+          {message}
+        </div>
+      )}
+      {status === 'error' && (
+        <div className="rounded-lg px-4 py-3 text-sm" style={{ backgroundColor: '#2b0d0d', border: '1px solid #4d1a1a', color: '#f87171' }}>
+          {message}
+        </div>
       )}
     </div>
   )
@@ -281,8 +443,8 @@ function ReadOnlyAccordion({ competencies, openCats, onToggle }) {
 
             {isOpen && (
               <ul className="space-y-px border-t" style={{ borderColor: '#2a2d3a', backgroundColor: '#13151f' }}>
-                {items.map((c) => (
-                  <ReadOnlyCompetencyCard key={c.docId} competency={c} />
+                {items.map((c, i) => (
+                  <CompetencyCard key={c.title ?? i} competency={c} />
                 ))}
               </ul>
             )}
@@ -293,8 +455,8 @@ function ReadOnlyAccordion({ competencies, openCats, onToggle }) {
   )
 }
 
-function ReadOnlyCompetencyCard({ competency }) {
-  const { title, description, tags, impact, context } = competency
+function CompetencyCard({ competency }) {
+  const { title, description, tags } = competency
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -320,24 +482,14 @@ function ReadOnlyCompetencyCard({ competency }) {
           <ChevronIcon expanded={expanded} />
         </span>
       </div>
-
-      {expanded && (
-        <div className="mt-3 space-y-2">
-          {description && <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>{description}</p>}
-          {impact && <p className="text-sm leading-relaxed italic" style={{ color: '#9ca3af' }}>{impact}</p>}
-          {context && (
-            <div className="mt-3 pt-3 border-t" style={{ borderColor: '#2a2d3a' }}>
-              <p className="text-xs uppercase tracking-wider font-semibold mb-1" style={{ color: '#4A6FA5' }}>Sammanhang</p>
-              <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>{context}</p>
-            </div>
-          )}
-        </div>
+      {expanded && description && (
+        <p className="mt-3 text-sm leading-relaxed" style={{ color: '#d1d5db' }}>{description}</p>
       )}
     </li>
   )
 }
 
-// ── Job item with inline gap analysis ────────────────────────────────────
+// ── Job item ──────────────────────────────────────────────────────────────
 
 function JobItem({ job, expanded, onToggle }) {
   const covered = job.gapAnalysis?.covered ?? []
@@ -391,16 +543,13 @@ function JobItem({ job, expanded, onToggle }) {
                       <span style={{ color: '#22c55e', flexShrink: 0 }}>✓</span>
                       <span style={{ color: '#d1d5db' }}>
                         {item.requirement}
-                        {item.competencyName && (
-                          <span style={{ color: '#6b7280' }}> · {item.competencyName}</span>
-                        )}
+                        {item.competencyName && <span style={{ color: '#6b7280' }}> · {item.competencyName}</span>}
                       </span>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
-
             {gaps.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#f87171' }}>
@@ -412,16 +561,13 @@ function JobItem({ job, expanded, onToggle }) {
                       <span style={{ color: '#f87171', flexShrink: 0 }}>–</span>
                       <span style={{ color: '#d1d5db' }}>
                         {item.requirement}
-                        {item.suggestion && (
-                          <span className="block text-xs mt-0.5" style={{ color: '#6b7280' }}>{item.suggestion}</span>
-                        )}
+                        {item.suggestion && <span className="block text-xs mt-0.5" style={{ color: '#6b7280' }}>{item.suggestion}</span>}
                       </span>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
-
             {total === 0 && (
               <p className="text-sm" style={{ color: '#6b7280' }}>Ingen gap-analys tillgänglig.</p>
             )}
@@ -434,7 +580,7 @@ function JobItem({ job, expanded, onToggle }) {
 
 // ── Add competency modal ──────────────────────────────────────────────────
 
-function AddCompetencyModal({ uid, onClose, onAdded }) {
+function PendingAddCompetencyModal({ email, onClose, onAdded }) {
   const [form, setForm] = useState({ namn: '', kategori: '', beskrivning: '', taggar: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -449,12 +595,13 @@ function AddCompetencyModal({ uid, onClose, onAdded }) {
     setError('')
     try {
       const tags = form.taggar.split(',').map((t) => t.trim()).filter(Boolean)
-      await addDoc(collection(db, 'users', uid, 'competencies'), {
-        title: form.namn.trim(),
-        description: form.beskrivning.trim(),
-        tags,
-        category: form.kategori.trim(),
-        createdAt: serverTimestamp(),
+      await updateDoc(doc(db, 'pendingProfiles', email), {
+        competencies: arrayUnion({
+          title: form.namn.trim(),
+          description: form.beskrivning.trim(),
+          tags,
+          category: form.kategori.trim(),
+        }),
       })
       onAdded()
       onClose()

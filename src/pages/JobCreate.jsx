@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'
-import { db, auth } from '../lib/firebase'
+import { db, auth, collection, addDoc, getDocs, serverTimestamp, doc, getDoc, updateDoc, arrayUnion } from '../lib/firebase'
 import { analyzeJobPosting } from '../lib/claude'
 import StepIndicator, { percentToStep } from '../components/StepIndicator'
 import { logger, CATEGORIES } from '../lib/logger'
@@ -18,6 +17,8 @@ export default function JobCreate() {
   const location = useLocation()
   const targetUid = location.state?.targetUid ?? null
   const targetName = location.state?.targetName ?? null
+  const pendingEmail = location.state?.pendingEmail ?? null
+  const pendingName = location.state?.pendingName ?? null
   const [jobText, setJobText] = useState('')
   const [companyInfo, setCompanyInfo] = useState('')
   const [status, setStatus] = useState('idle') // idle | loading | error
@@ -40,14 +41,22 @@ export default function JobCreate() {
     setProgressPct(0)
 
     try {
-      const uid = targetUid ?? auth.currentUser.uid
-      const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
-      const competencies = compSnap.docs.map((d) => ({ docId: d.id, ...d.data() }))
+      let competencies = []
+
+      if (pendingEmail) {
+        const pendingSnap = await getDoc(doc(db, 'pendingProfiles', pendingEmail))
+        competencies = (pendingSnap.data()?.competencies ?? []).map((c, i) => ({ docId: String(i), ...c }))
+      } else {
+        const uid = targetUid ?? auth.currentUser.uid
+        const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
+        competencies = compSnap.docs.map((d) => ({ docId: d.id, ...d.data() }))
+      }
 
       logger.info(CATEGORIES.APP, 'Analyzing job posting', { competencyCount: competencies.length })
       const result = await analyzeJobPosting(jobText, companyInfo, competencies, onProgress)
 
-      const docRef = await addDoc(collection(db, 'users', uid, 'jobs'), {
+      const jobData = {
+        id: `job_${Date.now()}`,
         jobTitle: result.jobTitle ?? '',
         company: result.company ?? '',
         summary: result.summary ?? '',
@@ -56,13 +65,27 @@ export default function JobCreate() {
         questions: result.questions ?? [],
         gapAnalysis: result.gapAnalysis ?? { covered: [], gaps: [] },
         competencySnapshot: competencies.length,
-        createdAt: serverTimestamp(),
-      })
+      }
 
-      logger.info(CATEGORIES.APP, 'Job created', { jobId: docRef.id })
+      let navigateTo
+      if (pendingEmail) {
+        await updateDoc(doc(db, 'pendingProfiles', pendingEmail), {
+          jobs: arrayUnion(jobData),
+        })
+        navigateTo = `/konsulter/pending/${encodeURIComponent(pendingEmail)}`
+      } else {
+        const uid = targetUid ?? auth.currentUser.uid
+        const docRef = await addDoc(collection(db, 'users', uid, 'jobs'), {
+          ...jobData,
+          createdAt: serverTimestamp(),
+        })
+        logger.info(CATEGORIES.APP, 'Job created', { jobId: docRef.id })
+        navigateTo = targetUid ? `/konsulter/${targetUid}` : `/jobb/${docRef.id}`
+      }
+
       onProgress('Klart!', 100)
       await new Promise((r) => setTimeout(r, 1000))
-      navigate(targetUid ? `/konsulter/${targetUid}` : `/jobb/${docRef.id}`)
+      navigate(navigateTo)
     } catch (err) {
       console.error(err)
       logger.error(CATEGORIES.APP, 'Job creation failed', { error: err.message })
@@ -79,14 +102,22 @@ export default function JobCreate() {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Nytt uppdrag</h1>
           <p className="mt-1 text-sm" style={{ color: '#6b7280' }}>
-            {targetName
-              ? `Klistra in en jobbannons för ${targetName}.`
+            {(targetName || pendingName)
+              ? `Klistra in en jobbannons för ${targetName ?? pendingName}.`
               : 'Klistra in en jobbannons så analyserar AI:n krav och matchning mot din kompetensbank.'}
           </p>
         </div>
         {!isLoading && (
           <button
-            onClick={() => navigate(targetUid ? `/konsulter/${targetUid}` : '/')}
+            onClick={() =>
+              navigate(
+                pendingEmail
+                  ? `/konsulter/pending/${encodeURIComponent(pendingEmail)}`
+                  : targetUid
+                  ? `/konsulter/${targetUid}`
+                  : '/'
+              )
+            }
             className="text-sm transition-colors shrink-0"
             style={{ color: '#6b7280' }}
             onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}

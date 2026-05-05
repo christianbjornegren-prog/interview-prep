@@ -12,6 +12,7 @@ import FeedbackPage from './pages/FeedbackPage'
 import AdminPage from './pages/AdminPage'
 import SäljarePage from './pages/SäljarePage'
 import KonsultProfilPage from './pages/KonsultProfilPage'
+import PendingProfilPage from './pages/PendingProfilPage'
 
 function RequireAdmin({ children }) {
   const { role } = useUser()
@@ -63,6 +64,10 @@ export default function App() {
             <Route
               path="/konsulter"
               element={<RequireAuth><RequireSäljarOrAdmin><SäljarePage /></RequireSäljarOrAdmin></RequireAuth>}
+            />
+            <Route
+              path="/konsulter/pending/:email"
+              element={<RequireAuth><RequireSäljarOrAdmin><PendingProfilPage /></RequireSäljarOrAdmin></RequireAuth>}
             />
             <Route
               path="/konsulter/:uid"

@@ -24,7 +24,7 @@ function getFileType(file) {
   return null
 }
 
-export default function FileUpload() {
+export default function FileUpload({ targetUid, onSuccess } = {}) {
   const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
@@ -61,7 +61,7 @@ export default function FileUpload() {
       const competencies = await extractCompetencies(selectedFile, fileType, onProgress)
 
       // Duplicate check against existing Firestore titles
-      const uid = auth.currentUser.uid
+      const uid = targetUid ?? auth.currentUser.uid
       const colRef = collection(db, 'users', uid, 'competencies')
       const existingSnap = await getDocs(colRef)
       const existingTitles = new Set(
@@ -97,6 +97,7 @@ export default function FileUpload() {
       setStatus('success')
       setMessage(msg)
       setSelectedFile(null)
+      onSuccess?.()
     } catch (err) {
       console.error(err)
       setStatus('error')

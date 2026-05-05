@@ -8,7 +8,7 @@ import {
   orderBy,
   query,
 } from 'firebase/firestore'
-import { useAuth, signInWithGoogle } from '../components/AuthGate'
+import { useAuth, useUser, signInWithGoogle } from '../components/AuthGate'
 import { db, auth } from '../lib/firebase'
 
 export default function Home() {
@@ -120,6 +120,7 @@ function Onboarding() {
 
 function Dashboard({ user }) {
   const navigate = useNavigate()
+  const { profileActivated, clearProfileActivated } = useUser()
   const [jobs, setJobs] = useState([])
   const [loadingJobs, setLoadingJobs] = useState(true)
   const [competencyCount, setCompetencyCount] = useState(null)
@@ -190,6 +191,27 @@ function Dashboard({ user }) {
 
   return (
     <div className="space-y-6">
+      {/* Pending-profil aktiverad */}
+      {profileActivated && (
+        <div
+          className="rounded-xl border px-5 py-4 flex items-center justify-between gap-4"
+          style={{ backgroundColor: '#052e16', borderColor: '#166534' }}
+        >
+          <p className="text-sm font-medium" style={{ color: '#86efac' }}>
+            🎉 Din profil är förberedd och redo! Kompetenser och uppdrag har lagts till i din bank.
+          </p>
+          <button
+            onClick={clearProfileActivated}
+            className="text-xs shrink-0 transition-colors"
+            style={{ color: '#4ade80' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
+            onMouseOut={(e) => (e.currentTarget.style.color = '#4ade80')}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Competency warning banner */}
       {competencyCount === 0 && (
         <div

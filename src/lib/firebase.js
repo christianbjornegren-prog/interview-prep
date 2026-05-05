@@ -155,4 +155,5 @@ export {
   limit,
   serverTimestamp,
   Timestamp,
+  arrayUnion,
 } from 'firebase/firestore'

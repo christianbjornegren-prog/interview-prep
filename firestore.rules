@@ -33,5 +33,10 @@ service cloud.firestore {
       allow read, write: if request.auth != null &&
         (isOwner(uid) || isAdmin())
     }
+
+    match /pendingProfiles/{email} {
+      allow read, write: if request.auth != null &&
+        (isAdmin() || isSäljare())
+    }
   }
 }

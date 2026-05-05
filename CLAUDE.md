@@ -21,6 +21,7 @@ uppdrag baserat på din egen kompetensbank.
 users/{uid}/competencies/{docId}
 users/{uid}/jobs/{jobId}
 users/{uid}/jobs/{jobId}/feedback/{feedbackId}
+pendingProfiles/{email} → { name, email, createdAt, competencies: [...], jobs: [...] }
 
 ## Viktiga beslut
 - Kompetensbanken är kumulativ – byggs av flera CV-uppladdningar över tid
@@ -82,8 +83,8 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 
 ### Domäncheck (AuthGate.jsx)
 - ALLOWED_DOMAIN = 'boulder.se'
-- ADMIN_WHITELIST = ['christianbjornegren@gmail.com']
-- Ej tillåten → signOut() direkt + AccessDeniedScreen
+- ADMIN_WHITELIST = ['christian.bjornegren@gmail.com']
+- Ej tillåten → signOut() i signInWithGoogle() + felmeddelande (ALDRIG i onAuthStateChanged)
 - Tillåten → skapa/hämta users/{uid} i Firestore
 
 ### Användarroller
@@ -116,15 +117,27 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 
 ### Säljare-flöde
 - SÄLJARE_WHITELIST = ['filip.almstrom@boulder.se'] — sätts vid första login
-- /konsulter (SäljarePage): lista med KONSULT_EMAILS-filtrerade users + kompetens/job-count
-- /konsulter/:uid (KonsultProfilPage): tabs Kompetensbank (read-only accordion + add-modal) + Uppdrag (gap-analys inline)
-- "+ Skapa nytt uppdrag åt konsulten" → navigate('/jobb/ny', { state: { targetUid, targetName } })
-- JobCreate läser location.state.targetUid och sparar under konsultens uid om satt; navigerar till /konsulter/:uid efter save
-- RequireSäljarOrAdmin skyddar /konsulter och /konsulter/:uid
+- /konsulter (SäljarePage): två listsektioner — aktiva konsulter (role='konsult') + väntande profiler (pendingProfiles-collection)
+  - "+ Förbered ny konsult" → modal (namn + @boulder.se e-post) → skapar pendingProfiles/{email}-doc → navigerar till /konsulter/pending/:email
+- /konsulter/:uid (KonsultProfilPage): tabs Kompetensbank (read-only accordion + CV-upload + add-modal) + Uppdrag (gap-analys inline)
+  - FileUpload accepterar targetUid-prop och sparar under den uid:n
+  - FileUpload accepterar onSuccess-callback för att trigga refresh
+- /konsulter/pending/:email (PendingProfilPage): FÖRE /konsulter/:uid i App.jsx-routes
+  - Banner: konsulten har inte loggat in än
+  - Tab Kompetensbank: läser pendingProfiles/{email}.competencies, CV-upload via PendingFileUpload (sparar via arrayUnion), add-modal
+  - Tab Uppdrag: läser pendingProfiles/{email}.jobs
+  - "+ Skapa nytt uppdrag åt konsulten" → navigate('/jobb/ny', { state: { pendingEmail, pendingName } })
+- JobCreate: läser location.state.pendingEmail/pendingName om satt
+  - Hämtar kompetenser från pendingProfiles/{email}.competencies istället för users-subcollection
+  - Sparar jobb via arrayUnion till pendingProfiles/{email}.jobs (med genererat id-fält)
+  - Navigerar till /konsulter/pending/:email efter save
+- AuthGate: vid första login, kopierar pendingProfiles/{email} → users/{uid}/competencies + jobs → raderar pending-doc → sätter profileActivated=true
+- Home.jsx Dashboard: visar grön banner om profileActivated=true (kan stängas)
 
 ### Firestore Security Rules (firestore.rules)
 - Roller: admin kan läsa/skriva alla users; säljare kan läsa users + jobb + kompetenser; owner kan allt i sitt eget träd
 - feedback-subcollection: enbart owner + admin
+- pendingProfiles: enbart admin + säljare (ej owner/konsult)
 - firebase.json pekar på firestore.rules
 
 ## Konventioner
