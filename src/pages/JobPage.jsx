@@ -12,13 +12,6 @@ import {
 import { db, auth } from '../lib/firebase'
 import { logger, CATEGORIES } from '../lib/logger'
 
-const QUESTION_CATEGORIES = [
-  { key: 'erfarenhet', label: 'Erfarenhet', color: '#4A6FA5' },
-  { key: 'kompetens',  label: 'Kompetens',  color: '#2A9D8F' },
-  { key: 'situation',  label: 'Situation',  color: '#E9C46A' },
-  { key: 'motivation', label: 'Motivation', color: '#7C5CBF' },
-]
-
 const STRENGTH_STYLE = {
   hög:   { color: '#4ade80', label: 'Hög' },
   medel: { color: '#e9c46a', label: 'Medel' },
@@ -27,9 +20,14 @@ const STRENGTH_STYLE = {
 
 const TABS = [
   { key: 'preparation', label: 'Förberedelse' },
-  { key: 'questions',   label: 'Intervjufrågor' },
   { key: 'history',     label: 'Historik' },
 ]
+
+const FOCUS_TO_CATEGORY = {
+  Erfarenhet: 'erfarenhet',
+  Kompetens: 'kompetens',
+  Situation: 'situation',
+}
 
 // ── Page ─────────────────────────────────────────────────────────────────
 
@@ -44,6 +42,8 @@ export default function JobPage() {
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(true)
   const [activeTab, setActiveTab] = useState('preparation')
   const [archiving, setArchiving] = useState(false)
+  const [showConfig, setShowConfig] = useState(false)
+  const [config, setConfig] = useState({ numQuestions: 5, focus: 'Mix', difficulty: 'Standard' })
 
   useEffect(() => {
     logger.info(CATEGORIES.APP, 'JobPage loaded', { jobId })
@@ -141,13 +141,20 @@ export default function JobPage() {
       ? '#E9C46A'
       : '#ef4444'
 
-  const grouped = QUESTION_CATEGORIES.map((cat) => ({
-    ...cat,
-    items: questions.filter((q) => q.category === cat.key),
-  })).filter((g) => g.items.length > 0)
-
   function startInterview() {
-    navigate(`/intervju-tts/${jobId}`)
+    setShowConfig(true)
+  }
+
+  function launchInterview() {
+    const categoryKey = FOCUS_TO_CATEGORY[config.focus]
+    const filtered = categoryKey
+      ? questions.filter((q) => q.category === categoryKey)
+      : questions
+    const pool = filtered.length > 0 ? filtered : questions
+    const selectedQuestions = pool.slice(0, config.numQuestions)
+    navigate(`/intervju-tts/${jobId}`, {
+      state: { ...config, selectedQuestions },
+    })
   }
 
   return (
@@ -204,86 +211,95 @@ export default function JobPage() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b" style={{ borderColor: '#2a2d3a' }}>
-        <div className="flex gap-1">
-          {TABS.map((tab) => (
+      {showConfig ? (
+        <InterviewConfigScreen
+          config={config}
+          onChange={setConfig}
+          questions={questions}
+          onStart={launchInterview}
+          onBack={() => setShowConfig(false)}
+        />
+      ) : (
+        <>
+          {/* Tabs */}
+          <div className="border-b" style={{ borderColor: '#2a2d3a' }}>
+            <div className="flex gap-1">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className="px-4 py-2.5 text-sm font-medium transition-colors"
+                  style={{
+                    color: activeTab === tab.key ? '#fff' : '#6b7280',
+                    borderBottom:
+                      activeTab === tab.key
+                        ? '2px solid #4A6FA5'
+                        : '2px solid transparent',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tab content */}
+          {activeTab === 'preparation' && (
+            <PrepTab
+              job={job}
+              covered={covered}
+              gaps={gaps}
+              competencyById={competencyById}
+            />
+          )}
+          {activeTab === 'history' && (
+            <HistoryTab
+              feedbacks={feedbacks}
+              loading={loadingFeedbacks}
+              hasQuestions={questions.length > 0}
+              onNavigate={(fId) => navigate(`/feedback/${jobId}/${fId}`)}
+              onStartInterview={startInterview}
+            />
+          )}
+
+          {/* Archive link */}
+          <div className="pt-6 border-t" style={{ borderColor: '#1e2030' }}>
             <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className="px-4 py-2.5 text-sm font-medium transition-colors"
-              style={{
-                color: activeTab === tab.key ? '#fff' : '#6b7280',
-                borderBottom:
-                  activeTab === tab.key
-                    ? '2px solid #4A6FA5'
-                    : '2px solid transparent',
-              }}
+              onClick={handleArchive}
+              disabled={archiving}
+              className="text-xs transition-colors disabled:opacity-40"
+              style={{ color: '#4b5563' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = '#9ca3af')}
+              onMouseOut={(e) => (e.currentTarget.style.color = '#4b5563')}
             >
-              {tab.label}
+              {archiving
+                ? 'Sparar...'
+                : job.archived
+                ? 'Återställ uppdrag'
+                : 'Arkivera uppdrag'}
             </button>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {/* Tab content */}
-      {activeTab === 'preparation' && (
-        <PrepTab
-          job={job}
-          covered={covered}
-          gaps={gaps}
-          competencyById={competencyById}
-        />
+          {/* Sticky footer CTA */}
+          <div
+            className="fixed bottom-0 left-0 right-0 border-t flex items-center justify-center px-6 py-4"
+            style={{ backgroundColor: '#0f1117cc', backdropFilter: 'blur(8px)', borderColor: '#2a2d3a' }}
+          >
+            <button
+              onClick={startInterview}
+              disabled={questions.length === 0}
+              className="flex items-center gap-2 px-8 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#2A9D8F' }}
+              onMouseOver={(e) => {
+                if (questions.length > 0) e.currentTarget.style.backgroundColor = '#34b8a8'
+              }}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2A9D8F')}
+            >
+              🎙 Starta intervjuträning
+            </button>
+          </div>
+        </>
       )}
-      {activeTab === 'questions' && (
-        <QuestionsTab grouped={grouped} competencyById={competencyById} />
-      )}
-      {activeTab === 'history' && (
-        <HistoryTab
-          feedbacks={feedbacks}
-          loading={loadingFeedbacks}
-          hasQuestions={questions.length > 0}
-          onNavigate={(fId) => navigate(`/feedback/${jobId}/${fId}`)}
-          onStartInterview={startInterview}
-        />
-      )}
-
-      {/* Archive link */}
-      <div className="pt-6 border-t" style={{ borderColor: '#1e2030' }}>
-        <button
-          onClick={handleArchive}
-          disabled={archiving}
-          className="text-xs transition-colors disabled:opacity-40"
-          style={{ color: '#4b5563' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#9ca3af')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#4b5563')}
-        >
-          {archiving
-            ? 'Sparar...'
-            : job.archived
-            ? 'Återställ uppdrag'
-            : 'Arkivera uppdrag'}
-        </button>
-      </div>
-
-      {/* Sticky footer CTA */}
-      <div
-        className="fixed bottom-0 left-0 right-0 border-t flex items-center justify-center px-6 py-4"
-        style={{ backgroundColor: '#0f1117cc', backdropFilter: 'blur(8px)', borderColor: '#2a2d3a' }}
-      >
-        <button
-          onClick={startInterview}
-          disabled={questions.length === 0}
-          className="flex items-center gap-2 px-8 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{ backgroundColor: '#2A9D8F' }}
-          onMouseOver={(e) => {
-            if (questions.length > 0) e.currentTarget.style.backgroundColor = '#34b8a8'
-          }}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2A9D8F')}
-        >
-          🎙 Starta intervjuträning
-        </button>
-      </div>
     </div>
   )
 }
@@ -448,87 +464,6 @@ function GapRow({ item }) {
   )
 }
 
-// ── Tab: Intervjufrågor ───────────────────────────────────────────────────
-
-function QuestionsTab({ grouped, competencyById }) {
-  if (grouped.length === 0) {
-    return (
-      <p className="text-sm" style={{ color: '#6b7280' }}>
-        Inga frågor genererade.
-      </p>
-    )
-  }
-  return (
-    <div className="space-y-6">
-      {grouped.map((group) => (
-        <div key={group.key} className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: group.color }}
-            />
-            <h3
-              className="text-xs font-semibold uppercase tracking-widest"
-              style={{ color: group.color }}
-            >
-              {group.label} ({group.items.length})
-            </h3>
-          </div>
-          <ul className="space-y-2">
-            {group.items.map((q) => (
-              <QuestionCard
-                key={q.id}
-                question={q}
-                competencyById={competencyById}
-              />
-            ))}
-          </ul>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function QuestionCard({ question, competencyById }) {
-  const [expanded, setExpanded] = useState(false)
-  const comp = question.competencyId
-    ? competencyById.get(question.competencyId)
-    : null
-
-  return (
-    <li
-      className="rounded-xl border transition-colors cursor-pointer"
-      style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
-      onClick={() => setExpanded((v) => !v)}
-    >
-      <div className="flex items-start justify-between gap-4 p-4">
-        <p className="text-sm text-white leading-relaxed flex-1">
-          {question.text}
-        </p>
-        <ChevronIcon expanded={expanded} />
-      </div>
-      {expanded && (
-        <div
-          className="px-4 pb-4 space-y-2 border-t pt-3"
-          style={{ borderColor: '#2a2d3a' }}
-        >
-          {question.tip && (
-            <p className="text-xs leading-relaxed" style={{ color: '#9ca3af' }}>
-              <span style={{ color: '#4A6FA5' }}>Tips: </span>
-              {question.tip}
-            </p>
-          )}
-          {comp && (
-            <p className="text-xs" style={{ color: '#6b7280' }}>
-              Kompetens: {comp.title}
-            </p>
-          )}
-        </div>
-      )}
-    </li>
-  )
-}
-
 // ── Tab: Historik ─────────────────────────────────────────────────────────
 
 function HistoryTab({ feedbacks, loading, hasQuestions, onNavigate, onStartInterview }) {
@@ -617,6 +552,153 @@ function HistoryTab({ feedbacks, loading, hasQuestions, onNavigate, onStartInter
         )
       })}
     </ul>
+  )
+}
+
+// ── Interview Config Screen ───────────────────────────────────────────────
+
+const CAT_META = {
+  erfarenhet: { label: 'Erfarenhet', color: '#4A6FA5' },
+  kompetens:  { label: 'Kompetens',  color: '#2A9D8F' },
+  situation:  { label: 'Situation',  color: '#E9C46A' },
+  motivation: { label: 'Motivation', color: '#7C5CBF' },
+}
+
+const DIFFICULTY_COLOR = {
+  Avslappnad: '#22c55e',
+  Standard:   '#E9C46A',
+  Hård:       '#ef4444',
+}
+
+function OptionGroup({ label, options, value, onChange }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
+        {label}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {options.map((opt) => (
+          <button
+            key={opt}
+            onClick={() => onChange(opt)}
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            style={
+              value === opt
+                ? { backgroundColor: '#4A6FA5', color: '#fff' }
+                : { backgroundColor: '#1e2030', color: '#9ca3af' }
+            }
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function InterviewConfigScreen({ config, onChange, questions, onStart, onBack }) {
+  const categoryKey = FOCUS_TO_CATEGORY[config.focus]
+  const filtered = categoryKey
+    ? questions.filter((q) => q.category === categoryKey)
+    : questions
+  const pool = filtered.length > 0 ? filtered : questions
+  const previewQuestions = pool.slice(0, config.numQuestions)
+  const diffColor = DIFFICULTY_COLOR[config.difficulty] ?? '#9ca3af'
+
+  return (
+    <div className="space-y-6">
+      {/* Back */}
+      <button
+        onClick={onBack}
+        className="text-sm transition-colors"
+        style={{ color: '#6b7280' }}
+        onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
+        onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+      >
+        ← Tillbaka
+      </button>
+
+      <h2 className="text-xl font-bold text-white tracking-tight">Konfigurera intervjun</h2>
+
+      <div className="grid gap-8 md:grid-cols-2">
+        {/* Left – settings */}
+        <div className="space-y-6">
+          <OptionGroup
+            label="Antal frågor"
+            options={[3, 5, 8]}
+            value={config.numQuestions}
+            onChange={(v) => onChange((c) => ({ ...c, numQuestions: v }))}
+          />
+          <OptionGroup
+            label="Fokus"
+            options={['Mix', 'Erfarenhet', 'Kompetens', 'Situation']}
+            value={config.focus}
+            onChange={(v) => onChange((c) => ({ ...c, focus: v }))}
+          />
+          <OptionGroup
+            label="Svårighetsgrad"
+            options={['Avslappnad', 'Standard', 'Hård']}
+            value={config.difficulty}
+            onChange={(v) => onChange((c) => ({ ...c, difficulty: v }))}
+          />
+          <button
+            onClick={onStart}
+            disabled={previewQuestions.length === 0}
+            className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#2A9D8F' }}
+            onMouseOver={(e) => {
+              if (previewQuestions.length > 0) e.currentTarget.style.backgroundColor = '#34b8a8'
+            }}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2A9D8F')}
+          >
+            🎙 Starta intervju
+          </button>
+        </div>
+
+        {/* Right – question preview */}
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
+            Frågor som ingår ({previewQuestions.length})
+          </p>
+          {previewQuestions.length === 0 ? (
+            <p className="text-sm" style={{ color: '#6b7280' }}>
+              Inga frågor matchar valt fokus.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {previewQuestions.map((q, i) => {
+                const cat = CAT_META[q.category]
+                return (
+                  <li
+                    key={i}
+                    className="rounded-lg border p-3 space-y-2"
+                    style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+                  >
+                    <div className="flex items-center gap-2">
+                      {cat && (
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: cat.color + '20', color: cat.color }}
+                        >
+                          {cat.label}
+                        </span>
+                      )}
+                      <span
+                        className="text-xs font-medium px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: diffColor + '20', color: diffColor }}
+                      >
+                        {config.difficulty}
+                      </span>
+                    </div>
+                    <p className="text-sm text-white leading-relaxed">{q.question}</p>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 

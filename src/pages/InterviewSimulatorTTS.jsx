@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   addDoc,
   collection,
@@ -10,63 +10,102 @@ import {
 } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
 import { logger, CATEGORIES } from '../lib/logger'
-import { analyzeInterviewFeedback } from '../lib/claude'
+import { analyzeInterviewFeedback, sanitizeCompetencies } from '../lib/claude'
 
 const VERCEL_WHISPER =
   'https://interview-prep-liard-three.vercel.app/api/whisper'
 const VERCEL_TTS = 'https://interview-prep-liard-three.vercel.app/api/tts'
 
-const INTERVIEWER_NAMES = [
-  'Anna Lindström',
-  'Erik Bergström',
-  'Maria Karlsson',
-  'Johan Svensson',
-]
+const FEMALE_VOICES = ['shimmer', 'nova', 'alloy']
+const MALE_VOICES = ['onyx', 'echo', 'fable']
+const FEMALE_NAMES = ['Maria Lindström', 'Anna Karlsson', 'Sara Bergström']
+const MALE_NAMES = ['Erik Svensson', 'Johan Andersen', 'Anders Nilsson']
 
-// TODO: Ta bort MAX_QUESTIONS_FOR_TESTING när testning är klar
-const MAX_QUESTIONS_FOR_TESTING = 1
-
-function pickInterviewer() {
-  return INTERVIEWER_NAMES[Math.floor(Math.random() * INTERVIEWER_NAMES.length)]
+function pickVoiceAndName() {
+  const useFemale = Math.random() < 0.5
+  const voices = useFemale ? FEMALE_VOICES : MALE_VOICES
+  const names = useFemale ? FEMALE_NAMES : MALE_NAMES
+  const idx = Math.floor(Math.random() * voices.length)
+  return { voice: voices[idx], name: names[idx] }
 }
+
+const FOCUS_TO_CATEGORY = {
+  Erfarenhet: 'erfarenhet',
+  Kompetens: 'kompetens',
+  Situation: 'situation',
+  Motivation: 'motivation',
+}
+
+const DEFAULT_CONFIG = {
+  numQuestions: 5,
+  focus: 'Mix',
+  difficulty: 'Standard',
+  selectedQuestions: null,
+}
+
+// ── State machine ─────────────────────────────────────────────────────────
+
+const STATES = {
+  CONNECTING:       'connecting',       // initial greeting only
+  AI_SPEAKING:      'ai_speaking',
+  WAITING_FOR_USER: 'waiting_for_user',
+  RECORDING:        'recording',
+  PROCESSING:       'processing',       // Whisper transcription
+  PREPARING_NEXT:   'preparing_next',   // TTS fetch for next question
+  FINISHED:         'finished',
+}
+
+function statusLabel(state, interviewerName) {
+  switch (state) {
+    case STATES.CONNECTING:       return 'Ansluter till intervjuaren...'
+    case STATES.AI_SPEAKING:      return `${interviewerName} frågar...`
+    case STATES.WAITING_FOR_USER: return 'Din tur'
+    case STATES.RECORDING:        return 'Spelar in... klicka när du är klar'
+    case STATES.PROCESSING:       return 'Transkriberar ditt svar...'
+    case STATES.PREPARING_NEXT:   return 'Förbereder nästa fråga...'
+    case STATES.FINISHED:         return 'Intervjun är klar – analyserar dina svar...'
+    default:                      return ''
+  }
+}
+
+// ── Component ─────────────────────────────────────────────────────────────
 
 export default function InterviewSimulatorTTS() {
   const { jobId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const interviewConfig = { ...DEFAULT_CONFIG, ...(location.state ?? {}) }
 
   const [job, setJob] = useState(null)
   const [loadingJob, setLoadingJob] = useState(true)
   const [loadError, setLoadError] = useState('')
 
-  const [phase, setPhase] = useState('preparing') // preparing | interviewing | finished
+  const [interviewState, setInterviewState] = useState(STATES.CONNECTING)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [transcript, setTranscript] = useState([])
-  const [isRecording, setIsRecording] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [isConnecting, setIsConnecting] = useState(false)
-  const [statusMessage, setStatusMessage] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
-  const [logs, setLogs] = useState([])
-  const addLog = (msg) =>
-    setLogs((prev) => [
-      ...prev,
-      `${new Date().toLocaleTimeString()} ${msg}`,
-    ])
 
-  const interviewerName = useMemo(() => pickInterviewer(), [])
+  const { voice: interviewerVoice, name: interviewerName } = useMemo(
+    () => pickVoiceAndName(),
+    []
+  )
   const audioRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
-  const phaseRef = useRef(phase)
   const transcriptRef = useRef(transcript)
+  const currentQuestionIndexRef = useRef(0)
+  const activeQuestionsRef = useRef([])
+  const recordingStartRef = useRef(null)
 
-  useEffect(() => {
-    phaseRef.current = phase
-  }, [phase])
   useEffect(() => {
     transcriptRef.current = transcript
   }, [transcript])
 
+  useEffect(() => {
+    currentQuestionIndexRef.current = currentQuestionIndex
+  }, [currentQuestionIndex])
+
+  // Load job
   useEffect(() => {
     logger.info(CATEGORIES.APP, 'InterviewSimulatorTTS loaded', { jobId })
     let cancelled = false
@@ -80,10 +119,10 @@ export default function InterviewSimulatorTTS() {
           logger.warn(CATEGORIES.APP, 'Job not found', { jobId })
         } else {
           setJob({ docId: snap.id, ...snap.data() })
-          logger.info(CATEGORIES.APP, 'Job loaded', { 
-            jobId, 
+          logger.info(CATEGORIES.APP, 'Job loaded', {
+            jobId,
             jobTitle: snap.data().jobTitle,
-            questionCount: snap.data().questions?.length || 0 
+            questionCount: snap.data().questions?.length || 0,
           })
         }
       } catch (err) {
@@ -95,11 +134,16 @@ export default function InterviewSimulatorTTS() {
       }
     }
     load()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [jobId])
 
+  // Auto-start interview when job loads
+  useEffect(() => {
+    if (!job) return
+    startInterview() // eslint-disable-line react-hooks/exhaustive-deps
+  }, [job]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -107,9 +151,7 @@ export default function InterviewSimulatorTTS() {
         audioRef.current = null
       }
       if (mediaRecorderRef.current?.stream) {
-        mediaRecorderRef.current.stream
-          .getTracks()
-          .forEach((t) => t.stop())
+        mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop())
       }
     }
   }, [])
@@ -118,68 +160,72 @@ export default function InterviewSimulatorTTS() {
     setTranscript((prev) => [...prev, { role, text }])
   }
 
+  // speakText: fetches TTS, signals AI_SPEAKING when audio starts, resolves when done
   async function speakText(text) {
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current = null
     }
 
-    addLog('🔄 Hämtar TTS...')
-    try {
-      const r = await fetch(VERCEL_TTS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voice: 'shimmer' }),
-      })
-      if (!r.ok) {
-        const errText = await r.text()
-        throw new Error('TTS fel: ' + errText)
-      }
-
-      const arrayBuffer = await r.arrayBuffer()
-      const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' })
-      const url = URL.createObjectURL(blob)
-      addLog('✓ TTS blob mottagen, storlek: ' + blob.size + ' type: ' + blob.type)
-
-      const audio = new Audio()
-      audio.src = url
-      audioRef.current = audio
-
-      addLog('▶ Spelar upp ljud...')
-      await new Promise((resolve, reject) => {
-        audio.oncanplaythrough = () => audio.play().then(resolve).catch(reject)
-        audio.onerror = (e) => reject(new Error('Audio error: ' + e.type))
-        audio.load()
-      })
-
-      await new Promise((resolve) => {
-        audio.onended = resolve
-      })
-      addLog('✓ Uppspelning klar')
-      URL.revokeObjectURL(url)
-      audioRef.current = null
-    } finally {
-      setIsConnecting(false)
+    const r = await fetch(VERCEL_TTS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voice: interviewerVoice }),
+    })
+    if (!r.ok) {
+      const errText = await r.text()
+      throw new Error('TTS fel: ' + errText)
     }
+
+    const blob = new Blob([await r.arrayBuffer()], { type: 'audio/mpeg' })
+    const url = URL.createObjectURL(blob)
+    const audio = new Audio()
+    audio.src = url
+    audioRef.current = audio
+
+    // Signal AI_SPEAKING the moment playback actually starts
+    await new Promise((resolve, reject) => {
+      audio.oncanplaythrough = () => {
+        audio.play()
+          .then(() => {
+            setInterviewState(STATES.AI_SPEAKING)
+            resolve()
+          })
+          .catch(reject)
+      }
+      audio.onerror = (e) => reject(new Error('Audio error: ' + e.type))
+      audio.load()
+    })
+
+    await new Promise((resolve) => { audio.onended = resolve })
+    URL.revokeObjectURL(url)
+    audioRef.current = null
   }
 
   async function startInterview() {
     const allQuestions = job?.questions ?? []
-    if (allQuestions.length === 0) return
+    if (allQuestions.length === 0) {
+      setLoadError('Inga frågor hittades för detta uppdrag.')
+      return
+    }
 
-    // TODO: Ta bort MAX_QUESTIONS_FOR_TESTING när testning är klar
-    const activeQuestions = allQuestions.slice(0, MAX_QUESTIONS_FOR_TESTING)
+    const activeQuestions = interviewConfig.selectedQuestions ?? (() => {
+      const categoryKey = FOCUS_TO_CATEGORY[interviewConfig.focus]
+      const filtered = categoryKey
+        ? allQuestions.filter((q) => q.category === categoryKey)
+        : allQuestions
+      const pool = filtered.length > 0 ? filtered : allQuestions
+      return pool.slice(0, interviewConfig.numQuestions)
+    })()
+
+    activeQuestionsRef.current = activeQuestions
+    setInterviewState(STATES.CONNECTING)
 
     logger.info(CATEGORIES.APP, 'Starting interview', {
       jobId,
       interviewer: interviewerName,
       questionCount: activeQuestions.length,
     })
-
-    setErrorMsg('')
-    setPhase('interviewing')
-    setIsConnecting(true)
-    setStatusMessage('Ansluter till intervjuaren...')
 
     const greeting =
       `Hej, jag heter ${interviewerName}. Välkommen till intervjun ` +
@@ -190,19 +236,26 @@ export default function InterviewSimulatorTTS() {
     try {
       await speakText(greeting)
       addToTranscript('interviewer', greeting)
-      setStatusMessage('Håll knappen för att svara')
+      setInterviewState(STATES.WAITING_FOR_USER)
       logger.info(CATEGORIES.APP, 'Interview started successfully')
     } catch (err) {
       console.error('TTS-fel:', err)
       logger.error(CATEGORIES.APP, 'Failed to start interview', { error: err.message })
       setErrorMsg(err.message ?? 'Kunde inte spela upp AI-rösten.')
-      setStatusMessage('')
-      setIsConnecting(false)
+    }
+  }
+
+  // Click-toggle: WAITING_FOR_USER → RECORDING, RECORDING → PROCESSING (min 1s)
+  function handleRecordingToggle() {
+    if (interviewState === STATES.WAITING_FOR_USER) {
+      startRecording()
+    } else if (interviewState === STATES.RECORDING) {
+      const elapsed = Date.now() - (recordingStartRef.current ?? 0)
+      if (elapsed >= 1000) stopRecording()
     }
   }
 
   async function startRecording() {
-    if (isRecording || isProcessing || isConnecting) return
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -216,15 +269,12 @@ export default function InterviewSimulatorTTS() {
         if (e.data.size > 0) audioChunksRef.current.push(e.data)
       }
       recorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, {
-          type: 'audio/webm',
-        })
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
         await processAnswer(audioBlob)
       }
       recorder.start(100)
-      setIsRecording(true)
-      setStatusMessage('Spelar in – släpp när du är klar')
-      addLog('🎤 Startar inspelning...')
+      recordingStartRef.current = Date.now()
+      setInterviewState(STATES.RECORDING)
     } catch (err) {
       console.error('Kunde inte starta inspelning:', err)
       setErrorMsg(err.message ?? 'Kunde inte starta inspelning.')
@@ -232,20 +282,15 @@ export default function InterviewSimulatorTTS() {
   }
 
   function stopRecording() {
-    if (!isRecording) return
     const recorder = mediaRecorderRef.current
     if (!recorder) return
     recorder.stop()
     recorder.stream.getTracks().forEach((t) => t.stop())
-    setIsRecording(false)
-    setIsProcessing(true)
-    addLog('⏹ Inspelning stoppad')
+    setInterviewState(STATES.PROCESSING)
   }
 
   async function processAnswer(audioBlob) {
     try {
-      setStatusMessage('Transkriberar ditt svar...')
-      addLog('🔄 Skickar till Whisper...')
       const whisperRes = await fetch(VERCEL_WHISPER, {
         method: 'POST',
         headers: { 'Content-Type': 'audio/webm' },
@@ -253,14 +298,10 @@ export default function InterviewSimulatorTTS() {
       })
       const { text: userText } = await whisperRes.json()
       if (!userText) throw new Error('Inget tal detekterat')
-      addLog('✓ Whisper svar: ' + userText)
       addToTranscript('candidate', userText)
 
-      setStatusMessage('Förbereder svar...')
-      const allQuestions = job?.questions ?? []
-      // TODO: Ta bort MAX_QUESTIONS_FOR_TESTING när testning är klar
-      const activeQuestions = allQuestions.slice(0, MAX_QUESTIONS_FOR_TESTING)
-      const nextIndex = currentQuestionIndex + 1
+      const activeQuestions = activeQuestionsRef.current
+      const nextIndex = currentQuestionIndexRef.current + 1
       let aiText
       let finishing = false
 
@@ -269,6 +310,7 @@ export default function InterviewSimulatorTTS() {
           `Tack. Fråga ${nextIndex + 1} av ${activeQuestions.length}: ` +
           activeQuestions[nextIndex].question
         setCurrentQuestionIndex(nextIndex)
+        currentQuestionIndexRef.current = nextIndex
       } else {
         aiText =
           'Tack så mycket, det var alla mina frågor. ' +
@@ -276,79 +318,55 @@ export default function InterviewSimulatorTTS() {
         finishing = true
       }
 
-      setStatusMessage('AI svarar...')
-      setIsConnecting(true)
+      setInterviewState(STATES.PREPARING_NEXT)
       await speakText(aiText)
       addToTranscript('interviewer', aiText)
 
       if (finishing) {
-        setPhase('finished')
-        setStatusMessage('Sparar intervjun...')
-        await saveSession(aiText)
+        setInterviewState(STATES.FINISHED)
+        await saveSession()
       } else {
-        setStatusMessage('Håll knappen för att svara')
+        setInterviewState(STATES.WAITING_FOR_USER)
       }
     } catch (error) {
       console.error(error)
-      addLog('FEL: ' + error.message)
       setErrorMsg(error.message)
-      setStatusMessage('Fel: ' + error.message + ' – försök igen')
-    } finally {
-      setIsProcessing(false)
+      setInterviewState(STATES.WAITING_FOR_USER)
     }
   }
 
-  async function saveSession(finalText) {
+  async function saveSession() {
     try {
       logger.info(CATEGORIES.APP, 'Saving interview session', { jobId })
-      setStatusMessage('Analyserar din intervju...')
-      
       const uid = auth.currentUser.uid
-      const finalTranscript = finalText
-        ? [...transcriptRef.current, { role: 'interviewer', text: finalText }]
-        : transcriptRef.current
+      const activeQuestions = activeQuestionsRef.current
+      const finalTranscript = transcriptRef.current
 
-      // Build transcript for Claude analysis
-      const allQuestions = job?.questions ?? []
-      const activeQuestions = allQuestions.slice(0, MAX_QUESTIONS_FOR_TESTING)
       const transcriptForAnalysis = []
-      
-      // Match questions with answers from transcript
       activeQuestions.forEach((q, index) => {
         const candidateEntry = finalTranscript.find(
           (t, i) => t.role === 'candidate' && i > index * 2
         )
         if (candidateEntry) {
-          transcriptForAnalysis.push({
-            question: q.question,
-            answer: candidateEntry.text,
-          })
+          transcriptForAnalysis.push({ question: q.question, answer: candidateEntry.text })
         }
       })
 
-      // Fetch user's competencies
       logger.info(CATEGORIES.APP, 'Fetching competencies for feedback analysis')
       const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
-      const competencies = compSnap.docs.map((d) => ({ 
-        id: d.data().id,
-        title: d.data().title,
-        description: d.data().description,
-        tags: d.data().tags ?? [],
-      }))
-      logger.info(CATEGORIES.APP, 'Competencies fetched', { count: competencies.length })
+      const rawCompetencies = compSnap.docs.map((d) => d.data())
+      logger.info(CATEGORIES.APP, 'Competencies fetched', { count: rawCompetencies.length })
 
-      // Get feedback from Claude
       logger.info(CATEGORIES.APP, 'Requesting feedback from Claude')
       const feedback = await analyzeInterviewFeedback(
         transcriptForAnalysis,
         job?.jobTitle ?? '',
         job?.company ?? '',
-        competencies
+        sanitizeCompetencies(rawCompetencies),
+        { focus: interviewConfig.focus, difficulty: interviewConfig.difficulty }
       )
       logger.info(CATEGORIES.APP, 'Feedback received', { overallScore: feedback.overallScore })
 
-      // Save feedback to Firestore
-      setStatusMessage('Sparar feedback...')
       const feedbackRef = await addDoc(
         collection(db, 'users', uid, 'jobs', jobId, 'feedback'),
         {
@@ -365,14 +383,13 @@ export default function InterviewSimulatorTTS() {
           transcript: transcriptForAnalysis,
         }
       )
-      
+
       logger.info(CATEGORIES.APP, 'Feedback saved', { feedbackId: feedbackRef.id })
       navigate(`/feedback/${jobId}/${feedbackRef.id}`)
     } catch (err) {
       console.error('Kunde inte spara sessionen:', err)
       logger.error(CATEGORIES.APP, 'Failed to save session', { error: err.message })
       setErrorMsg(err.message ?? 'Kunde inte spara sessionen.')
-      setStatusMessage('')
     }
   }
 
@@ -386,6 +403,8 @@ export default function InterviewSimulatorTTS() {
     }
     navigate(`/jobb/${jobId}`)
   }
+
+  // ── Render ──────────────────────────────────────────────────────────────
 
   if (loadingJob) {
     return (
@@ -402,8 +421,10 @@ export default function InterviewSimulatorTTS() {
           onClick={() => navigate(`/jobb/${jobId}`)}
           className="text-sm transition-colors"
           style={{ color: '#6b7280' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
+          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
         >
-          ← Tillbaka till jobbannonser
+          ← Tillbaka
         </button>
         <p className="text-sm" style={{ color: '#f87171' }}>
           {loadError || 'Hittade ingen jobbannons.'}
@@ -412,138 +433,26 @@ export default function InterviewSimulatorTTS() {
     )
   }
 
-  const allQuestions = job.questions ?? []
-  // TODO: Ta bort MAX_QUESTIONS_FOR_TESTING när testning är klar
-  const activeQuestions = allQuestions.slice(0, MAX_QUESTIONS_FOR_TESTING)
-  const currentQuestion =
-    activeQuestions[Math.min(currentQuestionIndex, Math.max(activeQuestions.length - 1, 0))]
+  const activeQuestions = activeQuestionsRef.current
+  const totalQuestions = activeQuestions.length
+  const currentQuestion = activeQuestions[currentQuestionIndex]
 
-  if (phase === 'preparing') {
-    return (
-      <>
-      <div className="space-y-8">
-        <button
-          onClick={() => navigate(`/jobb/${jobId}`)}
-          className="text-sm transition-colors"
-          style={{ color: '#6b7280' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
-        >
-          ← Tillbaka
-        </button>
+  const showQuestion =
+    (interviewState === STATES.AI_SPEAKING ||
+      interviewState === STATES.WAITING_FOR_USER ||
+      interviewState === STATES.RECORDING ||
+      interviewState === STATES.PROCESSING) &&
+    currentQuestion != null
 
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            Intervju med röst & text
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
-            Push-to-talk med Whisper-transkription och TTS-röstsvar.
-          </p>
-        </div>
+  const showButton =
+    interviewState === STATES.WAITING_FOR_USER ||
+    interviewState === STATES.RECORDING
 
-        <div
-          className="rounded-xl border p-6 space-y-5"
-          style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
-        >
-          <InfoRow label="Roll" value={job.jobTitle || '—'} />
-          <InfoRow label="Företag" value={job.company || '—'} />
-          <InfoRow label="Intervjuare" value={interviewerName} />
-          <InfoRow
-            label="Antal frågor"
-            value={`${activeQuestions.length} ${
-              activeQuestions.length === 1 ? 'fråga' : 'frågor'
-            }`}
-          />
-        </div>
-
-        <p className="text-xs text-center" style={{ color: '#6b7280' }}>
-          Håll mikrofonknappen när du pratar, släpp när du är klar.
-        </p>
-
-        <button
-          onClick={startInterview}
-          disabled={activeQuestions.length === 0}
-          className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{ backgroundColor: '#2A9D8F' }}
-          onMouseOver={(e) => {
-            if (activeQuestions.length > 0)
-              e.currentTarget.style.backgroundColor = '#34b8a8'
-          }}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2A9D8F')}
-        >
-          Starta intervju
-        </button>
-
-        {errorMsg && (
-          <p className="text-sm" style={{ color: '#f87171' }}>
-            {errorMsg}
-          </p>
-        )}
-      </div>
-      </>
-    )
-  }
-
-  const circleState = isRecording
-    ? 'recording'
-    : isProcessing
-    ? 'processing'
-    : isConnecting
-    ? 'speaking'
-    : 'idle'
-
-  // Show connecting view when starting interview
-  if (isConnecting) {
-    return (
-      <>
-      <div className="space-y-10">
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            Intervju med {interviewerName}
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
-            {job.jobTitle}
-            {job.company ? ` · ${job.company}` : ''}
-          </p>
-        </div>
-
-        <div className="flex flex-col items-center gap-6 py-16">
-          <div className="relative" style={{ width: 200, height: 200 }}>
-            <span
-              className="absolute inset-0 rounded-full"
-              style={{
-                border: '4px solid #4A6FA5',
-                borderTopColor: 'transparent',
-                animation: 'ttsSpin 1s linear infinite',
-              }}
-            />
-            <span
-              className="absolute inset-0 rounded-full transition-colors"
-              style={{ backgroundColor: '#4A6FA5', opacity: 0.9 }}
-            />
-          </div>
-          <div className="text-center space-y-2">
-            <p className="text-base font-semibold text-white">
-              Ansluter till intervjuaren...
-            </p>
-            <p className="text-sm" style={{ color: '#9ca3af' }}>
-              {interviewerName} förbereder sig
-            </p>
-          </div>
-        </div>
-
-        {errorMsg && (
-          <p className="text-sm text-center" style={{ color: '#f87171' }}>
-            {errorMsg}
-          </p>
-        )}
-      </div>
-      </>
-    )
-  }
+  const showProgress = interviewState !== STATES.CONNECTING && totalQuestions > 0
 
   return (
     <div className="space-y-10">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight">
           Intervju med {interviewerName}
@@ -554,17 +463,36 @@ export default function InterviewSimulatorTTS() {
         </p>
       </div>
 
+      {/* Progress bar */}
+      {showProgress && (
+        <ProgressBar
+          current={currentQuestionIndex + 1}
+          total={totalQuestions}
+        />
+      )}
+
+      {/* Status circle + label */}
       <div className="flex flex-col items-center gap-6">
-        <StatusCircle state={circleState} />
-        <p
-          className="text-xs uppercase tracking-widest"
-          style={{ color: '#6b7280' }}
-        >
-          {statusMessage}
-        </p>
+        <StatusCircle state={interviewState} />
+        {interviewState === STATES.PROCESSING || interviewState === STATES.PREPARING_NEXT ? (
+          <p
+            className="text-lg font-semibold text-white text-center"
+            style={{ animation: 'ttsTextPulse 1.4s ease-in-out infinite' }}
+          >
+            {statusLabel(interviewState, interviewerName)}
+          </p>
+        ) : (
+          <p
+            className="text-sm font-medium"
+            style={{ color: interviewState === STATES.WAITING_FOR_USER ? '#22c55e' : '#9ca3af' }}
+          >
+            {statusLabel(interviewState, interviewerName)}
+          </p>
+        )}
       </div>
 
-      {activeQuestions.length > 0 && currentQuestion && phase === 'interviewing' && (
+      {/* Current question */}
+      {showQuestion && (
         <div
           className="rounded-xl border p-5 space-y-2"
           style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
@@ -573,8 +501,7 @@ export default function InterviewSimulatorTTS() {
             className="text-xs font-semibold uppercase tracking-widest"
             style={{ color: '#2A9D8F' }}
           >
-            Fråga {Math.min(currentQuestionIndex + 1, activeQuestions.length)} av{' '}
-            {activeQuestions.length}
+            Fråga {currentQuestionIndex + 1} av {totalQuestions}
           </p>
           <p className="text-sm leading-relaxed text-white">
             {currentQuestion.question}
@@ -582,37 +509,22 @@ export default function InterviewSimulatorTTS() {
         </div>
       )}
 
-      {phase === 'interviewing' && (
+      {/* Finished screen */}
+      {interviewState === STATES.FINISHED && <FinishedScreen />}
+
+      {/* Recording button */}
+      {showButton && (
         <div className="flex flex-col items-center gap-4">
           <button
-            onPointerDown={startRecording}
-            onPointerUp={stopRecording}
-            onPointerLeave={() => {
-              if (isRecording) stopRecording()
-            }}
-            onContextMenu={(e) => e.preventDefault()}
-            disabled={isProcessing || isConnecting}
-            className="px-8 py-4 rounded-full text-white text-base font-semibold transition-colors select-none disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={handleRecordingToggle}
+            className="px-8 py-4 rounded-full text-white text-base font-semibold transition-colors select-none"
             style={{
-              backgroundColor: isRecording
-                ? '#c0392b'
-                : isProcessing || isConnecting
-                ? '#3a3d48'
-                : '#4A6FA5',
+              backgroundColor:
+                interviewState === STATES.RECORDING ? '#c0392b' : '#22c55e',
               minWidth: '240px',
-              userSelect: 'none',
-              touchAction: 'none',
             }}
           >
-            {isProcessing ? (
-              <span className="flex items-center justify-center gap-2">
-                <Spinner /> Bearbetar...
-              </span>
-            ) : isRecording ? (
-              '⏹ Släpp när klar'
-            ) : (
-              '🎤 Håll för att svara'
-            )}
+            {interviewState === STATES.RECORDING ? '⏹ Klar' : '🎙 Klicka för att svara'}
           </button>
 
           <button
@@ -627,105 +539,193 @@ export default function InterviewSimulatorTTS() {
         </div>
       )}
 
+      {/* Error */}
       {errorMsg && (
         <p className="text-sm text-center" style={{ color: '#f87171' }}>
           {errorMsg}
+          {(interviewState === STATES.WAITING_FOR_USER) && (
+            <button
+              onClick={() => setErrorMsg('')}
+              className="ml-2 underline"
+            >
+              Stäng
+            </button>
+          )}
         </p>
       )}
     </div>
   )
 }
 
+// ── FinishedScreen ────────────────────────────────────────────────────────
 
-function InfoRow({ label, value }) {
+const FINISHED_STEPS = [
+  'Intervju genomförd',
+  'Svar transkriberade',
+  'Analyserar mot kompetensbank',
+  'Genererar feedback...',
+]
+
+function FinishedScreen() {
+  const [visibleCount, setVisibleCount] = useState(0)
+
+  useEffect(() => {
+    if (visibleCount >= FINISHED_STEPS.length) return
+    const timer = setTimeout(() => setVisibleCount((v) => v + 1), 800)
+    return () => clearTimeout(timer)
+  }, [visibleCount])
+
+  const allVisible = visibleCount >= FINISHED_STEPS.length
+
   return (
-    <div className="flex items-center justify-between gap-4">
-      <span
-        className="text-xs uppercase tracking-widest font-semibold"
-        style={{ color: '#2A9D8F' }}
-      >
-        {label}
-      </span>
-      <span className="text-sm text-white text-right">{value}</span>
+    <div className="flex flex-col items-center gap-8 py-4">
+      <ul className="space-y-4 w-full max-w-xs">
+        {FINISHED_STEPS.map((step, i) => (
+          <li
+            key={i}
+            className="flex items-center gap-3"
+            style={{
+              opacity: i < visibleCount ? 1 : 0,
+              transition: 'opacity 0.5s ease',
+            }}
+          >
+            <span
+              className="flex items-center justify-center rounded-full shrink-0"
+              style={{
+                width: 28,
+                height: 28,
+                backgroundColor: '#22c55e20',
+                border: '2px solid #22c55e',
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </span>
+            <span className="text-sm font-medium text-white">{step}</span>
+          </li>
+        ))}
+      </ul>
+
+      {allVisible && (
+        <div
+          className="flex items-center gap-3 mt-2"
+          style={{ animation: 'ttsTextPulse 1.4s ease-in-out infinite' }}
+        >
+          <span
+            style={{
+              display: 'inline-block',
+              width: 18,
+              height: 18,
+              border: '2px solid #ffffff',
+              borderTopColor: 'transparent',
+              borderRadius: '50%',
+              animation: 'ttsSpin 0.9s linear infinite',
+              flexShrink: 0,
+            }}
+          />
+          <span className="text-sm font-semibold text-white">
+            Skapar din feedbackrapport...
+          </span>
+        </div>
+      )}
     </div>
   )
 }
 
+// ── StatusCircle ──────────────────────────────────────────────────────────
+
 function StatusCircle({ state }) {
-  const color =
-    state === 'recording'
-      ? '#c0392b'
-      : state === 'processing'
-      ? '#E9C46A'
-      : state === 'speaking'
-      ? '#4A6FA5'
-      : '#3a3d48'
+  const config = {
+    [STATES.CONNECTING]:       { color: '#6b7280', pulse: false, spin: true },
+    [STATES.AI_SPEAKING]:      { color: '#4A6FA5', pulse: 'slow', spin: false },
+    [STATES.WAITING_FOR_USER]: { color: '#22c55e', pulse: false, spin: false },
+    [STATES.RECORDING]:        { color: '#c0392b', pulse: 'fast', spin: false },
+    [STATES.PROCESSING]:       { color: '#ffffff', pulse: false, spin: true },
+    [STATES.PREPARING_NEXT]:   { color: '#ffffff', pulse: false, spin: true },
+    [STATES.FINISHED]:         { color: '#2A9D8F', pulse: false, spin: false },
+  }[state] ?? { color: '#3a3d48', pulse: false, spin: false }
 
   return (
-    <div className="relative" style={{ width: 200, height: 200 }}>
-      {state === 'recording' && (
+    <div className="relative" style={{ width: 160, height: 160 }}>
+      {/* Pulse ring */}
+      {config.pulse === 'fast' && (
         <span
           className="absolute inset-0 rounded-full"
           style={{
-            backgroundColor: color,
+            backgroundColor: config.color,
             opacity: 0.35,
             animation: 'ttsPulseFast 1s ease-out infinite',
           }}
         />
       )}
-      {state === 'speaking' && (
+      {config.pulse === 'slow' && (
         <span
           className="absolute inset-0 rounded-full"
           style={{
-            backgroundColor: color,
+            backgroundColor: config.color,
             opacity: 0.35,
             animation: 'ttsPulseSlow 2.4s ease-out infinite',
           }}
         />
       )}
-      {state === 'processing' && (
+      {/* Spinning border (CONNECTING + PROCESSING) */}
+      {config.spin && (
         <span
           className="absolute inset-0 rounded-full"
           style={{
-            border: `4px solid ${color}`,
+            border: `4px solid ${config.color}`,
             borderTopColor: 'transparent',
             animation: 'ttsSpin 1s linear infinite',
           }}
         />
       )}
+      {/* Filled circle */}
       <span
         className="absolute inset-0 rounded-full transition-colors"
-        style={{ backgroundColor: color, opacity: 0.9 }}
+        style={{ backgroundColor: config.color, opacity: 0.9 }}
       />
       <style>{`
         @keyframes ttsPulseFast {
-          0% { transform: scale(1); opacity: 0.35; }
+          0%   { transform: scale(1);    opacity: 0.35; }
           100% { transform: scale(1.45); opacity: 0; }
         }
         @keyframes ttsPulseSlow {
-          0% { transform: scale(1); opacity: 0.3; }
+          0%   { transform: scale(1);   opacity: 0.3; }
           100% { transform: scale(1.3); opacity: 0; }
         }
         @keyframes ttsSpin {
           to { transform: rotate(360deg); }
+        }
+        @keyframes ttsTextPulse {
+          0%, 100% { opacity: 1; }
+          50%      { opacity: 0.4; }
         }
       `}</style>
     </div>
   )
 }
 
-function Spinner() {
+// ── ProgressBar ───────────────────────────────────────────────────────────
+
+function ProgressBar({ current, total }) {
+  const pct = total > 0 ? Math.round((current / total) * 100) : 0
   return (
-    <span
-      style={{
-        display: 'inline-block',
-        width: 14,
-        height: 14,
-        border: '2px solid #ffffff',
-        borderTopColor: 'transparent',
-        borderRadius: '50%',
-        animation: 'ttsSpin 0.9s linear infinite',
-      }}
-    />
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
+          Fråga {current} av {total}
+        </p>
+        <p className="text-xs" style={{ color: '#6b7280' }}>
+          {pct}%
+        </p>
+      </div>
+      <div className="w-full rounded-full h-1.5" style={{ backgroundColor: '#2a2d3a' }}>
+        <div
+          className="h-1.5 rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, backgroundColor: '#4A6FA5' }}
+        />
+      </div>
+    </div>
   )
 }

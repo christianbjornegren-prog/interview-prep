@@ -1,6 +1,28 @@
 // updated build - force redeploy
+import { logger, CATEGORIES } from './logger'
+
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
 const MODEL = 'claude-sonnet-4-5'
+
+// ── Shared helpers ────────────────────────────────────────────────────────
+
+/**
+ * Strip all ID fields from competency objects before sending to Claude.
+ * Only name, description, and tags are semantically meaningful for prompts.
+ */
+export function sanitizeCompetencies(competencies) {
+  return (competencies || []).map((c) => ({
+    namn: c.title || c.namn || '',
+    beskrivning: c.description || c.beskrivning || '',
+    taggar: c.tags || c.taggar || [],
+  }))
+}
+
+const NO_ID_INSTRUCTION =
+  'Referera ALDRIG till kompetenser med ID, nummer eller tekniska koder som comp_014 eller komp_15. ' +
+  'Använd ALLTID kompetensens faktiska namn.'
+
+// ── Competency extraction ─────────────────────────────────────────────────
 
 const SYSTEM_PROMPT =
   'Du är en karriärcoach som extraherar kompetenser från professionella dokument.\n' +
@@ -44,7 +66,6 @@ export async function extractCompetencies(file, fileType, onProgress = () => {})
       },
     ]
   } else {
-    // PDF – send as base64 document block
     const base64 = await fileToBase64(file)
     messageContent = [
       {
@@ -63,6 +84,20 @@ export async function extractCompetencies(file, fileType, onProgress = () => {})
   }
 
   onProgress('Skickar till Claude...', 30)
+
+  const requestBody = {
+    model: MODEL,
+    max_tokens: 8000,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: messageContent }],
+  }
+
+  logger.debug(CATEGORIES.CLAUDE, 'Extract competencies request', {
+    model: MODEL,
+    promptLength: SYSTEM_PROMPT.length,
+    fileType,
+  })
+
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',
     headers: {
@@ -71,22 +106,26 @@ export async function extractCompetencies(file, fileType, onProgress = () => {})
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 8000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: messageContent }],
-    }),
+    body: JSON.stringify(requestBody),
   })
 
   if (!response.ok) {
     const errorBody = await response.text()
+    logger.error(CATEGORIES.CLAUDE, 'Extract competencies failed', {
+      status: response.status,
+      message: errorBody,
+    })
     throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
   }
 
   onProgress('Analyserar kompetenser...', 60)
   const data = await response.json()
   const rawText = data.content[0].text
+
+  logger.info(CATEGORIES.CLAUDE, 'Extract competencies response OK', {
+    responseLength: rawText.length,
+  })
+
   const jsonMatch = rawText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
   const parsed = JSON.parse(jsonMatch[0])
@@ -109,13 +148,12 @@ const JOB_ANALYSIS_SYSTEM_PROMPT =
   '      "id": "string (kort unikt id, t.ex. q1, q2)",\n' +
   '      "question": "string (intervjufrågan på svenska)",\n' +
   '      "category": "erfarenhet|kompetens|situation|motivation",\n' +
-  '      "rationale": "string (varför denna fråga ställs i sammanhanget)",\n' +
-  '      "relevantCompetencies": ["competency_id från kandidatens bank"]\n' +
+  '      "rationale": "string (varför denna fråga ställs i sammanhanget)"\n' +
   '    }\n' +
   '  ],\n' +
   '  "gapAnalysis": {\n' +
   '    "covered": [\n' +
-  '      { "requirement": "string (krav från annonsen)", "competencyId": "string (matchande id)", "strength": "hög|medel|låg" }\n' +
+  '      { "requirement": "string (krav från annonsen)", "competencyName": "string (matchande kompetensnamn)", "strength": "hög|medel|låg" }\n' +
   '    ],\n' +
   '    "gaps": [\n' +
   '      { "requirement": "string (ej täckt krav)", "suggestion": "string (hur kandidaten kan adressera gapet)" }\n' +
@@ -123,7 +161,7 @@ const JOB_ANALYSIS_SYSTEM_PROMPT =
   '  }\n' +
   '}\n' +
   'Generera 8-12 intervjufrågor fördelade mellan kategorierna erfarenhet, kompetens, situation och motivation.\n' +
-  'Vid matchning mot kompetensbanken: använd id-värdet från inputen exakt som det är skrivet.'
+  NO_ID_INSTRUCTION
 
 /**
  * Analyze a job posting and generate interview preparation material.
@@ -141,11 +179,7 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
 
   onProgress('Läser jobbannonsen...', 10)
 
-  const competencySummary = (competencies || []).map((c) => ({
-    id: c.id,
-    title: c.title,
-    tags: c.tags ?? [],
-  }))
+  const competencySummary = sanitizeCompetencies(competencies)
 
   const parts = [
     'Analysera följande jobbannons och generera intervjuförberedelse:',
@@ -161,6 +195,114 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
 
   onProgress('Matchar mot kompetensbanken...', 30)
 
+  const requestBody = {
+    model: MODEL,
+    max_tokens: 4000,
+    system: JOB_ANALYSIS_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userMessage }],
+  }
+
+  logger.debug(CATEGORIES.CLAUDE, 'Analyze job posting request', {
+    model: MODEL,
+    promptLength: JOB_ANALYSIS_SYSTEM_PROMPT.length,
+    competencyCount: competencies?.length || 0,
+  })
+
+  const response = await fetch(CLAUDE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify(requestBody),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    logger.error(CATEGORIES.CLAUDE, 'Analyze job posting failed', {
+      status: response.status,
+      message: errorBody,
+    })
+    throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
+  }
+
+  onProgress('Genererar intervjufrågor...', 65)
+  const data = await response.json()
+  const rawText = data.content[0].text
+
+  logger.info(CATEGORIES.CLAUDE, 'Analyze job posting response OK', {
+    responseLength: rawText.length,
+  })
+
+  const jsonMatch = rawText.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
+
+  onProgress('Skapar gap-analys...', 90)
+  const parsed = JSON.parse(jsonMatch[0])
+  return parsed
+}
+
+// ── Interview feedback analysis ───────────────────────────────────────────
+
+const FEEDBACK_SYSTEM_PROMPT =
+  'Du är en erfaren intervjucoach som analyserar intervjuer.\n' +
+  'Returnera ENDAST giltig JSON utan markdown eller backticks.\n' +
+  'Schema:\n' +
+  '{\n' +
+  '  "overallScore": number (1-5),\n' +
+  '  "summary": "string (övergripande sammanfattning på svenska, 2-3 meningar)",\n' +
+  '  "strengths": ["styrka 1", "styrka 2", "styrka 3"],\n' +
+  '  "improvements": ["förbättring 1", "förbättring 2", "förbättring 3"],\n' +
+  '  "competencyGaps": ["Baserat på din kompetens inom X borde du ha nämnt Y"],\n' +
+  '  "questionFeedback": [\n' +
+  '    {\n' +
+  '      "question": "string (frågan)",\n' +
+  '      "score": number (1-5),\n' +
+  '      "comment": "string (specifik feedback på svenska)"\n' +
+  '    }\n' +
+  '  ]\n' +
+  '}\n' +
+  'Tala ALLTID på svenska. Var konstruktiv och konkret i din feedback.\n' +
+  NO_ID_INSTRUCTION
+
+/**
+ * Analyze interview transcript and generate feedback.
+ * @param {Array} transcript - array of {question: string, answer: string}
+ * @param {string} jobTitle - the job title
+ * @param {string} company - the company name
+ * @param {Array} competencies - the user's competency bank
+ * @param {Object} [interviewConfig] - { focus, difficulty }
+ * @returns {Promise<Object>} parsed feedback object
+ */
+export async function analyzeInterviewFeedback(transcript, jobTitle, company, competencies = [], interviewConfig = {}) {
+  const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
+  if (!apiKey) {
+    throw new Error('Claude API-nyckel saknas. Kontrollera VITE_CLAUDE_API_KEY i .env.local.')
+  }
+
+  const configNote =
+    `Anpassa feedback efter intervjukonfiguration: ` +
+    `Fokus: ${interviewConfig.focus ?? 'Mix'}, ` +
+    `Svårighetsgrad: ${interviewConfig.difficulty ?? 'Standard'}. ` +
+    `Tala ALLTID på svenska.\n\n`
+
+  const sanitized = sanitizeCompetencies(competencies)
+
+  const userMessage =
+    `Analysera denna intervju och ge feedback.\n\n` +
+    configNote +
+    `Kandidatens kompetensbank:\n${JSON.stringify(sanitized, null, 2)}\n\n` +
+    `Jobbroll: ${jobTitle} på ${company}\n\n` +
+    `Frågor och svar:\n${JSON.stringify(transcript, null, 2)}`
+
+  logger.debug(CATEGORIES.CLAUDE, 'Analyze interview feedback request', {
+    model: MODEL,
+    transcriptLength: transcript.length,
+    jobTitle,
+  })
+
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',
     headers: {
@@ -171,24 +313,31 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 4000,
-      system: JOB_ANALYSIS_SYSTEM_PROMPT,
+      max_tokens: 3000,
+      system: FEEDBACK_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     }),
   })
 
   if (!response.ok) {
     const errorBody = await response.text()
+    logger.error(CATEGORIES.CLAUDE, 'Analyze interview feedback failed', {
+      status: response.status,
+      message: errorBody,
+    })
     throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
   }
 
-  onProgress('Genererar intervjufrågor...', 65)
   const data = await response.json()
   const rawText = data.content[0].text
+
+  logger.info(CATEGORIES.CLAUDE, 'Analyze interview feedback response OK', {
+    responseLength: rawText.length,
+  })
+
   const jsonMatch = rawText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
 
-  onProgress('Skapar gap-analys...', 90)
   const parsed = JSON.parse(jsonMatch[0])
   return parsed
 }

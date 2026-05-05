@@ -289,7 +289,7 @@ function JobCard({ job, feedback, onClick, dimmed }) {
   const gaps = job.gapAnalysis?.gaps ?? []
   const total = covered.length + gaps.length
   const scoreRatio = total > 0 ? covered.length / total : null
-  const scoreColor =
+  const matchColor =
     scoreRatio === null
       ? '#6b7280'
       : scoreRatio >= 0.7
@@ -299,17 +299,17 @@ function JobCard({ job, feedback, onClick, dimmed }) {
       : '#ef4444'
 
   const lastTraining = feedback
-    ? `${new Date(feedback.date).toLocaleDateString('sv-SE', {
+    ? `Senaste träning: ${new Date(feedback.date).toLocaleDateString('sv-SE', {
         month: 'short',
         day: 'numeric',
-      })} · Betyg ${feedback.score}`
-    : 'Ingen träning ännu'
+      })} · Betyg ${feedback.score}/5`
+    : null
 
   return (
     <li>
       <button
         onClick={onClick}
-        className="w-full text-left rounded-xl border p-4 space-y-3 transition-colors"
+        className="w-full text-left rounded-xl border p-4 space-y-2 transition-colors"
         style={{
           backgroundColor: '#1a1d27',
           borderColor: '#2a2d3a',
@@ -318,32 +318,37 @@ function JobCard({ job, feedback, onClick, dimmed }) {
         onMouseOver={(e) => (e.currentTarget.style.borderColor = '#4A6FA5')}
         onMouseOut={(e) => (e.currentTarget.style.borderColor = '#2a2d3a')}
       >
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <h3 className="text-white font-semibold text-base leading-snug line-clamp-2">
-              {job.jobTitle || 'Namnlös jobbannons'}
-            </h3>
-            {job.company && (
-              <p className="text-sm mt-0.5" style={{ color: '#9ca3af' }}>
-                {job.company}
-              </p>
-            )}
-          </div>
-          {scoreRatio !== null && (
-            <span
-              className="text-xs font-semibold px-2 py-1 rounded-full shrink-0"
-              style={{
-                backgroundColor: scoreColor + '20',
-                color: scoreColor,
-                border: `1px solid ${scoreColor}40`,
-              }}
-            >
-              {covered.length}/{total}
-            </span>
+        {/* Row 1: title + company */}
+        <div>
+          <h3 className="text-white font-semibold text-base leading-snug line-clamp-2">
+            {job.jobTitle || 'Namnlös jobbannons'}
+          </h3>
+          {job.company && (
+            <p className="text-sm mt-0.5" style={{ color: '#9ca3af' }}>
+              {job.company}
+            </p>
           )}
         </div>
-        <p className="text-xs" style={{ color: feedback ? '#9ca3af' : '#6b7280' }}>
-          {lastTraining}
+
+        {/* Row 2: match badge */}
+        {scoreRatio !== null && (
+          <div>
+            <span
+              className="text-xs font-semibold px-2 py-1 rounded-full"
+              style={{
+                backgroundColor: matchColor + '20',
+                color: matchColor,
+                border: `1px solid ${matchColor}40`,
+              }}
+            >
+              Matchning: {covered.length} av {total} krav
+            </span>
+          </div>
+        )}
+
+        {/* Row 3: last training */}
+        <p className="text-xs" style={{ color: lastTraining ? '#9ca3af' : '#6b7280' }}>
+          {lastTraining ?? 'Ingen träning ännu'}
         </p>
       </button>
     </li>

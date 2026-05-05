@@ -223,16 +223,107 @@ export default function CompetencyList() {
           : `${competencies.length} kompetens${competencies.length === 1 ? '' : 'er'} i din bank`}
       </p>
 
-      <ul className="space-y-3">
-        {filtered.map((c) => (
-          <CompetencyCard
-            key={c.docId}
-            competency={c}
-            deleting={deletingId === c.docId}
-            onDelete={() => handleDelete(c.docId)}
-          />
-        ))}
-      </ul>
+      <CategoryAccordions
+        competencies={filtered}
+        activeCategory={activeCategory}
+        deletingId={deletingId}
+        onDelete={handleDelete}
+      />
+    </div>
+  )
+}
+
+// ── Accordion grouping ────────────────────────────────────────────────────
+
+function CategoryAccordions({ competencies, activeCategory, deletingId, onDelete }) {
+  const grouped = useMemo(() => {
+    const map = new Map()
+    competencies.forEach((c) => {
+      const cat = categorize(c)
+      if (!map.has(cat.name)) map.set(cat.name, { cat, items: [] })
+      map.get(cat.name).items.push(c)
+    })
+    return Array.from(map.values())
+  }, [competencies])
+
+  // When a specific category filter is active, start it expanded
+  const [openCategories, setOpenCategories] = useState(() =>
+    activeCategory ? new Set([activeCategory]) : new Set()
+  )
+
+  // Sync expansion state when filter chip changes
+  useEffect(() => {
+    if (activeCategory) {
+      setOpenCategories(new Set([activeCategory]))
+    }
+  }, [activeCategory])
+
+  function toggle(name) {
+    setOpenCategories((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  if (grouped.length === 0) return null
+
+  return (
+    <div className="space-y-2">
+      {grouped.map(({ cat, items }) => {
+        const isOpen = openCategories.has(cat.name)
+        return (
+          <div
+            key={cat.name}
+            className="rounded-xl border overflow-hidden"
+            style={{ borderColor: '#2a2d3a' }}
+          >
+            {/* Accordion header */}
+            <button
+              onClick={() => toggle(cat.name)}
+              className="w-full flex items-center justify-between px-4 py-3 transition-colors"
+              style={{ backgroundColor: '#1a1d27' }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#1e2230')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1a1d27')}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: cat.color }}
+                />
+                <span className="text-sm font-semibold text-white">
+                  {cat.name}
+                </span>
+                <span
+                  className="text-xs font-medium px-2 py-0.5 rounded-full"
+                  style={{ backgroundColor: cat.bg, color: cat.textColor }}
+                >
+                  {items.length}
+                </span>
+              </div>
+              <ChevronIcon expanded={isOpen} />
+            </button>
+
+            {/* Accordion body */}
+            {isOpen && (
+              <ul
+                className="space-y-px border-t"
+                style={{ borderColor: '#2a2d3a', backgroundColor: '#13151f' }}
+              >
+                {items.map((c) => (
+                  <CompetencyCard
+                    key={c.docId}
+                    competency={c}
+                    deleting={deletingId === c.docId}
+                    onDelete={() => onDelete(c.docId)}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

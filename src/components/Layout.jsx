@@ -33,6 +33,9 @@ export default function Layout({ children }) {
 
           {/* Nav links + user info */}
           <div className="flex items-center gap-1">
+            <NavLink to="/" active={location.pathname === '/'}>
+              Mina uppdrag
+            </NavLink>
             <NavLink to="/kompetensbank" active={location.pathname === '/kompetensbank'}>
               Kompetensbank
             </NavLink>
