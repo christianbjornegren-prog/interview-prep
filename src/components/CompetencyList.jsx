@@ -7,9 +7,9 @@ import { db, auth } from '../lib/firebase'
 const CATEGORIES = [
   {
     name: 'Ledning & styrning',
-    color: '#4A6FA5',
+    color: '#8064ad',
     bg: '#1e2d45',
-    textColor: '#7aa3d4',
+    textColor: '#b19ae0',
     tags: new Set([
       'ledarskap', 'styrning', 'governance', 'strategi',
       'beslutsunderlag', 'power-bi', 'rapportering',
@@ -29,7 +29,7 @@ const CATEGORIES = [
   },
   {
     name: 'IT-arkitektur',
-    color: '#2A9D8F',
+    color: '#2a9d8f',
     bg: '#0d2b27',
     textColor: '#5ecfc3',
     tags: new Set([
@@ -167,7 +167,7 @@ export default function CompetencyList() {
     return (
       <div
         className="rounded-xl border-2 border-dashed p-12 text-center"
-        style={{ borderColor: '#2a2d3a' }}
+        style={{ borderColor: '#404040' }}
       >
         <p className="text-sm" style={{ color: '#6b7280' }}>
           Ladda upp ditt CV eller LinkedIn-profil för att komma igång.
@@ -185,8 +185,8 @@ export default function CompetencyList() {
           className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
           style={
             activeCategory === null
-              ? { backgroundColor: '#4A6FA5', color: '#fff' }
-              : { backgroundColor: '#1e2030', color: '#6b7280' }
+              ? { backgroundColor: '#8064ad', color: '#fff' }
+              : { backgroundColor: '#323232', color: '#6b7280' }
           }
         >
           Alla ({competencies.length})
@@ -203,7 +203,7 @@ export default function CompetencyList() {
                 isActive
                   ? { backgroundColor: cat.color, color: '#fff' }
                   : {
-                      backgroundColor: '#1e2030',
+                      backgroundColor: '#323232',
                       color: '#9ca3af',
                       borderLeft: `3px solid ${cat.color}`,
                       paddingLeft: '0.625rem',
@@ -217,7 +217,7 @@ export default function CompetencyList() {
       </div>
 
       {/* Count label */}
-      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
+      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
         {activeCategory
           ? `${filtered.length} kompetens${filtered.length === 1 ? '' : 'er'} i "${activeCategory}"`
           : `${competencies.length} kompetens${competencies.length === 1 ? '' : 'er'} i din bank`}
@@ -277,15 +277,15 @@ function CategoryAccordions({ competencies, activeCategory, deletingId, onDelete
           <div
             key={cat.name}
             className="rounded-xl border overflow-hidden"
-            style={{ borderColor: '#2a2d3a' }}
+            style={{ borderColor: '#404040' }}
           >
             {/* Accordion header */}
             <button
               onClick={() => toggle(cat.name)}
               className="w-full flex items-center justify-between px-4 py-3 transition-colors"
-              style={{ backgroundColor: '#1a1d27' }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#1e2230')}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1a1d27')}
+              style={{ backgroundColor: '#1d1d1d' }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#252525')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1d1d1d')}
             >
               <div className="flex items-center gap-3">
                 <span
@@ -309,7 +309,7 @@ function CategoryAccordions({ competencies, activeCategory, deletingId, onDelete
             {isOpen && (
               <ul
                 className="space-y-px border-t"
-                style={{ borderColor: '#2a2d3a', backgroundColor: '#13151f' }}
+                style={{ borderColor: '#404040', backgroundColor: '#141414' }}
               >
                 {items.map((c) => (
                   <CompetencyCard
@@ -337,7 +337,7 @@ function CompetencyCard({ competency, deleting, onDelete }) {
   return (
     <li
       className="rounded-xl border p-5 transition-colors cursor-pointer"
-      style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+      style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
       onClick={() => setExpanded((v) => !v)}
     >
       {/* Always-visible header: title + tags + controls */}
@@ -401,7 +401,7 @@ function CompetencyCard({ competency, deleting, onDelete }) {
           {(context || sourceFile) && (
             <div
               className="mt-3 pt-3 space-y-3 border-t"
-              style={{ borderColor: '#2a2d3a' }}
+              style={{ borderColor: '#404040' }}
             >
               {context && <DetailRow label="Sammanhang" value={context} />}
               {sourceFile && <DetailRow label="Källfil" value={sourceFile} />}
@@ -418,7 +418,7 @@ function DetailRow({ label, value }) {
     <div>
       <p
         className="text-xs uppercase tracking-wider font-semibold mb-1"
-        style={{ color: '#4A6FA5' }}
+        style={{ color: '#8064ad' }}
       >
         {label}
       </p>

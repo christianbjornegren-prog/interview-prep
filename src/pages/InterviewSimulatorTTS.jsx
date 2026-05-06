@@ -487,7 +487,7 @@ export default function InterviewSimulatorTTS() {
                   <button
                     onClick={() => setShowConfirmAbort(false)}
                     className="text-xs px-3 py-1.5 rounded-md transition-colors"
-                    style={{ backgroundColor: '#2a2d3a', color: '#9ca3af' }}
+                    style={{ backgroundColor: '#404040', color: '#9ca3af' }}
                     onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
                     onMouseOut={(e) => (e.currentTarget.style.color = '#9ca3af')}
                   >
@@ -549,11 +549,11 @@ export default function InterviewSimulatorTTS() {
       {showQuestion && (
         <div
           className="rounded-xl border p-5 space-y-2"
-          style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+          style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
         >
           <p
             className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: '#2A9D8F' }}
+            style={{ color: '#8064ad' }}
           >
             Fråga {currentQuestionIndex + 1} av {totalQuestions}
           </p>
@@ -682,12 +682,12 @@ function FinishedScreen() {
 function StatusCircle({ state }) {
   const config = {
     [STATES.CONNECTING]:       { color: '#6b7280', pulse: false, spin: true },
-    [STATES.AI_SPEAKING]:      { color: '#4A6FA5', pulse: 'slow', spin: false },
+    [STATES.AI_SPEAKING]:      { color: '#8064ad', pulse: 'slow', spin: false },
     [STATES.WAITING_FOR_USER]: { color: '#22c55e', pulse: false, spin: false },
     [STATES.RECORDING]:        { color: '#c0392b', pulse: 'fast', spin: false },
     [STATES.PROCESSING]:       { color: '#ffffff', pulse: false, spin: true },
     [STATES.PREPARING_NEXT]:   { color: '#ffffff', pulse: false, spin: true },
-    [STATES.FINISHED]:         { color: '#2A9D8F', pulse: false, spin: false },
+    [STATES.FINISHED]:         { color: '#2a9d8f', pulse: false, spin: false },
   }[state] ?? { color: '#3a3d48', pulse: false, spin: false }
 
   return (
@@ -757,17 +757,17 @@ function ProgressBar({ current, total }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
+        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
           Fråga {current} av {total}
         </p>
         <p className="text-xs" style={{ color: '#6b7280' }}>
           {pct}%
         </p>
       </div>
-      <div className="w-full rounded-full h-1.5" style={{ backgroundColor: '#2a2d3a' }}>
+      <div className="w-full rounded-full h-1.5" style={{ backgroundColor: '#404040' }}>
         <div
           className="h-1.5 rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, backgroundColor: '#4A6FA5' }}
+          style={{ width: `${pct}%`, backgroundColor: '#8064ad' }}
         />
       </div>
     </div>

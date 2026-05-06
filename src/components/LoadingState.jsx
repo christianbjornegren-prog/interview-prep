@@ -37,7 +37,7 @@ export default function LoadingState({
   return (
     <div
       className="flex flex-col items-center justify-center gap-5 rounded-xl px-8 py-12 text-center"
-      style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a' }}
+      style={{ backgroundColor: '#1d1d1d', border: '1px solid #404040' }}
     >
       {/* Hero emoji */}
       <span style={{ fontSize: 64, lineHeight: 1 }} role="img" aria-label="Kaffe">
@@ -99,7 +99,7 @@ function ProgressRing() {
         cy="32"
         r={RADIUS}
         fill="none"
-        stroke="#2a2d3a"
+        stroke="#404040"
         strokeWidth="4"
       />
 
@@ -109,7 +109,7 @@ function ProgressRing() {
         cy="32"
         r={RADIUS}
         fill="none"
-        stroke="#4A6FA5"
+        stroke="#8064ad"
         strokeWidth="4"
         strokeLinecap="round"
         strokeDasharray={`${ARC} ${CIRCUMFERENCE - ARC}`}

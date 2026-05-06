@@ -383,11 +383,11 @@ export default function InterviewSimulator() {
           {questions.length > 0 && currentQuestion && (
             <div
               className="rounded-xl border p-5 space-y-2"
-              style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+              style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
             >
               <p
                 className="text-xs font-semibold uppercase tracking-widest"
-                style={{ color: '#4A6FA5' }}
+                style={{ color: '#8064ad' }}
               >
                 Fråga {Math.min(currentQuestionIdx + 1, questions.length)} av {questions.length}
               </p>
@@ -448,7 +448,7 @@ export default function InterviewSimulator() {
 
         <div
           className="rounded-xl border p-6 space-y-5"
-          style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+          style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
         >
           <InfoRow label="Roll" value={job.jobTitle || '—'} />
           <InfoRow label="Företag" value={job.company || '—'} />
@@ -463,11 +463,11 @@ export default function InterviewSimulator() {
           onClick={startInterview}
           disabled={questions.length === 0}
           className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{ backgroundColor: '#4A6FA5' }}
+          style={{ backgroundColor: '#8064ad' }}
           onMouseOver={(e) => {
-            if (questions.length > 0) e.currentTarget.style.backgroundColor = '#5a82bc'
+            if (questions.length > 0) e.currentTarget.style.backgroundColor = '#9781be'
           }}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
         >
           Starta intervju
         </button>
@@ -488,7 +488,7 @@ function InfoRow({ label, value }) {
     <div className="flex items-center justify-between gap-4">
       <span
         className="text-xs uppercase tracking-widest font-semibold"
-        style={{ color: '#4A6FA5' }}
+        style={{ color: '#8064ad' }}
       >
         {label}
       </span>
@@ -500,8 +500,8 @@ function InfoRow({ label, value }) {
 function SpeakerCircle({ speaker, connecting }) {
   const color =
     connecting ? '#6b7280' :
-    speaker === 'ai' ? '#4A6FA5' :
-    speaker === 'user' ? '#2A9D8F' :
+    speaker === 'ai' ? '#8064ad' :
+    speaker === 'user' ? '#8064ad' :
     '#3a3d48'
 
   const pulse = !connecting && (speaker === 'ai' || speaker === 'user')

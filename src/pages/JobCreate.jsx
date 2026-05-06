@@ -135,7 +135,7 @@ export default function JobCreate() {
           <div className="space-y-2">
             <label
               className="text-xs font-semibold uppercase tracking-wider"
-              style={{ color: '#4A6FA5' }}
+              style={{ color: '#8064ad' }}
             >
               Klistra in jobbannonsen
             </label>
@@ -144,15 +144,15 @@ export default function JobCreate() {
               onChange={(e) => setJobText(e.target.value)}
               placeholder="Klistra in hela jobbannonsen här – titel, beskrivning, krav och meriter."
               rows={12}
-              className="w-full rounded-lg border p-4 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#4A6FA5]"
-              style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a', resize: 'vertical' }}
+              className="w-full rounded-lg border p-4 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#8064ad]"
+              style={{ backgroundColor: '#1d1d1d', borderColor: '#404040', resize: 'vertical' }}
             />
           </div>
 
           <div className="space-y-2">
             <label
               className="text-xs font-semibold uppercase tracking-wider"
-              style={{ color: '#4A6FA5' }}
+              style={{ color: '#8064ad' }}
             >
               Om företaget{' '}
               <span className="lowercase" style={{ color: '#6b7280' }}>– valfritt</span>
@@ -162,17 +162,17 @@ export default function JobCreate() {
               onChange={(e) => setCompanyInfo(e.target.value)}
               placeholder="Fritext om bolaget – bransch, storlek, kultur, utmaningar du vet om."
               rows={4}
-              className="w-full rounded-lg border p-4 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#4A6FA5]"
-              style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a', resize: 'vertical' }}
+              className="w-full rounded-lg border p-4 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#8064ad]"
+              style={{ backgroundColor: '#1d1d1d', borderColor: '#404040', resize: 'vertical' }}
             />
           </div>
 
           <button
             onClick={handleAnalyze}
             className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors"
-            style={{ backgroundColor: '#4A6FA5' }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#5a82bc')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+            style={{ backgroundColor: '#8064ad' }}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
           >
             Analysera och generera frågor
           </button>

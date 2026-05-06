@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import {
   collection,
   doc,
@@ -10,6 +10,7 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
+import { useUser } from '../components/AuthGate'
 import { logger, CATEGORIES } from '../lib/logger'
 
 const STRENGTH_STYLE = {
@@ -34,6 +35,12 @@ const FOCUS_TO_CATEGORY = {
 export default function JobPage() {
   const { jobId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const { role } = useUser()
+
+  const targetUid = location.state?.targetUid ?? null
+  const uid = targetUid ?? auth.currentUser.uid
+  const isSaljare = role === 'saljare'
 
   const [job, setJob] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -47,24 +54,21 @@ export default function JobPage() {
 
   useEffect(() => {
     logger.info(CATEGORIES.APP, 'JobPage loaded', { jobId })
-    const uid = auth.currentUser.uid
     const unsub = onSnapshot(doc(db, 'users', uid, 'jobs', jobId), (snap) => {
       setJob(snap.exists() ? { docId: snap.id, ...snap.data() } : null)
       setLoading(false)
     })
     return unsub
-  }, [jobId])
+  }, [jobId, uid])
 
   useEffect(() => {
-    const uid = auth.currentUser.uid
     getDocs(collection(db, 'users', uid, 'competencies')).then((snap) => {
       setCompetencies(snap.docs.map((d) => ({ docId: d.id, ...d.data() })))
     })
-  }, [])
+  }, [uid])
 
   useEffect(() => {
-    if (!jobId) return
-    const uid = auth.currentUser.uid
+    if (!jobId || isSaljare) return
     getDocs(
       query(
         collection(db, 'users', uid, 'jobs', jobId, 'feedback'),
@@ -79,7 +83,7 @@ export default function JobPage() {
         console.error('Failed to load feedbacks:', err)
         setLoadingFeedbacks(false)
       })
-  }, [jobId])
+  }, [jobId, uid, isSaljare])
 
   const competencyById = useMemo(() => {
     const map = new Map()
@@ -91,7 +95,6 @@ export default function JobPage() {
     if (!job) return
     setArchiving(true)
     try {
-      const uid = auth.currentUser.uid
       await updateDoc(doc(db, 'users', uid, 'jobs', jobId), {
         archived: !job.archived,
       })
@@ -157,17 +160,20 @@ export default function JobPage() {
     })
   }
 
+  const backPath = targetUid ? `/konsulter/${targetUid}` : '/'
+  const backLabel = targetUid ? '← Tillbaka till konsultprofil' : '← Tillbaka till alla uppdrag'
+
   return (
-    <div className="space-y-6 pb-28">
+    <div className={isSaljare ? 'space-y-6' : 'space-y-6 pb-28'}>
       {/* Back */}
       <button
-        onClick={() => navigate('/')}
+        onClick={() => navigate(backPath)}
         className="text-sm transition-colors"
         style={{ color: '#6b7280' }}
         onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
         onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
       >
-        ← Tillbaka till alla uppdrag
+        {backLabel}
       </button>
 
       {/* Header */}
@@ -197,21 +203,23 @@ export default function JobPage() {
           )}
         </div>
 
-        <button
-          onClick={startInterview}
-          disabled={questions.length === 0}
-          className="flex items-center gap-2 px-5 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{ backgroundColor: '#2A9D8F' }}
-          onMouseOver={(e) => {
-            if (questions.length > 0) e.currentTarget.style.backgroundColor = '#34b8a8'
-          }}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2A9D8F')}
-        >
-          🎙 Starta intervjuträning
-        </button>
+        {!isSaljare && (
+          <button
+            onClick={startInterview}
+            disabled={questions.length === 0}
+            className="flex items-center gap-2 px-5 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#8064ad' }}
+            onMouseOver={(e) => {
+              if (questions.length > 0) e.currentTarget.style.backgroundColor = '#9781be'
+            }}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+          >
+            🎙 Starta intervjuträning
+          </button>
+        )}
       </div>
 
-      {showConfig ? (
+      {!isSaljare && showConfig ? (
         <InterviewConfigScreen
           config={config}
           onChange={setConfig}
@@ -221,30 +229,32 @@ export default function JobPage() {
         />
       ) : (
         <>
-          {/* Tabs */}
-          <div className="border-b" style={{ borderColor: '#2a2d3a' }}>
-            <div className="flex gap-1">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className="px-4 py-2.5 text-sm font-medium transition-colors"
-                  style={{
-                    color: activeTab === tab.key ? '#fff' : '#6b7280',
-                    borderBottom:
-                      activeTab === tab.key
-                        ? '2px solid #4A6FA5'
-                        : '2px solid transparent',
-                  }}
-                >
-                  {tab.label}
-                </button>
-              ))}
+          {/* Tabs – only for konsult/admin */}
+          {!isSaljare && (
+            <div className="border-b" style={{ borderColor: '#404040' }}>
+              <div className="flex gap-1">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className="px-4 py-2.5 text-sm font-medium transition-colors"
+                    style={{
+                      color: activeTab === tab.key ? '#fff' : '#6b7280',
+                      borderBottom:
+                        activeTab === tab.key
+                          ? '2px solid #8064ad'
+                          : '2px solid transparent',
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Tab content */}
-          {activeTab === 'preparation' && (
+          {(isSaljare || activeTab === 'preparation') && (
             <PrepTab
               job={job}
               covered={covered}
@@ -252,7 +262,7 @@ export default function JobPage() {
               competencyById={competencyById}
             />
           )}
-          {activeTab === 'history' && (
+          {!isSaljare && activeTab === 'history' && (
             <HistoryTab
               feedbacks={feedbacks}
               loading={loadingFeedbacks}
@@ -263,7 +273,7 @@ export default function JobPage() {
           )}
 
           {/* Archive link */}
-          <div className="pt-6 border-t" style={{ borderColor: '#1e2030' }}>
+          <div className="pt-6 border-t" style={{ borderColor: '#323232' }}>
             <button
               onClick={handleArchive}
               disabled={archiving}
@@ -280,24 +290,26 @@ export default function JobPage() {
             </button>
           </div>
 
-          {/* Sticky footer CTA */}
-          <div
-            className="fixed bottom-0 left-0 right-0 border-t flex items-center justify-center px-6 py-4"
-            style={{ backgroundColor: '#0f1117cc', backdropFilter: 'blur(8px)', borderColor: '#2a2d3a' }}
-          >
-            <button
-              onClick={startInterview}
-              disabled={questions.length === 0}
-              className="flex items-center gap-2 px-8 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{ backgroundColor: '#2A9D8F' }}
-              onMouseOver={(e) => {
-                if (questions.length > 0) e.currentTarget.style.backgroundColor = '#34b8a8'
-              }}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2A9D8F')}
+          {/* Sticky footer CTA – only for konsult/admin */}
+          {!isSaljare && (
+            <div
+              className="fixed bottom-0 left-0 right-0 border-t flex items-center justify-center px-6 py-4"
+              style={{ backgroundColor: '#000000cc', backdropFilter: 'blur(8px)', borderColor: '#404040' }}
             >
-              🎙 Starta intervjuträning
-            </button>
-          </div>
+              <button
+                onClick={startInterview}
+                disabled={questions.length === 0}
+                className="flex items-center gap-2 px-8 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ backgroundColor: '#8064ad' }}
+                onMouseOver={(e) => {
+                  if (questions.length > 0) e.currentTarget.style.backgroundColor = '#9781be'
+                }}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+              >
+                🎙 Starta intervjuträning
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -338,9 +350,9 @@ function PrepTab({ job, covered, gaps, competencyById }) {
             <button
               onClick={() => setSummaryExpanded((v) => !v)}
               className="text-xs mt-1 transition-colors"
-              style={{ color: '#4A6FA5' }}
-              onMouseOver={(e) => (e.currentTarget.style.color = '#7aa3d4')}
-              onMouseOut={(e) => (e.currentTarget.style.color = '#4A6FA5')}
+              style={{ color: '#8064ad' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
+              onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
             >
               {summaryExpanded ? 'Visa mindre' : 'Visa mer'}
             </button>
@@ -361,9 +373,9 @@ function PrepTab({ job, covered, gaps, competencyById }) {
             <button
               onClick={() => setShowAllCovered((v) => !v)}
               className="text-xs mt-2 transition-colors"
-              style={{ color: '#4A6FA5' }}
-              onMouseOver={(e) => (e.currentTarget.style.color = '#7aa3d4')}
-              onMouseOut={(e) => (e.currentTarget.style.color = '#4A6FA5')}
+              style={{ color: '#8064ad' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
+              onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
             >
               {showAllCovered ? 'Visa färre' : `Visa alla ${covered.length}`}
             </button>
@@ -485,11 +497,11 @@ function HistoryTab({ feedbacks, loading, hasQuestions, onNavigate, onStartInter
           onClick={onStartInterview}
           disabled={!hasQuestions}
           className="flex items-center gap-2 mx-auto px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60"
-          style={{ backgroundColor: '#2A9D8F' }}
+          style={{ backgroundColor: '#8064ad' }}
           onMouseOver={(e) => {
-            if (hasQuestions) e.currentTarget.style.backgroundColor = '#34b8a8'
+            if (hasQuestions) e.currentTarget.style.backgroundColor = '#9781be'
           }}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2A9D8F')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
         >
           🎙 Starta intervjuträning
         </button>
@@ -512,9 +524,9 @@ function HistoryTab({ feedbacks, loading, hasQuestions, onNavigate, onStartInter
             <button
               onClick={() => onNavigate(feedback.id)}
               className="w-full text-left rounded-xl border p-4 transition-colors flex items-center justify-between gap-4"
-              style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
-              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#4A6FA5')}
-              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#2a2d3a')}
+              style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
+              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white">
@@ -558,8 +570,8 @@ function HistoryTab({ feedbacks, loading, hasQuestions, onNavigate, onStartInter
 // ── Interview Config Screen ───────────────────────────────────────────────
 
 const CAT_META = {
-  erfarenhet: { label: 'Erfarenhet', color: '#4A6FA5' },
-  kompetens:  { label: 'Kompetens',  color: '#2A9D8F' },
+  erfarenhet: { label: 'Erfarenhet', color: '#8064ad' },
+  kompetens:  { label: 'Kompetens',  color: '#8064ad' },
   situation:  { label: 'Situation',  color: '#E9C46A' },
   motivation: { label: 'Motivation', color: '#7C5CBF' },
 }
@@ -573,7 +585,7 @@ const DIFFICULTY_COLOR = {
 function OptionGroup({ label, options, value, onChange }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
+      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
         {label}
       </p>
       <div className="flex flex-wrap gap-2">
@@ -584,8 +596,8 @@ function OptionGroup({ label, options, value, onChange }) {
             className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             style={
               value === opt
-                ? { backgroundColor: '#4A6FA5', color: '#fff' }
-                : { backgroundColor: '#1e2030', color: '#9ca3af' }
+                ? { backgroundColor: '#8064ad', color: '#fff' }
+                : { backgroundColor: '#323232', color: '#9ca3af' }
             }
           >
             {opt}
@@ -645,11 +657,11 @@ function InterviewConfigScreen({ config, onChange, questions, onStart, onBack })
             onClick={onStart}
             disabled={previewQuestions.length === 0}
             className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{ backgroundColor: '#2A9D8F' }}
+            style={{ backgroundColor: '#8064ad' }}
             onMouseOver={(e) => {
-              if (previewQuestions.length > 0) e.currentTarget.style.backgroundColor = '#34b8a8'
+              if (previewQuestions.length > 0) e.currentTarget.style.backgroundColor = '#9781be'
             }}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2A9D8F')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
           >
             🎙 Starta intervju
           </button>
@@ -657,7 +669,7 @@ function InterviewConfigScreen({ config, onChange, questions, onStart, onBack })
 
         {/* Right – question preview */}
         <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
             Frågor som ingår ({previewQuestions.length})
           </p>
           {previewQuestions.length === 0 ? (
@@ -672,7 +684,7 @@ function InterviewConfigScreen({ config, onChange, questions, onStart, onBack })
                   <li
                     key={i}
                     className="rounded-lg border p-3 space-y-2"
-                    style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+                    style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
                   >
                     <div className="flex items-center gap-2">
                       {cat && (
@@ -708,7 +720,7 @@ function SectionLabel({ children }) {
   return (
     <p
       className="text-xs font-semibold uppercase tracking-widest mb-3"
-      style={{ color: '#4A6FA5' }}
+      style={{ color: '#8064ad' }}
     >
       {children}
     </p>

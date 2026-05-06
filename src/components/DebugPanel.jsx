@@ -49,7 +49,7 @@ export default function DebugPanel() {
         backgroundColor: 'rgba(10, 10, 15, 0.9)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
-        borderTop: '1px solid #4A6FA5',
+        borderTop: '1px solid #8064ad',
         fontFamily:
           'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
         fontSize: '11px',
@@ -86,7 +86,7 @@ export default function DebugPanel() {
           maxHeight: expanded ? '200px' : '0px',
           overflow: 'hidden',
           transition: 'max-height 220ms ease',
-          borderTop: expanded ? '1px solid #1a1d27' : 'none',
+          borderTop: expanded ? '1px solid #1d1d1d' : 'none',
         }}
       >
         <div
@@ -101,7 +101,7 @@ export default function DebugPanel() {
             onClick={handleCopy}
             style={{
               background: 'transparent',
-              border: '1px solid #2a2d3a',
+              border: '1px solid #404040',
               color: copied ? '#22c55e' : '#9ca3af',
               padding: '2px 8px',
               borderRadius: '4px',
@@ -116,7 +116,7 @@ export default function DebugPanel() {
             onClick={handleClear}
             style={{
               background: 'transparent',
-              border: '1px solid #2a2d3a',
+              border: '1px solid #404040',
               color: '#9ca3af',
               padding: '2px 8px',
               borderRadius: '4px',

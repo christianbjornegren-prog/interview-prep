@@ -33,10 +33,24 @@ pendingProfiles/{email} → { name, email, createdAt, competencies: [...], jobs:
 VITE_FIREBASE_PROJECT_ID=interview-prep-81cb6 (INTE .firebaseapp.com)
 VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
 
+## Designsystem (Boulder-tema)
+- Font: Poppins (300/400/500/600/700) via Google Fonts – satt på body och rubriker
+- Sidbakgrund: #000000, kortyta: #1d1d1d, mörkare yta: #141414
+- Primär border: #404040, mörk border: #323232
+- Primäraccentfärg: #8064ad (brand-purple) – används på knappar, aktiva tabs, badges, navbar
+- Accent hover: #9781be (brand-purple-header)
+- Semantiska färger behålls: #22c55e (grön), #f87171 (röd), #E9C46A (gul), #e76f51 (orange)
+- Kategorifärger i kompetensbanken behålls distinkta (IT-arkitektur = teal #2a9d8f etc.)
+- FINISHED-ring i InterviewSimulatorTTS: #2a9d8f (teal – semantisk "klar"-signal)
+- CSS-variabler definierade i :root i index.css; Tailwind-tokens i tailwind.config.js
+
 ## UI-konventioner
 - Kompetensbanken visar kompetenser grupperade per kategori i accordion (alla kollapsade by default)
 - Filter-chips i kompetensbanken behålls och styr vilka kategorier som syns
 - JobPage har ENBART två tabbar: "Förberedelse" och "Historik" (Intervjufrågor-tabben är borttagen)
+- JobPage: om role == 'saljare' döljs Historik-tabben, Starta-knapparna och sticky footer; Förberedelse visas alltid
+- JobPage läser targetUid från location.state – används för Firestore-anrop (säljare tittar på konsults jobb)
+- Back-knapp i JobPage: om targetUid → /konsulter/:uid, annars → /
 - Intervjuflödet: JobPage → konfigurationsskärm (ersätter tab-innehållet) → InterviewSimulatorTTS
 - Konfigurationsskärm: tvåkolumns layout — vänster: inställningar, höger: live-preview av frågor
 - Konfiguration skickas som location.state: { numQuestions, focus, difficulty, selectedQuestions }
@@ -89,7 +103,7 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 
 ### Användarroller
 - Firestore: users/{uid} → { email, name, role, createdAt }
-- Roller: 'admin' | 'konsult' | 'säljare'
+- Roller: 'admin' | 'konsult' | 'saljare'
 - Role sätts vid första inloggning; uppdateras ALDRIG automatiskt (bevara manuella ändringar)
 - Admin-whitelist-mail får role: 'admin', övriga 'konsult'
 
@@ -113,15 +127,18 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 
 ### Navbar
 - Utloggade användare ser ENBART loggan (ingen knapp i navbar – knappen finns på startsidan)
-- Inloggade: Mina uppdrag | Kompetensbank | (Konsulter om säljare/admin) | (Användarhantering om admin) | Avatar | Logga ut
+- Inloggade: Mina uppdrag | Kompetensbank | (Konsulter om säljare/admin) | (Användarhantering om admin) | Om | Avatar | Logga ut
+- NavLink-styling: alla länkar identiska – ingen aktiv bakgrund, enbart vit textfärg på aktiv/hover vs #6b7280 inaktiv
+- /om (OmPage): synlig för alla inloggade, RequireAuth, innehåller Varför/Techstack/Byggt av
 
 ### Säljare-flöde
 - SÄLJARE_WHITELIST = ['filip.almstrom@boulder.se'] — sätts vid första login
 - /konsulter (SäljarePage): två listsektioner — aktiva konsulter (role='konsult') + väntande profiler (pendingProfiles-collection)
   - "+ Förbered ny konsult" → modal (namn + @boulder.se e-post) → skapar pendingProfiles/{email}-doc → navigerar till /konsulter/pending/:email
-- /konsulter/:uid (KonsultProfilPage): tabs Kompetensbank (read-only accordion + CV-upload + add-modal) + Uppdrag (gap-analys inline)
+- /konsulter/:uid (KonsultProfilPage): tabs Kompetensbank (read-only accordion + CV-upload + add-modal) + Uppdrag (klickbara kort → JobPage)
   - FileUpload accepterar targetUid-prop och sparar under den uid:n
   - FileUpload accepterar onSuccess-callback för att trigga refresh
+  - Uppdragskort navigerar till /jobb/:jobId med { state: { targetUid } } som kontext
 - /konsulter/pending/:email (PendingProfilPage): FÖRE /konsulter/:uid i App.jsx-routes
   - Banner: konsulten har inte loggat in än
   - Tab Kompetensbank: läser pendingProfiles/{email}.competencies, CV-upload via PendingFileUpload (sparar via arrayUnion), add-modal

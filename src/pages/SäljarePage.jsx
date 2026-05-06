@@ -49,9 +49,9 @@ export default function SäljarePage() {
         <button
           onClick={() => setShowModal(true)}
           className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors"
-          style={{ backgroundColor: '#4A6FA5' }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#5a82bc')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+          style={{ backgroundColor: '#8064ad' }}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
         >
           + Förbered ny konsult
         </button>
@@ -63,7 +63,7 @@ export default function SäljarePage() {
         <>
           {/* Active consultants */}
           <section className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
+            <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
               Aktiva konsulter ({konsulter.length})
             </h2>
             {konsulter.length === 0 ? (
@@ -136,14 +136,14 @@ function KonsultCard({ name, email, competencyCount, jobCount, pending, onClick 
       <button
         onClick={onClick}
         className="w-full text-left rounded-xl border p-5 space-y-4 transition-colors"
-        style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
-        onMouseOver={(e) => (e.currentTarget.style.borderColor = '#4A6FA5')}
-        onMouseOut={(e) => (e.currentTarget.style.borderColor = '#2a2d3a')}
+        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+        onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
+        onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
       >
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
-            style={{ backgroundColor: pending ? '#4d3e1a' : '#4A6FA5' }}
+            style={{ backgroundColor: pending ? '#4d3e1a' : '#8064ad' }}
           >
             {initials}
           </div>
@@ -222,7 +222,7 @@ function NewKonsultModal({ onClose, onCreated }) {
     >
       <div
         className="w-full max-w-sm rounded-2xl border p-6 space-y-5"
-        style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
       >
         <div className="flex items-center justify-between">
           <h2 className="text-white font-semibold text-lg">Förbered ny konsult</h2>
@@ -238,7 +238,7 @@ function NewKonsultModal({ onClose, onCreated }) {
 
         <div className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#4A6FA5' }}>
+            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#8064ad' }}>
               Namn *
             </label>
             <input
@@ -246,12 +246,12 @@ function NewKonsultModal({ onClose, onCreated }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="T.ex. Anna Svensson"
-              className="w-full rounded-lg border px-3 py-2 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#4A6FA5]"
-              style={{ backgroundColor: '#13151f', borderColor: '#2a2d3a' }}
+              className="w-full rounded-lg border px-3 py-2 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#8064ad]"
+              style={{ backgroundColor: '#141414', borderColor: '#404040' }}
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#4A6FA5' }}>
+            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#8064ad' }}>
               E-post (@boulder.se) *
             </label>
             <input
@@ -259,8 +259,8 @@ function NewKonsultModal({ onClose, onCreated }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="anna.svensson@boulder.se"
-              className="w-full rounded-lg border px-3 py-2 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#4A6FA5]"
-              style={{ backgroundColor: '#13151f', borderColor: '#2a2d3a' }}
+              className="w-full rounded-lg border px-3 py-2 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#8064ad]"
+              style={{ backgroundColor: '#141414', borderColor: '#404040' }}
             />
           </div>
         </div>
@@ -271,7 +271,7 @@ function NewKonsultModal({ onClose, onCreated }) {
           <button
             onClick={onClose}
             className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors"
-            style={{ backgroundColor: '#2a2d3a', color: '#9ca3af' }}
+            style={{ backgroundColor: '#404040', color: '#9ca3af' }}
           >
             Avbryt
           </button>
@@ -279,9 +279,9 @@ function NewKonsultModal({ onClose, onCreated }) {
             onClick={handleSubmit}
             disabled={saving}
             className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-60"
-            style={{ backgroundColor: '#4A6FA5' }}
-            onMouseOver={(e) => !saving && (e.currentTarget.style.backgroundColor = '#5a82bc')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+            style={{ backgroundColor: '#8064ad' }}
+            onMouseOver={(e) => !saving && (e.currentTarget.style.backgroundColor = '#9781be')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
           >
             {saving ? 'Skapar...' : 'Skapa profil'}
           </button>

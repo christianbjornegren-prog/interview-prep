@@ -54,18 +54,18 @@ function Onboarding() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-10">
-      <div className="space-y-4 max-w-xl">
+    <div className="pt-16 px-4 max-w-2xl mx-auto space-y-10">
+      <div className="space-y-4">
         <div
           className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border"
-          style={{ borderColor: '#4A6FA5', color: '#7aa3d4', backgroundColor: '#0d1e35' }}
+          style={{ borderColor: '#8064ad', color: '#b19ae0', backgroundColor: '#1a1229' }}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-current" />
           AI-driven intervjuträning
         </div>
         <h1 className="text-4xl font-bold text-white leading-tight tracking-tight">
           Träna inför rätt uppdrag,{' '}
-          <span style={{ color: '#4A6FA5' }}>med dina egna kompetenser</span>
+          <span style={{ color: '#8064ad' }}>med dina egna kompetenser</span>
         </h1>
         <p className="text-gray-400 text-lg leading-relaxed">
           Ladda upp ditt CV, lägg till jobbannonser och träna med en AI-intervjuare
@@ -79,11 +79,11 @@ function Onboarding() {
           <div
             key={i}
             className="rounded-xl border p-5 text-left space-y-3"
-            style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+            style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
           >
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-              style={{ backgroundColor: '#4A6FA5' }}
+              style={{ backgroundColor: '#8064ad' }}
             >
               {i + 1}
             </div>
@@ -241,9 +241,9 @@ function Dashboard({ user }) {
         <button
           onClick={() => navigate('/jobb/ny')}
           className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors"
-          style={{ backgroundColor: '#4A6FA5' }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#5a82bc')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+          style={{ backgroundColor: '#8064ad' }}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
         >
           + Lägg till nytt uppdrag
         </button>
@@ -257,7 +257,7 @@ function Dashboard({ user }) {
       ) : sortedActive.length === 0 ? (
         <div
           className="rounded-xl border-2 border-dashed p-12 text-center"
-          style={{ borderColor: '#2a2d3a' }}
+          style={{ borderColor: '#404040' }}
         >
           <p className="text-sm" style={{ color: '#6b7280' }}>
             Du har inga uppdrag ännu. Lägg till din första jobbannons.
@@ -337,12 +337,12 @@ function JobCard({ job, feedback, onClick, dimmed }) {
         onClick={onClick}
         className="w-full text-left rounded-xl border p-4 space-y-2 transition-colors"
         style={{
-          backgroundColor: '#1a1d27',
-          borderColor: '#2a2d3a',
+          backgroundColor: '#1d1d1d',
+          borderColor: '#404040',
           opacity: dimmed ? 0.6 : 1,
         }}
-        onMouseOver={(e) => (e.currentTarget.style.borderColor = '#4A6FA5')}
-        onMouseOut={(e) => (e.currentTarget.style.borderColor = '#2a2d3a')}
+        onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
+        onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
       >
         {/* Row 1: title + company */}
         <div>

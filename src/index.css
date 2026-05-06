@@ -3,15 +3,34 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --background: #000000;
+    --foreground: #fcfcfc;
+    --brand-purple: #8064ad;
+    --brand-purple-header: #9781be;
+    --brand-purple-dark: #4f3a70;
+    --brand-border: #404040;
+    --brand-border-dark: #323232;
+    --brand-green: #60a678;
+    --brand-blue: #6497d1;
+    --brand-orange: #d18a54;
+    --brand-pink: #c05d8a;
+  }
+
   html {
-    background-color: #0f1117;
+    background-color: #000000;
   }
 
   body {
-    background-color: #0f1117;
-    color: #f9fafb;
+    background-color: #000000;
+    color: #fcfcfc;
+    font-family: 'Poppins', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', system-ui, sans-serif;
   }
 
   * {
@@ -21,15 +40,15 @@
 
 @layer utilities {
   .border-brand-border {
-    border-color: #2a2d3a;
+    border-color: #404040;
   }
   .text-brand-muted {
     color: #6b7280;
   }
   .text-brand-accent {
-    color: #4A6FA5;
+    color: #8064ad;
   }
   .bg-brand-surface {
-    background-color: #1a1d27;
+    background-color: #1d1d1d;
   }
 }

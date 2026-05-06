@@ -150,11 +150,11 @@ export default function FeedbackPage() {
       {feedback.summary && (
         <div
           className="rounded-xl border p-6"
-          style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+          style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
         >
           <h2
             className="text-xs font-semibold uppercase tracking-widest mb-3"
-            style={{ color: '#4A6FA5' }}
+            style={{ color: '#8064ad' }}
           >
             Sammanfattning
           </h2>
@@ -253,7 +253,7 @@ export default function FeedbackPage() {
         <div className="space-y-4">
           <h2
             className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: '#4A6FA5' }}
+            style={{ color: '#8064ad' }}
           >
             Feedback per fråga
           </h2>
@@ -281,7 +281,7 @@ function QuestionFeedbackCard({ feedback, index }) {
   return (
     <div
       className="rounded-xl border transition-colors cursor-pointer"
-      style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+      style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
       onClick={() => setExpanded((v) => !v)}
     >
       <div className="flex items-start justify-between gap-4 p-4">
@@ -314,7 +314,7 @@ function QuestionFeedbackCard({ feedback, index }) {
       {expanded && feedback.comment && (
         <div
           className="px-4 pb-4 border-t pt-3"
-          style={{ borderColor: '#2a2d3a' }}
+          style={{ borderColor: '#404040' }}
         >
           <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
             {feedback.comment}

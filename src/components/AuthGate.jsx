@@ -46,6 +46,7 @@ export { auth }
  */
 export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider()
+  provider.setCustomParameters({ prompt: 'select_account' })
   const result = await signInWithPopup(auth, provider)
   if (!isAllowed(result.user.email)) {
     await signOut(auth)
@@ -82,7 +83,7 @@ export default function AuthGate({ children }) {
         let userRole
         if (!snap.exists()) {
           userRole = ADMIN_WHITELIST.includes(u.email) ? 'admin'
-                   : SÄLJARE_WHITELIST.includes(u.email) ? 'säljare'
+                   : SÄLJARE_WHITELIST.includes(u.email) ? 'saljare'
                    : 'konsult'
 
           // Copy any pending profile prepared by a säljare
@@ -173,12 +174,12 @@ export function SignInScreen() {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center gap-8 px-6"
-      style={{ backgroundColor: '#0f1117' }}
+      style={{ backgroundColor: '#000000' }}
     >
       <div className="flex items-center gap-3">
         <div
           className="w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold text-white"
-          style={{ backgroundColor: '#4A6FA5' }}
+          style={{ backgroundColor: '#8064ad' }}
         >
           I
         </div>
@@ -189,7 +190,7 @@ export function SignInScreen() {
 
       <div
         className="w-full max-w-sm rounded-2xl border p-8 flex flex-col items-center gap-6"
-        style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
       >
         <div className="text-center space-y-2">
           <h1 className="text-white text-xl font-semibold">Välkommen</h1>
@@ -234,7 +235,7 @@ function CheckingScreen() {
   return (
     <div
       className="min-h-screen flex items-center justify-center"
-      style={{ backgroundColor: '#0f1117' }}
+      style={{ backgroundColor: '#000000' }}
     >
       <div className="flex items-center gap-3" style={{ color: '#6b7280' }}>
         <MiniSpinner />

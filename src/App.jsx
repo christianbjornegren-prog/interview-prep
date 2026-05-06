@@ -13,6 +13,7 @@ import AdminPage from './pages/AdminPage'
 import SäljarePage from './pages/SäljarePage'
 import KonsultProfilPage from './pages/KonsultProfilPage'
 import PendingProfilPage from './pages/PendingProfilPage'
+import OmPage from './pages/OmPage'
 
 function RequireAdmin({ children }) {
   const { role } = useUser()
@@ -22,7 +23,7 @@ function RequireAdmin({ children }) {
 
 function RequireSäljarOrAdmin({ children }) {
   const { role } = useUser()
-  if (role !== 'admin' && role !== 'säljare') return <Navigate to="/" replace />
+  if (role !== 'admin' && role !== 'saljare') return <Navigate to="/" replace />
   return children
 }
 
@@ -33,6 +34,7 @@ export default function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/om" element={<RequireAuth><OmPage /></RequireAuth>} />
             <Route
               path="/kompetensbank"
               element={<RequireAuth><CompetencyBank /></RequireAuth>}

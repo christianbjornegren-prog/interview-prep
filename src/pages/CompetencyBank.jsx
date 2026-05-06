@@ -38,7 +38,7 @@ export default function CompetencyBank() {
       {summary && summary.count > 0 && (
         <div
           className="flex items-center gap-6 rounded-xl border px-5 py-3 text-sm"
-          style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+          style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
         >
           <span style={{ color: '#9ca3af' }}>
             <span className="text-white font-semibold">{summary.count}</span>{' '}
@@ -64,7 +64,7 @@ export default function CompetencyBank() {
       </section>
 
       {/* Divider */}
-      <div style={{ borderTop: '1px solid #2a2d3a' }} />
+      <div style={{ borderTop: '1px solid #404040' }} />
 
       {/* Competency list */}
       <section>
@@ -79,7 +79,7 @@ function SectionLabel({ children }) {
   return (
     <p
       className="text-xs font-semibold uppercase tracking-widest mb-4"
-      style={{ color: '#4A6FA5' }}
+      style={{ color: '#8064ad' }}
     >
       {children}
     </p>

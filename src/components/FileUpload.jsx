@@ -139,8 +139,8 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
             'flex flex-col items-center justify-center gap-3',
             'border-2 border-dashed rounded-xl p-10 transition-colors select-none cursor-pointer',
             dragging
-              ? 'border-[#4A6FA5] bg-[#4A6FA5]/5'
-              : 'border-[#2a2d3a] hover:border-[#4A6FA5]/50',
+              ? 'border-[#8064ad] bg-[#8064ad]/5'
+              : 'border-[#404040] hover:border-[#8064ad]/50',
           ].join(' ')}
         >
           <input
@@ -182,9 +182,9 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
         <button
           onClick={handleAnalyze}
           className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors"
-          style={{ backgroundColor: '#4A6FA5' }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#5a82bc')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+          style={{ backgroundColor: '#8064ad' }}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
         >
           Analysera dokument
         </button>
@@ -232,7 +232,7 @@ function UploadIcon() {
       height="36"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#4A6FA5"
+      stroke="#8064ad"
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -251,7 +251,7 @@ function FileIcon() {
       height="36"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#4A6FA5"
+      stroke="#8064ad"
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"

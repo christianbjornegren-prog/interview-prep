@@ -15,15 +15,15 @@ export default function Layout({ children }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#0f1117' }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#000000' }}>
       {/* Navbar */}
-      <header className="border-b" style={{ borderColor: '#2a2d3a' }}>
+      <header className="border-b" style={{ borderColor: '#404040' }}>
         <nav className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
             <div
               className="w-7 h-7 rounded-md flex items-center justify-center text-sm font-bold text-white"
-              style={{ backgroundColor: '#4A6FA5' }}
+              style={{ backgroundColor: '#8064ad' }}
             >
               I
             </div>
@@ -36,13 +36,13 @@ export default function Layout({ children }) {
           <div className="flex items-center gap-1">
             {user && (
               <>
-                <NavLink to="/" active={location.pathname === '/'}>
+                <NavLink to="/" active={location.pathname === '/'} nowrap>
                   Mina uppdrag
                 </NavLink>
                 <NavLink to="/kompetensbank" active={location.pathname === '/kompetensbank'}>
                   Kompetensbank
                 </NavLink>
-                {(role === 'admin' || role === 'säljare') && (
+                {(role === 'admin' || role === 'saljare') && (
                   <NavLink
                     to="/konsulter"
                     active={location.pathname.startsWith('/konsulter')}
@@ -55,11 +55,14 @@ export default function Layout({ children }) {
                     Användarhantering
                   </NavLink>
                 )}
+                <NavLink to="/om" active={location.pathname === '/om'}>
+                  Om
+                </NavLink>
 
                 {/* Divider */}
                 <span
                   className="mx-2 h-4 w-px"
-                  style={{ backgroundColor: '#2a2d3a' }}
+                  style={{ backgroundColor: '#404040' }}
                 />
 
                 {/* Avatar + name */}
@@ -74,7 +77,7 @@ export default function Layout({ children }) {
                   ) : (
                     <div
                       className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                      style={{ backgroundColor: '#4A6FA5' }}
+                      style={{ backgroundColor: '#8064ad' }}
                     >
                       {(user.displayName ?? user.email ?? '?')[0].toUpperCase()}
                     </div>
@@ -108,7 +111,7 @@ export default function Layout({ children }) {
 
       <footer
         className="border-t py-6 text-center text-sm"
-        style={{ borderColor: '#2a2d3a', color: '#6b7280' }}
+        style={{ borderColor: '#404040', color: '#6b7280' }}
       >
         Intervjucoach &mdash; ditt trygga utrymme för intervjuförberedelse
       </footer>
@@ -116,17 +119,14 @@ export default function Layout({ children }) {
   )
 }
 
-function NavLink({ to, active, children }) {
+function NavLink({ to, active, nowrap, children }) {
   return (
     <Link
       to={to}
-      className="px-4 py-2 rounded-md text-sm font-medium transition-colors"
-      style={{
-        color: active ? '#fff' : '#6b7280',
-        backgroundColor: active ? '#1a1d27' : 'transparent',
-      }}
-      onMouseOver={(e) => !active && (e.currentTarget.style.color = '#fff')}
-      onMouseOut={(e) => !active && (e.currentTarget.style.color = '#6b7280')}
+      className={`px-4 py-2 text-sm font-medium transition-colors${nowrap ? ' whitespace-nowrap' : ''}`}
+      style={{ color: active ? '#fff' : '#6b7280' }}
+      onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
+      onMouseOut={(e) => (e.currentTarget.style.color = active ? '#fff' : '#6b7280')}
     >
       {children}
     </Link>

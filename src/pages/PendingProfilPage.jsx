@@ -13,11 +13,11 @@ import StepIndicator, { percentToStep } from '../components/StepIndicator'
 // ── Category definitions (mirrors CompetencyList) ─────────────────────────
 
 const CAT_DEFS = [
-  { name: 'Ledning & styrning', color: '#4A6FA5', bg: '#1e2d45', textColor: '#7aa3d4',
+  { name: 'Ledning & styrning', color: '#8064ad', bg: '#1e2d45', textColor: '#b19ae0',
     tags: new Set(['ledarskap','styrning','governance','strategi','beslutsunderlag','power-bi','rapportering','strategisk-kommunikation','ledningsstöd']) },
   { name: 'Digitalisering', color: '#7C5CBF', bg: '#221533', textColor: '#b19de0',
     tags: new Set(['digitalisering','transformation','förändringsledning','processautomation','effektivisering','affärsnytta','digitaleffektivisering']) },
-  { name: 'IT-arkitektur', color: '#2A9D8F', bg: '#0d2b27', textColor: '#5ecfc3',
+  { name: 'IT-arkitektur', color: '#2a9d8f', bg: '#0d2b27', textColor: '#5ecfc3',
     tags: new Set(['arkitektur','togaf','systemarkitektur','integration','kundportal','api-strategi','access-management','integrationsstrategi','skalbarhet']) },
   { name: 'Molntjänster & Azure', color: '#0EA5E9', bg: '#0d2233', textColor: '#5bc4f5',
     tags: new Set(['azure','cloud','microsoft','cloud-migration','microsoft-azure','plattformsledning','teknisk-transformation']) },
@@ -124,7 +124,7 @@ export default function PendingProfilPage() {
       {/* Pending banner */}
       <div
         className="rounded-xl border px-5 py-4"
-        style={{ backgroundColor: '#1a1d27', borderColor: '#4d3e1a' }}
+        style={{ backgroundColor: '#1d1d1d', borderColor: '#4d3e1a' }}
       >
         <p className="text-sm" style={{ color: '#f0d48a' }}>
           Konsulten har inte loggat in än. Kompetenser och uppdrag du lägger till här kopieras automatiskt till deras konto när de loggar in första gången.
@@ -132,7 +132,7 @@ export default function PendingProfilPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b" style={{ borderColor: '#2a2d3a' }}>
+      <div className="flex border-b" style={{ borderColor: '#404040' }}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -140,7 +140,7 @@ export default function PendingProfilPage() {
             className="px-5 py-2.5 text-sm font-medium transition-colors -mb-px"
             style={{
               color: activeTab === tab.id ? '#fff' : '#6b7280',
-              borderBottom: activeTab === tab.id ? '2px solid #4A6FA5' : '2px solid transparent',
+              borderBottom: activeTab === tab.id ? '2px solid #8064ad' : '2px solid transparent',
             }}
           >
             {tab.label}
@@ -152,14 +152,14 @@ export default function PendingProfilPage() {
       {activeTab === 'kompetensbank' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
               {competencies.length} kompetens{competencies.length === 1 ? '' : 'er'}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setShowCvUpload((v) => !v)}
                 className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
-                style={{ backgroundColor: '#2a2d3a', color: '#9ca3af' }}
+                style={{ backgroundColor: '#404040', color: '#9ca3af' }}
                 onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
                 onMouseOut={(e) => (e.currentTarget.style.color = '#9ca3af')}
               >
@@ -168,9 +168,9 @@ export default function PendingProfilPage() {
               <button
                 onClick={() => setShowAddModal(true)}
                 className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-colors"
-                style={{ backgroundColor: '#4A6FA5' }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#5a82bc')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+                style={{ backgroundColor: '#8064ad' }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
               >
                 + Lägg till kompetens manuellt
               </button>
@@ -178,7 +178,7 @@ export default function PendingProfilPage() {
           </div>
 
           {showCvUpload && (
-            <div className="rounded-xl border p-5" style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}>
+            <div className="rounded-xl border p-5" style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}>
               <PendingFileUpload
                 email={email}
                 existingCompetencies={competencies}
@@ -188,7 +188,7 @@ export default function PendingProfilPage() {
           )}
 
           {competencies.length === 0 ? (
-            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: '#2a2d3a' }}>
+            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: '#404040' }}>
               <p className="text-sm" style={{ color: '#6b7280' }}>Inga kompetenser ännu.</p>
             </div>
           ) : (
@@ -205,7 +205,7 @@ export default function PendingProfilPage() {
       {activeTab === 'uppdrag' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#4A6FA5' }}>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
               {jobs.length} uppdrag
             </p>
             <button
@@ -218,16 +218,16 @@ export default function PendingProfilPage() {
                 })
               }
               className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-colors"
-              style={{ backgroundColor: '#4A6FA5' }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#5a82bc')}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+              style={{ backgroundColor: '#8064ad' }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
             >
               + Skapa nytt uppdrag åt konsulten
             </button>
           </div>
 
           {jobs.length === 0 ? (
-            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: '#2a2d3a' }}>
+            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: '#404040' }}>
               <p className="text-sm" style={{ color: '#6b7280' }}>Inga uppdrag ännu.</p>
             </div>
           ) : (
@@ -361,7 +361,7 @@ function PendingFileUpload({ email, existingCompetencies, onSuccess }) {
           className={[
             'flex flex-col items-center justify-center gap-3',
             'border-2 border-dashed rounded-xl p-10 transition-colors select-none cursor-pointer',
-            dragging ? 'border-[#4A6FA5] bg-[#4A6FA5]/5' : 'border-[#2a2d3a] hover:border-[#4A6FA5]/50',
+            dragging ? 'border-[#8064ad] bg-[#8064ad]/5' : 'border-[#404040] hover:border-[#8064ad]/50',
           ].join(' ')}
         >
           <input ref={inputRef} type="file" accept={ACCEPTED_TYPES} className="hidden" onChange={(e) => { handleFileSelect(e.target.files?.[0]); e.target.value = '' }} />
@@ -383,9 +383,9 @@ function PendingFileUpload({ email, existingCompetencies, onSuccess }) {
         <button
           onClick={handleAnalyze}
           className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors"
-          style={{ backgroundColor: '#4A6FA5' }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#5a82bc')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+          style={{ backgroundColor: '#8064ad' }}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
         >
           Analysera dokument
         </button>
@@ -423,13 +423,13 @@ function ReadOnlyAccordion({ competencies, openCats, onToggle }) {
       {grouped.map(({ cat, items }) => {
         const isOpen = openCats.has(cat.name)
         return (
-          <div key={cat.name} className="rounded-xl border overflow-hidden" style={{ borderColor: '#2a2d3a' }}>
+          <div key={cat.name} className="rounded-xl border overflow-hidden" style={{ borderColor: '#404040' }}>
             <button
               onClick={() => onToggle(cat.name)}
               className="w-full flex items-center justify-between px-4 py-3 transition-colors"
-              style={{ backgroundColor: '#1a1d27' }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#1e2230')}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1a1d27')}
+              style={{ backgroundColor: '#1d1d1d' }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#252525')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1d1d1d')}
             >
               <div className="flex items-center gap-3">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
@@ -442,7 +442,7 @@ function ReadOnlyAccordion({ competencies, openCats, onToggle }) {
             </button>
 
             {isOpen && (
-              <ul className="space-y-px border-t" style={{ borderColor: '#2a2d3a', backgroundColor: '#13151f' }}>
+              <ul className="space-y-px border-t" style={{ borderColor: '#404040', backgroundColor: '#141414' }}>
                 {items.map((c, i) => (
                   <CompetencyCard key={c.title ?? i} competency={c} />
                 ))}
@@ -462,7 +462,7 @@ function CompetencyCard({ competency }) {
   return (
     <li
       className="rounded-xl border p-5 transition-colors cursor-pointer"
-      style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+      style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
       onClick={() => setExpanded((v) => !v)}
     >
       <div className="flex items-start justify-between gap-4">
@@ -503,13 +503,13 @@ function JobItem({ job, expanded, onToggle }) {
 
   return (
     <li>
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: expanded ? '#4A6FA5' : '#2a2d3a' }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: expanded ? '#8064ad' : '#404040' }}>
         <button
           onClick={onToggle}
           className="w-full text-left p-4 transition-colors"
-          style={{ backgroundColor: '#1a1d27' }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#1e2230')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1a1d27')}
+          style={{ backgroundColor: '#1d1d1d' }}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#252525')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1d1d1d')}
         >
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
@@ -531,7 +531,7 @@ function JobItem({ job, expanded, onToggle }) {
         </button>
 
         {expanded && (
-          <div className="border-t p-4 space-y-4" style={{ borderColor: '#2a2d3a', backgroundColor: '#13151f' }}>
+          <div className="border-t p-4 space-y-4" style={{ borderColor: '#404040', backgroundColor: '#141414' }}>
             {covered.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#22c55e' }}>
@@ -620,7 +620,7 @@ function PendingAddCompetencyModal({ email, onClose, onAdded }) {
     >
       <div
         className="w-full max-w-md rounded-2xl border p-6 space-y-5"
-        style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3a' }}
+        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
       >
         <div className="flex items-center justify-between">
           <h2 className="text-white font-semibold text-lg">Lägg till kompetens</h2>
@@ -637,7 +637,7 @@ function PendingAddCompetencyModal({ email, onClose, onAdded }) {
           { field: 'taggar', label: 'Taggar (kommaseparerade)', placeholder: 'ledarskap, strategi, governance' },
         ].map(({ field, label, placeholder, multiline }) => (
           <div key={field} className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#4A6FA5' }}>
+            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#8064ad' }}>
               {label}
             </label>
             {multiline ? (
@@ -646,8 +646,8 @@ function PendingAddCompetencyModal({ email, onClose, onAdded }) {
                 onChange={(e) => update(field, e.target.value)}
                 placeholder={placeholder}
                 rows={3}
-                className="w-full rounded-lg border p-3 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#4A6FA5]"
-                style={{ backgroundColor: '#13151f', borderColor: '#2a2d3a', resize: 'vertical' }}
+                className="w-full rounded-lg border p-3 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#8064ad]"
+                style={{ backgroundColor: '#141414', borderColor: '#404040', resize: 'vertical' }}
               />
             ) : (
               <input
@@ -655,8 +655,8 @@ function PendingAddCompetencyModal({ email, onClose, onAdded }) {
                 value={form[field]}
                 onChange={(e) => update(field, e.target.value)}
                 placeholder={placeholder}
-                className="w-full rounded-lg border px-3 py-2 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#4A6FA5]"
-                style={{ backgroundColor: '#13151f', borderColor: '#2a2d3a' }}
+                className="w-full rounded-lg border px-3 py-2 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#8064ad]"
+                style={{ backgroundColor: '#141414', borderColor: '#404040' }}
               />
             )}
           </div>
@@ -668,7 +668,7 @@ function PendingAddCompetencyModal({ email, onClose, onAdded }) {
           <button
             onClick={onClose}
             className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors"
-            style={{ backgroundColor: '#2a2d3a', color: '#9ca3af' }}
+            style={{ backgroundColor: '#404040', color: '#9ca3af' }}
           >
             Avbryt
           </button>
@@ -676,9 +676,9 @@ function PendingAddCompetencyModal({ email, onClose, onAdded }) {
             onClick={handleSubmit}
             disabled={saving}
             className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-60"
-            style={{ backgroundColor: '#4A6FA5' }}
-            onMouseOver={(e) => !saving && (e.currentTarget.style.backgroundColor = '#5a82bc')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#4A6FA5')}
+            style={{ backgroundColor: '#8064ad' }}
+            onMouseOver={(e) => !saving && (e.currentTarget.style.backgroundColor = '#9781be')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
           >
             {saving ? 'Sparar...' : 'Spara kompetens'}
           </button>

@@ -4,7 +4,7 @@ import { collection, db, getDocs, doc, updateDoc, serverTimestamp } from '../lib
 const ROLES = [
   { value: 'admin', label: 'Admin' },
   { value: 'konsult', label: 'Konsult' },
-  { value: 'säljare', label: 'Säljare' },
+  { value: 'saljare', label: 'Säljare' },
 ]
 
 export default function AdminPage() {
@@ -79,8 +79,8 @@ export default function AdminPage() {
         onChange={(e) => setSearch(e.target.value)}
         className="w-full max-w-sm rounded-lg px-4 py-2 text-sm outline-none"
         style={{
-          backgroundColor: '#1a1d27',
-          border: '1px solid #2a2d3a',
+          backgroundColor: '#1d1d1d',
+          border: '1px solid #404040',
           color: '#fff',
         }}
       />
@@ -91,10 +91,10 @@ export default function AdminPage() {
       ) : filtered.length === 0 ? (
         <p className="text-sm py-4" style={{ color: '#6b7280' }}>Inga användare hittades.</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border" style={{ borderColor: '#2a2d3a' }}>
+        <div className="overflow-x-auto rounded-xl border" style={{ borderColor: '#404040' }}>
           <table className="w-full text-sm">
             <thead>
-              <tr style={{ backgroundColor: '#1a1d27', borderBottom: '1px solid #2a2d3a' }}>
+              <tr style={{ backgroundColor: '#1d1d1d', borderBottom: '1px solid #404040' }}>
                 {['Namn', 'E-post', 'Roll', 'Ändrad'].map((col) => (
                   <th
                     key={col}
@@ -111,7 +111,7 @@ export default function AdminPage() {
                 <tr
                   key={u.uid}
                   style={{
-                    backgroundColor: i % 2 === 0 ? '#13151f' : '#0f1117',
+                    backgroundColor: i % 2 === 0 ? '#141414' : '#000000',
                     borderBottom: i < filtered.length - 1 ? '1px solid #1e2130' : 'none',
                   }}
                 >
@@ -127,7 +127,7 @@ export default function AdminPage() {
                       onChange={(e) => handleRoleChange(u.uid, e.target.value)}
                       className="rounded-md px-2 py-1 text-xs font-medium outline-none cursor-pointer"
                       style={{
-                        backgroundColor: '#2a2d3a',
+                        backgroundColor: '#404040',
                         border: '1px solid #3a3d4a',
                         color: '#e5e7eb',
                       }}
