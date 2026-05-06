@@ -48,8 +48,10 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
 - Kompetensbanken visar kompetenser grupperade per kategori i accordion (alla kollapsade by default)
 - Filter-chips i kompetensbanken behålls och styr vilka kategorier som syns
 - JobPage har ENBART två tabbar: "Förberedelse" och "Historik" (Intervjufrågor-tabben är borttagen)
-- JobPage: om role == 'saljare' döljs Historik-tabben, Starta-knapparna och sticky footer; Förberedelse visas alltid
+- JobPage: om role == 'saljare' döljs Historik-tabben och Starta-knappen; Förberedelse visas alltid
+- JobPage: ingen sticky footer – enda "Starta"-knappen finns i headern ovanför tabbar
 - JobPage läser targetUid från location.state – används för Firestore-anrop (säljare tittar på konsults jobb)
+- Uppdragsbeskrivning i Förberedelse-tabben visar 2 meningar som default; "Läs mer →" / "Läs mindre ←" expanderar
 - Back-knapp i JobPage: om targetUid → /konsulter/:uid, annars → /
 - Intervjuflödet: JobPage → konfigurationsskärm (ersätter tab-innehållet) → InterviewSimulatorTTS
 - Konfigurationsskärm: tvåkolumns layout — vänster: inställningar, höger: live-preview av frågor
@@ -66,6 +68,9 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
   → skickar { namn, beskrivning, taggar } — inga ID-fält
 - Används i: analyzeJobPosting, analyzeInterviewFeedback, saveSession
 - NO_ID_INSTRUCTION-konstanten i claude.js läggs till i alla relevanta prompter
+- JobPage har "🔄 Uppdatera gap-analys"-knapp bredvid "Gap att adressera"-rubriken
+  → hämtar senaste kompetenser från Firestore, kör analyzeJobPosting, skriver bara gapAnalysis-fältet
+  → använder job.jobText (råtext) som indata, fallback till job.summary
 
 ## Intervju state machine (InterviewSimulatorTTS)
 States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCESSING → PREPARING_NEXT → (loop eller FINISHED)

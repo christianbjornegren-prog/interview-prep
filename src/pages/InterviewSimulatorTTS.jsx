@@ -9,7 +9,6 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
-import { logger, CATEGORIES } from '../lib/logger'
 import { analyzeInterviewFeedback, sanitizeCompetencies } from '../lib/claude'
 
 const VERCEL_WHISPER =
@@ -110,7 +109,6 @@ export default function InterviewSimulatorTTS() {
 
   // Load job
   useEffect(() => {
-    logger.info(CATEGORIES.APP, 'InterviewSimulatorTTS loaded', { jobId })
     let cancelled = false
     async function load() {
       try {
@@ -119,18 +117,11 @@ export default function InterviewSimulatorTTS() {
         if (cancelled) return
         if (!snap.exists()) {
           setLoadError('Hittade ingen jobbannons med det id:et.')
-          logger.warn(CATEGORIES.APP, 'Job not found', { jobId })
         } else {
           setJob({ docId: snap.id, ...snap.data() })
-          logger.info(CATEGORIES.APP, 'Job loaded', {
-            jobId,
-            jobTitle: snap.data().jobTitle,
-            questionCount: snap.data().questions?.length || 0,
-          })
         }
       } catch (err) {
         console.error('Kunde inte hämta jobbet:', err)
-        logger.error(CATEGORIES.APP, 'Failed to load job', { jobId, error: err.message })
         if (!cancelled) setLoadError(err.message ?? 'Kunde inte hämta jobbet.')
       } finally {
         if (!cancelled) setLoadingJob(false)
@@ -228,12 +219,6 @@ export default function InterviewSimulatorTTS() {
     activeQuestionsRef.current = activeQuestions
     setInterviewState(STATES.CONNECTING)
 
-    logger.info(CATEGORIES.APP, 'Starting interview', {
-      jobId,
-      interviewer: interviewerName,
-      questionCount: activeQuestions.length,
-    })
-
     const greeting =
       `Hej, jag heter ${interviewerName}. Välkommen till intervjun ` +
       `för rollen ${job.jobTitle} hos ${job.company}. ` +
@@ -244,10 +229,8 @@ export default function InterviewSimulatorTTS() {
       await speakText(greeting)
       addToTranscript('interviewer', greeting)
       setInterviewState(STATES.WAITING_FOR_USER)
-      logger.info(CATEGORIES.APP, 'Interview started successfully')
     } catch (err) {
       console.error('TTS-fel:', err)
-      logger.error(CATEGORIES.APP, 'Failed to start interview', { error: err.message })
       setErrorMsg(err.message ?? 'Kunde inte spela upp AI-rösten.')
     }
   }
@@ -345,7 +328,6 @@ export default function InterviewSimulatorTTS() {
 
   async function saveSession() {
     try {
-      logger.info(CATEGORIES.APP, 'Saving interview session', { jobId })
       const uid = auth.currentUser.uid
       const activeQuestions = activeQuestionsRef.current
       const finalTranscript = transcriptRef.current
@@ -360,12 +342,9 @@ export default function InterviewSimulatorTTS() {
         }
       })
 
-      logger.info(CATEGORIES.APP, 'Fetching competencies for feedback analysis')
       const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
       const rawCompetencies = compSnap.docs.map((d) => d.data())
-      logger.info(CATEGORIES.APP, 'Competencies fetched', { count: rawCompetencies.length })
 
-      logger.info(CATEGORIES.APP, 'Requesting feedback from Claude')
       const feedback = await analyzeInterviewFeedback(
         transcriptForAnalysis,
         job?.jobTitle ?? '',
@@ -373,7 +352,6 @@ export default function InterviewSimulatorTTS() {
         sanitizeCompetencies(rawCompetencies),
         { focus: interviewConfig.focus, difficulty: interviewConfig.difficulty }
       )
-      logger.info(CATEGORIES.APP, 'Feedback received', { overallScore: feedback.overallScore })
 
       const feedbackRef = await addDoc(
         collection(db, 'users', uid, 'jobs', jobId, 'feedback'),
@@ -392,11 +370,9 @@ export default function InterviewSimulatorTTS() {
         }
       )
 
-      logger.info(CATEGORIES.APP, 'Feedback saved', { feedbackId: feedbackRef.id })
       navigate(`/feedback/${jobId}/${feedbackRef.id}`)
     } catch (err) {
       console.error('Kunde inte spara sessionen:', err)
-      logger.error(CATEGORIES.APP, 'Failed to save session', { error: err.message })
       setErrorMsg(err.message ?? 'Kunde inte spara sessionen.')
     }
   }

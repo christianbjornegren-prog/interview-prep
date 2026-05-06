@@ -3,13 +3,11 @@ import { collection, getDocs, orderBy, query } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
 import FileUpload from '../components/FileUpload'
 import CompetencyList from '../components/CompetencyList'
-import { logger, CATEGORIES } from '../lib/logger'
 
 export default function CompetencyBank() {
   const [summary, setSummary] = useState(null) // { count, lastUpload }
 
   useEffect(() => {
-    logger.info(CATEGORIES.APP, 'CompetencyBank page loaded')
     const uid = auth.currentUser.uid
     getDocs(
       query(collection(db, 'users', uid, 'competencies'), orderBy('createdAt', 'desc'))

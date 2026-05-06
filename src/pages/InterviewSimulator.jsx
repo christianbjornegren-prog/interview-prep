@@ -8,7 +8,6 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
-import DebugPanel from '../components/DebugPanel'
 
 const TOKEN_ENDPOINT =
   'https://interview-prep-liard-three.vercel.app/api/getRealtimeToken'
@@ -316,23 +315,17 @@ export default function InterviewSimulator() {
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
-  const debugPanel = <DebugPanel logs={logs} onClear={() => setLogs([])} />
-
   if (loadingJob) {
     return (
-      <>
-        <p className="text-sm py-8" style={{ color: '#6b7280' }}>
-          Laddar jobbannons...
-        </p>
-        {debugPanel}
-      </>
+      <p className="text-sm py-8" style={{ color: '#6b7280' }}>
+        Laddar jobbannons...
+      </p>
     )
   }
 
   if (loadError || !job) {
     return (
-      <>
-        <div className="space-y-4">
+      <div className="space-y-4">
           <button
             onClick={() => navigate('/')}
             className="text-sm transition-colors"
@@ -344,8 +337,6 @@ export default function InterviewSimulator() {
             {loadError || 'Hittade ingen jobbannons.'}
           </p>
         </div>
-        {debugPanel}
-      </>
     )
   }
 
@@ -354,8 +345,7 @@ export default function InterviewSimulator() {
 
   if (phase === 'active' || phase === 'ending' || phase === 'connecting') {
     return (
-      <>
-        <div className="space-y-10">
+      <div className="space-y-10">
           <audio ref={audioRef} autoPlay />
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">
@@ -416,15 +406,12 @@ export default function InterviewSimulator() {
             </p>
           )}
         </div>
-        {debugPanel}
-      </>
     )
   }
 
   // phase === 'prep'
   return (
-    <>
-      <div className="space-y-8">
+    <div className="space-y-8">
         <div>
           <button
             onClick={() => navigate('/')}
@@ -478,8 +465,6 @@ export default function InterviewSimulator() {
           </p>
         )}
       </div>
-      {debugPanel}
-    </>
   )
 }
 

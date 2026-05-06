@@ -1,7 +1,6 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AuthGate, { RequireAuth, useUser } from './components/AuthGate'
 import Layout from './components/Layout'
-import DebugPanel from './components/DebugPanel'
 import Home from './pages/Home'
 import CompetencyBank from './pages/CompetencyBank'
 import JobCreate from './pages/JobCreate'
@@ -77,7 +76,6 @@ export default function App() {
             />
           </Routes>
         </Layout>
-        <DebugPanel />
       </HashRouter>
     </AuthGate>
   )

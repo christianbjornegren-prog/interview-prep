@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
-import { logger, CATEGORIES } from '../lib/logger'
 
 export default function FeedbackPage() {
   const { jobId, feedbackId } = useParams()
@@ -12,7 +11,6 @@ export default function FeedbackPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    logger.info(CATEGORIES.APP, 'FeedbackPage loaded', { jobId, feedbackId })
     let cancelled = false
 
     async function loadFeedback() {
@@ -26,21 +24,11 @@ export default function FeedbackPage() {
 
         if (!feedbackSnap.exists()) {
           setError('Feedback hittades inte.')
-          logger.warn(CATEGORIES.APP, 'Feedback not found', { jobId, feedbackId })
         } else {
           setFeedback({ id: feedbackSnap.id, ...feedbackSnap.data() })
-          logger.info(CATEGORIES.APP, 'Feedback loaded', {
-            feedbackId,
-            overallScore: feedbackSnap.data().overallScore,
-          })
         }
       } catch (err) {
         console.error('Kunde inte hämta feedback:', err)
-        logger.error(CATEGORIES.APP, 'Failed to load feedback', {
-          jobId,
-          feedbackId,
-          error: err.message,
-        })
         if (!cancelled) setError(err.message ?? 'Kunde inte hämta feedback.')
       } finally {
         if (!cancelled) setLoading(false)

@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 import { useUser } from '../components/AuthGate'
-import { logger, CATEGORIES } from '../lib/logger'
+import { analyzeJobPosting, sanitizeCompetencies } from '../lib/claude'
 
 const STRENGTH_STYLE = {
   hög:   { color: '#4ade80', label: 'Hög' },
@@ -49,11 +49,11 @@ export default function JobPage() {
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(true)
   const [activeTab, setActiveTab] = useState('preparation')
   const [archiving, setArchiving] = useState(false)
+  const [refreshingGap, setRefreshingGap] = useState(false)
   const [showConfig, setShowConfig] = useState(false)
   const [config, setConfig] = useState({ numQuestions: 5, focus: 'Mix', difficulty: 'Standard' })
 
   useEffect(() => {
-    logger.info(CATEGORIES.APP, 'JobPage loaded', { jobId })
     const unsub = onSnapshot(doc(db, 'users', uid, 'jobs', jobId), (snap) => {
       setJob(snap.exists() ? { docId: snap.id, ...snap.data() } : null)
       setLoading(false)
@@ -160,11 +160,32 @@ export default function JobPage() {
     })
   }
 
+  async function handleRefreshGap() {
+    if (!job || refreshingGap) return
+    setRefreshingGap(true)
+    try {
+      const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
+      const latestComps = compSnap.docs.map((d) => d.data())
+      const result = await analyzeJobPosting(
+        job.rawJobText ?? job.summary ?? '',
+        '',
+        sanitizeCompetencies(latestComps)
+      )
+      await updateDoc(doc(db, 'users', uid, 'jobs', jobId), {
+        gapAnalysis: result.gapAnalysis,
+      })
+    } catch (err) {
+      console.error('Kunde inte uppdatera gap-analys:', err)
+    } finally {
+      setRefreshingGap(false)
+    }
+  }
+
   const backPath = targetUid ? `/konsulter/${targetUid}` : '/'
   const backLabel = targetUid ? '← Tillbaka till konsultprofil' : '← Tillbaka till alla uppdrag'
 
   return (
-    <div className={isSaljare ? 'space-y-6' : 'space-y-6 pb-28'}>
+    <div className="space-y-6">
       {/* Back */}
       <button
         onClick={() => navigate(backPath)}
@@ -260,6 +281,8 @@ export default function JobPage() {
               covered={covered}
               gaps={gaps}
               competencyById={competencyById}
+              onRefreshGap={handleRefreshGap}
+              refreshingGap={refreshingGap}
             />
           )}
           {!isSaljare && activeTab === 'history' && (
@@ -290,26 +313,6 @@ export default function JobPage() {
             </button>
           </div>
 
-          {/* Sticky footer CTA – only for konsult/admin */}
-          {!isSaljare && (
-            <div
-              className="fixed bottom-0 left-0 right-0 border-t flex items-center justify-center px-6 py-4"
-              style={{ backgroundColor: '#000000cc', backdropFilter: 'blur(8px)', borderColor: '#404040' }}
-            >
-              <button
-                onClick={startInterview}
-                disabled={questions.length === 0}
-                className="flex items-center gap-2 px-8 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                style={{ backgroundColor: '#8064ad' }}
-                onMouseOver={(e) => {
-                  if (questions.length > 0) e.currentTarget.style.backgroundColor = '#9781be'
-                }}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
-              >
-                🎙 Starta intervjuträning
-              </button>
-            </div>
-          )}
         </>
       )}
     </div>
@@ -320,7 +323,90 @@ export default function JobPage() {
 
 const MAX_VISIBLE = 5
 
-function PrepTab({ job, covered, gaps, competencyById }) {
+// ── Job text parser ───────────────────────────────────────────────────────
+
+function parseJobText(text) {
+  const lines = text.split(/\n/).map((l) => l.trim()).filter(Boolean)
+  const blocks = []
+  let inListContext = false
+
+  for (const line of lines) {
+    const isHeading = !/[a-zåäö]/.test(line) && /[A-ZÅÄÖ]/.test(line) && line.length >= 4 && line.length < 70
+    const isSubheading = line.endsWith(':') && line.length < 120
+    const isBullet = /^[-•*–·▸▪]\s/.test(line)
+
+    if (isHeading) {
+      inListContext = false
+      blocks.push({ type: 'heading', text: line })
+    } else if (isSubheading) {
+      inListContext = true
+      blocks.push({ type: 'subheading', text: line })
+    } else if (isBullet) {
+      const cleanText = line.replace(/^[-•*–·▸▪]\s*/, '')
+      const last = blocks[blocks.length - 1]
+      if (last?.type === 'list') last.items.push(cleanText)
+      else blocks.push({ type: 'list', items: [cleanText] })
+      inListContext = false
+    } else if (inListContext && line.length < 120) {
+      const last = blocks[blocks.length - 1]
+      if (last?.type === 'list') last.items.push(line)
+      else blocks.push({ type: 'list', items: [line] })
+    } else {
+      inListContext = false
+      const last = blocks[blocks.length - 1]
+      if (last?.type === 'paragraph') last.text += ' ' + line
+      else blocks.push({ type: 'paragraph', text: line })
+    }
+  }
+
+  return blocks
+}
+
+function JobTextBlocks({ blocks }) {
+  return (
+    <div className="space-y-1">
+      {blocks.map((block, i) => {
+        if (block.type === 'heading') {
+          return (
+            <p
+              key={i}
+              className="text-xs font-semibold uppercase tracking-widest mt-4 mb-1"
+              style={{ color: '#8064ad' }}
+            >
+              {block.text}
+            </p>
+          )
+        }
+        if (block.type === 'subheading') {
+          return (
+            <p key={i} className="text-sm font-semibold mt-3 mb-1 text-white">
+              {block.text}
+            </p>
+          )
+        }
+        if (block.type === 'list') {
+          return (
+            <ul key={i} className="space-y-0.5 my-1">
+              {block.items.map((item, j) => (
+                <li key={j} className="flex gap-2 text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+                  <span className="shrink-0 mt-0.5" style={{ color: '#8064ad' }}>•</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          )
+        }
+        return (
+          <p key={i} className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+            {block.text}
+          </p>
+        )
+      })}
+    </div>
+  )
+}
+
+function PrepTab({ job, covered, gaps, competencyById, onRefreshGap, refreshingGap }) {
   const [summaryExpanded, setSummaryExpanded] = useState(false)
   const [showAllCovered, setShowAllCovered] = useState(false)
   const [showAllGaps, setShowAllGaps] = useState(false)
@@ -328,36 +414,52 @@ function PrepTab({ job, covered, gaps, competencyById }) {
   const visibleCovered = showAllCovered ? covered : covered.slice(0, MAX_VISIBLE)
   const visibleGaps = showAllGaps ? gaps : gaps.slice(0, MAX_VISIBLE)
 
+  const descText = job.rawJobText || job.description || job.jobDescription || job.summary || ''
+  const descBlocks = useMemo(() => (descText ? parseJobText(descText) : []), [descText])
+  const firstHeadingIdx = descBlocks.findIndex((b, i) => i > 0 && b.type === 'heading')
+  const previewBlocks = firstHeadingIdx > 0 ? descBlocks.slice(0, firstHeadingIdx) : descBlocks.slice(0, 2)
+  const descHasMore = descBlocks.length > previewBlocks.length
+
   return (
     <div className="space-y-6">
-      {/* Job summary */}
-      {job.summary && (
+      {/* Job description */}
+      {descBlocks.length > 0 && (
         <div>
-          <SectionLabel>Jobbeskrivning</SectionLabel>
-          <p
-            className="text-sm leading-relaxed"
-            style={{
-              color: '#d1d5db',
-              display: '-webkit-box',
-              WebkitLineClamp: summaryExpanded ? 'unset' : 3,
-              WebkitBoxOrient: 'vertical',
-              overflow: summaryExpanded ? 'visible' : 'hidden',
-            }}
-          >
-            {job.summary}
-          </p>
-          {job.summary.length > 160 && (
+          <SectionLabel>Uppdragsbeskrivning</SectionLabel>
+          <JobTextBlocks blocks={summaryExpanded ? descBlocks : previewBlocks} />
+          {descHasMore && (
             <button
               onClick={() => setSummaryExpanded((v) => !v)}
-              className="text-xs mt-1 transition-colors"
+              className="text-xs mt-2 transition-colors"
               style={{ color: '#8064ad' }}
               onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
               onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
             >
-              {summaryExpanded ? 'Visa mindre' : 'Visa mer'}
+              {summaryExpanded ? 'Läs mindre ←' : 'Läs mer →'}
             </button>
           )}
         </div>
+      )}
+
+      {/* Gap analysis header – always visible */}
+      <div className="flex items-center justify-between gap-3">
+        <SectionLabel noMargin>Gap-analys</SectionLabel>
+        <button
+          onClick={onRefreshGap}
+          disabled={refreshingGap}
+          className="text-xs transition-colors disabled:opacity-40 shrink-0"
+          style={{ color: '#6b7280' }}
+          onMouseOver={(e) => !refreshingGap && (e.currentTarget.style.color = '#fff')}
+          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+        >
+          🔄 Uppdatera gap-analys
+        </button>
+      </div>
+
+      {refreshingGap && (
+        <p className="text-xs -mt-4" style={{ color: '#9ca3af' }}>
+          Analyserar mot din uppdaterade kompetensbank...
+        </p>
       )}
 
       {/* Covered requirements */}
@@ -406,9 +508,9 @@ function PrepTab({ job, covered, gaps, competencyById }) {
         </div>
       )}
 
-      {covered.length === 0 && gaps.length === 0 && (
-        <p className="text-sm" style={{ color: '#6b7280' }}>
-          Ingen gap-analys tillgänglig.
+      {covered.length === 0 && gaps.length === 0 && !refreshingGap && (
+        <p className="text-sm -mt-4" style={{ color: '#6b7280' }}>
+          Ingen gap-analys tillgänglig än.
         </p>
       )}
     </div>
@@ -716,10 +818,10 @@ function InterviewConfigScreen({ config, onChange, questions, onStart, onBack })
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-function SectionLabel({ children }) {
+function SectionLabel({ children, noMargin }) {
   return (
     <p
-      className="text-xs font-semibold uppercase tracking-widest mb-3"
+      className={`text-xs font-semibold uppercase tracking-widest${noMargin ? '' : ' mb-3'}`}
       style={{ color: '#8064ad' }}
     >
       {children}

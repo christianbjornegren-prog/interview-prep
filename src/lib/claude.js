@@ -1,5 +1,4 @@
 // updated build - force redeploy
-import { logger, CATEGORIES } from './logger'
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
 const MODEL = 'claude-sonnet-4-5'
@@ -92,12 +91,6 @@ export async function extractCompetencies(file, fileType, onProgress = () => {})
     messages: [{ role: 'user', content: messageContent }],
   }
 
-  logger.debug(CATEGORIES.CLAUDE, 'Extract competencies request', {
-    model: MODEL,
-    promptLength: SYSTEM_PROMPT.length,
-    fileType,
-  })
-
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',
     headers: {
@@ -111,20 +104,12 @@ export async function extractCompetencies(file, fileType, onProgress = () => {})
 
   if (!response.ok) {
     const errorBody = await response.text()
-    logger.error(CATEGORIES.CLAUDE, 'Extract competencies failed', {
-      status: response.status,
-      message: errorBody,
-    })
     throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
   }
 
   onProgress('Analyserar kompetenser...', 60)
   const data = await response.json()
   const rawText = data.content[0].text
-
-  logger.info(CATEGORIES.CLAUDE, 'Extract competencies response OK', {
-    responseLength: rawText.length,
-  })
 
   const jsonMatch = rawText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
@@ -202,12 +187,6 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
     messages: [{ role: 'user', content: userMessage }],
   }
 
-  logger.debug(CATEGORIES.CLAUDE, 'Analyze job posting request', {
-    model: MODEL,
-    promptLength: JOB_ANALYSIS_SYSTEM_PROMPT.length,
-    competencyCount: competencies?.length || 0,
-  })
-
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',
     headers: {
@@ -221,20 +200,12 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
 
   if (!response.ok) {
     const errorBody = await response.text()
-    logger.error(CATEGORIES.CLAUDE, 'Analyze job posting failed', {
-      status: response.status,
-      message: errorBody,
-    })
     throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
   }
 
   onProgress('Genererar intervjufrågor...', 65)
   const data = await response.json()
   const rawText = data.content[0].text
-
-  logger.info(CATEGORIES.CLAUDE, 'Analyze job posting response OK', {
-    responseLength: rawText.length,
-  })
 
   const jsonMatch = rawText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
@@ -297,12 +268,6 @@ export async function analyzeInterviewFeedback(transcript, jobTitle, company, co
     `Jobbroll: ${jobTitle} på ${company}\n\n` +
     `Frågor och svar:\n${JSON.stringify(transcript, null, 2)}`
 
-  logger.debug(CATEGORIES.CLAUDE, 'Analyze interview feedback request', {
-    model: MODEL,
-    transcriptLength: transcript.length,
-    jobTitle,
-  })
-
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',
     headers: {
@@ -321,19 +286,11 @@ export async function analyzeInterviewFeedback(transcript, jobTitle, company, co
 
   if (!response.ok) {
     const errorBody = await response.text()
-    logger.error(CATEGORIES.CLAUDE, 'Analyze interview feedback failed', {
-      status: response.status,
-      message: errorBody,
-    })
     throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
   }
 
   const data = await response.json()
   const rawText = data.content[0].text
-
-  logger.info(CATEGORIES.CLAUDE, 'Analyze interview feedback response OK', {
-    responseLength: rawText.length,
-  })
 
   const jsonMatch = rawText.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')

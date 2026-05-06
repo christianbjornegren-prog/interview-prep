@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { db, auth, collection, addDoc, getDocs, serverTimestamp, doc, getDoc, updateDoc, arrayUnion } from '../lib/firebase'
 import { analyzeJobPosting } from '../lib/claude'
 import StepIndicator, { percentToStep } from '../components/StepIndicator'
-import { logger, CATEGORIES } from '../lib/logger'
 
 const JOB_STEPS = [
   { label: 'Läser jobbannonsen',          subtext: 'Förbereder analysen...' },
@@ -52,7 +51,6 @@ export default function JobCreate() {
         competencies = compSnap.docs.map((d) => ({ docId: d.id, ...d.data() }))
       }
 
-      logger.info(CATEGORIES.APP, 'Analyzing job posting', { competencyCount: competencies.length })
       const result = await analyzeJobPosting(jobText, companyInfo, competencies, onProgress)
 
       const jobData = {
@@ -79,7 +77,6 @@ export default function JobCreate() {
           ...jobData,
           createdAt: serverTimestamp(),
         })
-        logger.info(CATEGORIES.APP, 'Job created', { jobId: docRef.id })
         navigateTo = targetUid ? `/konsulter/${targetUid}` : `/jobb/${docRef.id}`
       }
 
@@ -88,7 +85,6 @@ export default function JobCreate() {
       navigate(navigateTo)
     } catch (err) {
       console.error(err)
-      logger.error(CATEGORIES.APP, 'Job creation failed', { error: err.message })
       setStatus('error')
       setErrorMsg(err.message ?? 'Något gick fel. Försök igen.')
     }
