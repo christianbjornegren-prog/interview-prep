@@ -39,8 +39,10 @@ export default function JobPage() {
   const { role } = useUser()
 
   const targetUid = location.state?.targetUid ?? null
+  const pendingEmail = location.state?.pendingEmail ?? null
   const uid = targetUid ?? auth.currentUser.uid
   const isSaljare = role === 'saljare'
+  const isReadOnly = isSaljare || !!pendingEmail
 
   const [job, setJob] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -54,12 +56,24 @@ export default function JobPage() {
   const [config, setConfig] = useState({ numQuestions: 5, focus: 'Mix', difficulty: 'Standard' })
 
   useEffect(() => {
+    if (pendingEmail) {
+      const unsub = onSnapshot(doc(db, 'pendingProfiles', pendingEmail), (snap) => {
+        if (snap.exists()) {
+          const found = (snap.data().jobs ?? []).find((j) => j.id === jobId)
+          setJob(found ? { docId: jobId, ...found } : null)
+        } else {
+          setJob(null)
+        }
+        setLoading(false)
+      })
+      return unsub
+    }
     const unsub = onSnapshot(doc(db, 'users', uid, 'jobs', jobId), (snap) => {
       setJob(snap.exists() ? { docId: snap.id, ...snap.data() } : null)
       setLoading(false)
     })
     return unsub
-  }, [jobId, uid])
+  }, [jobId, uid, pendingEmail])
 
   useEffect(() => {
     getDocs(collection(db, 'users', uid, 'competencies')).then((snap) => {
@@ -68,7 +82,7 @@ export default function JobPage() {
   }, [uid])
 
   useEffect(() => {
-    if (!jobId || isSaljare) return
+    if (!jobId || isReadOnly) return
     getDocs(
       query(
         collection(db, 'users', uid, 'jobs', jobId, 'feedback'),
@@ -181,8 +195,12 @@ export default function JobPage() {
     }
   }
 
-  const backPath = targetUid ? `/konsulter/${targetUid}` : '/'
-  const backLabel = targetUid ? '← Tillbaka till konsultprofil' : '← Tillbaka till alla uppdrag'
+  const backPath = pendingEmail
+    ? `/konsulter/pending/${encodeURIComponent(pendingEmail)}`
+    : targetUid ? `/konsulter/${targetUid}` : '/'
+  const backLabel = pendingEmail
+    ? '← Tillbaka till väntande profil'
+    : targetUid ? '← Tillbaka till konsultprofil' : '← Tillbaka till alla uppdrag'
 
   return (
     <div className="space-y-6">
@@ -224,7 +242,7 @@ export default function JobPage() {
           )}
         </div>
 
-        {!isSaljare && (
+        {!isReadOnly && (
           <button
             onClick={startInterview}
             disabled={questions.length === 0}
@@ -240,7 +258,7 @@ export default function JobPage() {
         )}
       </div>
 
-      {!isSaljare && showConfig ? (
+      {!isReadOnly && showConfig ? (
         <InterviewConfigScreen
           config={config}
           onChange={setConfig}
@@ -251,7 +269,7 @@ export default function JobPage() {
       ) : (
         <>
           {/* Tabs – only for konsult/admin */}
-          {!isSaljare && (
+          {!isReadOnly && (
             <div className="border-b" style={{ borderColor: '#404040' }}>
               <div className="flex gap-1">
                 {TABS.map((tab) => (
@@ -275,17 +293,17 @@ export default function JobPage() {
           )}
 
           {/* Tab content */}
-          {(isSaljare || activeTab === 'preparation') && (
+          {(isReadOnly || activeTab === 'preparation') && (
             <PrepTab
               job={job}
               covered={covered}
               gaps={gaps}
               competencyById={competencyById}
-              onRefreshGap={handleRefreshGap}
+              onRefreshGap={pendingEmail ? null : handleRefreshGap}
               refreshingGap={refreshingGap}
             />
           )}
-          {!isSaljare && activeTab === 'history' && (
+          {!isReadOnly && activeTab === 'history' && (
             <HistoryTab
               feedbacks={feedbacks}
               loading={loadingFeedbacks}
@@ -295,23 +313,25 @@ export default function JobPage() {
             />
           )}
 
-          {/* Archive link */}
-          <div className="pt-6 border-t" style={{ borderColor: '#323232' }}>
-            <button
-              onClick={handleArchive}
-              disabled={archiving}
-              className="text-xs transition-colors disabled:opacity-40"
-              style={{ color: '#4b5563' }}
-              onMouseOver={(e) => (e.currentTarget.style.color = '#9ca3af')}
-              onMouseOut={(e) => (e.currentTarget.style.color = '#4b5563')}
-            >
-              {archiving
-                ? 'Sparar...'
-                : job.archived
-                ? 'Återställ uppdrag'
-                : 'Arkivera uppdrag'}
-            </button>
-          </div>
+          {/* Archive link – only for the job owner */}
+          {!isReadOnly && (
+            <div className="pt-6 border-t" style={{ borderColor: '#323232' }}>
+              <button
+                onClick={handleArchive}
+                disabled={archiving}
+                className="text-xs transition-colors disabled:opacity-40"
+                style={{ color: '#4b5563' }}
+                onMouseOver={(e) => (e.currentTarget.style.color = '#9ca3af')}
+                onMouseOut={(e) => (e.currentTarget.style.color = '#4b5563')}
+              >
+                {archiving
+                  ? 'Sparar...'
+                  : job.archived
+                  ? 'Återställ uppdrag'
+                  : 'Arkivera uppdrag'}
+              </button>
+            </div>
+          )}
 
         </>
       )}
@@ -444,16 +464,18 @@ function PrepTab({ job, covered, gaps, competencyById, onRefreshGap, refreshingG
       {/* Gap analysis header – always visible */}
       <div className="flex items-center justify-between gap-3">
         <SectionLabel noMargin>Gap-analys</SectionLabel>
-        <button
-          onClick={onRefreshGap}
-          disabled={refreshingGap}
-          className="text-xs transition-colors disabled:opacity-40 shrink-0"
-          style={{ color: '#6b7280' }}
-          onMouseOver={(e) => !refreshingGap && (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
-        >
-          🔄 Uppdatera gap-analys
-        </button>
+        {onRefreshGap && (
+          <button
+            onClick={onRefreshGap}
+            disabled={refreshingGap}
+            className="text-xs transition-colors disabled:opacity-40 shrink-0"
+            style={{ color: '#6b7280' }}
+            onMouseOver={(e) => !refreshingGap && (e.currentTarget.style.color = '#fff')}
+            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          >
+            🔄 Uppdatera gap-analys
+          </button>
+        )}
       </div>
 
       {refreshingGap && (

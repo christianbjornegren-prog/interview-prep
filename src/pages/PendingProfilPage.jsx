@@ -60,7 +60,6 @@ export default function PendingProfilPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('kompetensbank')
   const [openCats, setOpenCats] = useState(new Set())
-  const [expandedJob, setExpandedJob] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showCvUpload, setShowCvUpload] = useState(false)
 
@@ -231,13 +230,14 @@ export default function PendingProfilPage() {
               <p className="text-sm" style={{ color: '#6b7280' }}>Inga uppdrag ännu.</p>
             </div>
           ) : (
-            <ul className="space-y-3">
+            <ul className="grid gap-3 sm:grid-cols-2">
               {jobs.map((job, i) => (
-                <JobItem
+                <PendingJobCard
                   key={job.id ?? i}
                   job={job}
-                  expanded={expandedJob === (job.id ?? i)}
-                  onToggle={() => setExpandedJob(expandedJob === (job.id ?? i) ? null : (job.id ?? i))}
+                  onClick={() =>
+                    navigate(`/jobb/${job.id}`, { state: { pendingEmail: email } })
+                  }
                 />
               ))}
             </ul>
@@ -489,9 +489,9 @@ function CompetencyCard({ competency }) {
   )
 }
 
-// ── Job item ──────────────────────────────────────────────────────────────
+// ── Job card ──────────────────────────────────────────────────────────────
 
-function JobItem({ job, expanded, onToggle }) {
+function PendingJobCard({ job, onClick }) {
   const covered = job.gapAnalysis?.covered ?? []
   const gaps = job.gapAnalysis?.gaps ?? []
   const total = covered.length + gaps.length
@@ -503,77 +503,36 @@ function JobItem({ job, expanded, onToggle }) {
 
   return (
     <li>
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: expanded ? '#8064ad' : '#404040' }}>
-        <button
-          onClick={onToggle}
-          className="w-full text-left p-4 transition-colors"
-          style={{ backgroundColor: '#1d1d1d' }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#252525')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1d1d1d')}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <h3 className="text-white font-semibold text-base leading-snug">
-                {job.jobTitle || 'Namnlös jobbannons'}
-              </h3>
-              {job.company && <p className="text-sm" style={{ color: '#9ca3af' }}>{job.company}</p>}
-              {scoreRatio !== null && (
-                <span
-                  className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: matchColor + '20', color: matchColor, border: `1px solid ${matchColor}40` }}
-                >
-                  Matchning: {covered.length} av {total} krav
-                </span>
-              )}
-            </div>
-            <ChevronIcon expanded={expanded} />
-          </div>
-        </button>
-
-        {expanded && (
-          <div className="border-t p-4 space-y-4" style={{ borderColor: '#404040', backgroundColor: '#141414' }}>
-            {covered.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#22c55e' }}>
-                  Täckta krav ({covered.length})
-                </p>
-                <ul className="space-y-1">
-                  {covered.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm">
-                      <span style={{ color: '#22c55e', flexShrink: 0 }}>✓</span>
-                      <span style={{ color: '#d1d5db' }}>
-                        {item.requirement}
-                        {item.competencyName && <span style={{ color: '#6b7280' }}> · {item.competencyName}</span>}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {gaps.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#f87171' }}>
-                  Gap ({gaps.length})
-                </p>
-                <ul className="space-y-1">
-                  {gaps.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm">
-                      <span style={{ color: '#f87171', flexShrink: 0 }}>–</span>
-                      <span style={{ color: '#d1d5db' }}>
-                        {item.requirement}
-                        {item.suggestion && <span className="block text-xs mt-0.5" style={{ color: '#6b7280' }}>{item.suggestion}</span>}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {total === 0 && (
-              <p className="text-sm" style={{ color: '#6b7280' }}>Ingen gap-analys tillgänglig.</p>
-            )}
+      <button
+        onClick={onClick}
+        className="w-full text-left rounded-xl border p-4 space-y-2 transition-colors"
+        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+        onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
+        onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
+      >
+        <div>
+          <h3 className="text-white font-semibold text-base leading-snug line-clamp-2">
+            {job.jobTitle || 'Namnlös jobbannons'}
+          </h3>
+          {job.company && (
+            <p className="text-sm mt-0.5" style={{ color: '#9ca3af' }}>{job.company}</p>
+          )}
+        </div>
+        {scoreRatio !== null && (
+          <div>
+            <span
+              className="text-xs font-semibold px-2 py-1 rounded-full"
+              style={{
+                backgroundColor: matchColor + '20',
+                color: matchColor,
+                border: `1px solid ${matchColor}40`,
+              }}
+            >
+              Matchning: {covered.length} av {total} krav
+            </span>
           </div>
         )}
-      </div>
+      </button>
     </li>
   )
 }
