@@ -55,6 +55,11 @@ export default function Layout({ children }) {
                     Användarhantering
                   </NavLink>
                 )}
+                {role === 'admin' && (
+                  <NavLink to="/admin/drift" active={location.pathname === '/admin/drift'}>
+                    Driftöversikt
+                  </NavLink>
+                )}
                 <NavLink to="/om" active={location.pathname === '/om'}>
                   Om
                 </NavLink>

@@ -9,6 +9,7 @@ import InterviewSimulator from './pages/InterviewSimulator'
 import InterviewSimulatorTTS from './pages/InterviewSimulatorTTS'
 import FeedbackPage from './pages/FeedbackPage'
 import AdminPage from './pages/AdminPage'
+import DriftPage from './pages/DriftPage'
 import SäljarePage from './pages/SäljarePage'
 import KonsultProfilPage from './pages/KonsultProfilPage'
 import PendingProfilPage from './pages/PendingProfilPage'
@@ -61,6 +62,10 @@ export default function App() {
             <Route
               path="/admin"
               element={<RequireAuth><RequireAdmin><AdminPage /></RequireAdmin></RequireAuth>}
+            />
+            <Route
+              path="/admin/drift"
+              element={<RequireAuth><RequireAdmin><DriftPage /></RequireAdmin></RequireAuth>}
             />
             <Route
               path="/konsulter"
