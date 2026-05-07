@@ -353,6 +353,22 @@ export default function InterviewSimulatorTTS() {
         { focus: interviewConfig.focus, difficulty: interviewConfig.difficulty }
       )
 
+      // ── Flow 3 audit ──────────────────────────────────────────────────────
+      console.group('[Flow 3] analyzeInterviewFeedback → Firestore audit')
+      ;['overallScore', 'summary', 'strengths', 'improvements', 'competencyGaps', 'questionFeedback'].forEach((f) => {
+        const returned = f in feedback
+        console.log(`  ${f}: returnerades av Claude ${returned ? '✓' : '✗'} / sparas i Firestore ${returned ? '✓' : '✗'}`)
+      })
+      if (Array.isArray(feedback.questionFeedback) && feedback.questionFeedback.length > 0) {
+        const qf = feedback.questionFeedback[0]
+        console.log(
+          `  questionFeedback[0]: question ${('question' in qf) ? '✓' : '✗'} | score ${('score' in qf) ? '✓' : '✗'} | comment ${('comment' in qf) ? '✓' : '✗'}`
+        )
+      }
+      console.log('  Extra fält (app-tillagda): jobTitle ✓ | company ✓ | interviewer ✓ | transcript ✓ | createdAt ✓')
+      console.groupEnd()
+      // ─────────────────────────────────────────────────────────────────────
+
       const feedbackRef = await addDoc(
         collection(db, 'users', uid, 'jobs', jobId, 'feedback'),
         {

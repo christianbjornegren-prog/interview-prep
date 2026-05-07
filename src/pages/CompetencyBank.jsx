@@ -1,11 +1,30 @@
 import { useEffect, useState } from 'react'
-import { collection, getDocs, orderBy, query } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDocs, orderBy, query } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
 import FileUpload from '../components/FileUpload'
 import CompetencyList from '../components/CompetencyList'
 
 export default function CompetencyBank() {
   const [summary, setSummary] = useState(null) // { count, lastUpload }
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [clearing, setClearing] = useState(false)
+
+  async function handleClearAll() {
+    setClearing(true)
+    try {
+      const uid = auth.currentUser.uid
+      const snap = await getDocs(query(collection(db, 'users', uid, 'competencies')))
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, 'users', uid, 'competencies', d.id))
+      }
+      setSummary(null)
+      setConfirmClear(false)
+    } catch (err) {
+      console.error('Kunde inte tömma kompetensbanken:', err)
+    } finally {
+      setClearing(false)
+    }
+  }
 
   useEffect(() => {
     const uid = auth.currentUser.uid
@@ -66,7 +85,45 @@ export default function CompetencyBank() {
 
       {/* Competency list */}
       <section>
-        <SectionLabel>Dina kompetenser</SectionLabel>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+            Dina kompetenser
+          </p>
+          {summary && summary.count > 0 && (
+            confirmClear ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs" style={{ color: '#9ca3af' }}>
+                  Är du säker? Alla {summary.count} kompetenser raderas permanent.
+                </span>
+                <button
+                  onClick={() => setConfirmClear(false)}
+                  className="px-2.5 py-1 rounded text-xs font-medium transition-colors"
+                  style={{ backgroundColor: '#404040', color: '#9ca3af' }}
+                >
+                  Avbryt
+                </button>
+                <button
+                  onClick={handleClearAll}
+                  disabled={clearing}
+                  className="px-2.5 py-1 rounded text-xs font-medium transition-colors disabled:opacity-60"
+                  style={{ backgroundColor: '#5b1a1a', color: '#f87171' }}
+                >
+                  {clearing ? 'Raderar...' : 'Ja, töm'}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmClear(true)}
+                className="text-xs font-medium transition-colors"
+                style={{ color: '#6b7280' }}
+                onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
+                onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+              >
+                🗑 Töm kompetensbank
+              </button>
+            )
+          )}
+        </div>
         <CompetencyList />
       </section>
     </div>

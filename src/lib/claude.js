@@ -23,16 +23,77 @@ const NO_ID_INSTRUCTION =
 
 // ── Competency extraction ─────────────────────────────────────────────────
 
+export const CATEGORY_ENUM = [
+  'Mjukvaruutveckling & programmering',
+  'IT-arkitektur & design',
+  'Molntjänster & Azure',
+  'Systemintegration & API',
+  'Testning & kvalitetssäkring',
+  'Microsoft 365 & modern arbetsplats',
+  'Informationsförvaltning & governance',
+  'Data & analys',
+  'IT-säkerhet & compliance',
+  'Ledarskap & organisation',
+  'Affärsutveckling & strategi',
+  'AI & innovation',
+  'Övrigt',
+]
+
+const COMPETENCY_TOOL = {
+  name: 'save_competencies',
+  description: 'Spara alla extraherade yrkeskompetenser från dokumentet.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      competencies: {
+        type: 'array',
+        description: 'Alla relevanta yrkeskompetenser. Minimum 5, maximum 25.',
+        items: {
+          type: 'object',
+          properties: {
+            title: {
+              type: 'string',
+              description: 'Kort beskrivande rubrik, max 8 ord',
+            },
+            description: {
+              type: 'string',
+              description: 'Vad personen gjorde och hur, inklusive konkret resultat – max 2 meningar',
+            },
+            category: {
+              type: 'string',
+              enum: CATEGORY_ENUM,
+            },
+            tags: {
+              type: 'array',
+              description: '3-6 specifika tekniker, ramverk eller metoder – kortare sökbara termer, aldrig meningar',
+              items: { type: 'string' },
+              minItems: 1,
+            },
+            strength: {
+              type: 'string',
+              enum: ['Hög', 'Medel', 'Låg'],
+              description: 'Hur väl kompetensen är dokumenterad och demonstrerad',
+            },
+            context: {
+              type: 'string',
+              description: 'Organisation och tidsperiod, t.ex. "Bolagsnamn, 2021–2023". Om okänt: "Framgår ej av dokumentet"',
+            },
+          },
+          required: ['title', 'description', 'category', 'tags', 'strength', 'context'],
+        },
+      },
+    },
+    required: ['competencies'],
+  },
+}
+
 const SYSTEM_PROMPT =
-  'Du är en karriärcoach som extraherar kompetenser från professionella dokument.\n' +
-  'Returnera ENDAST giltig JSON utan markdown eller backticks.\n' +
-  'Schema: { competencies: [{ id, title, description, tags, impact, context }] }\n' +
-  '- title: kort beskrivande rubrik (max 8 ord)\n' +
-  '- description: vad personen gjorde och hur (2-3 meningar)\n' +
-  '- tags: 3-6 relevanta kompetenstaggar på svenska (t.ex. ledarskap, azure, förändringsledning)\n' +
-  '- impact: konkret resultat eller värde som skapades\n' +
-  '- context: organisation och tidsperiod\n' +
-  'Var koncis i description-fältet – max 2 meningar. Prioritera kvalitet över kvantitet – extrahera max 15 kompetenser även om dokumentet innehåller fler.'
+  'Du är en karriärcoach som extraherar yrkeskompetenser från professionella dokument.\n' +
+  'Extrahera ALLA relevanta kompetenser. Minimum 5, maximum 25. Kvalitet över kvantitet – ingen utfyllnad.\n' +
+  'Boulder AB levererar främst utvecklingskonsulter. Var generös med "Mjukvaruutveckling & programmering" – ' +
+  'React, TypeScript, Angular, C#, .NET, Node.js och liknande ska ALLTID mappas dit, aldrig till "Övrigt".\n' +
+  'Tags: 3-6 kortare sökbara termer – inga meningar. Returnera ALDRIG en tom tags-array.\n' +
+  'Context: om organisation/period saknas, skriv "Framgår ej av dokumentet".'
 
 /**
  * Extract competencies from a File object.
@@ -88,6 +149,8 @@ export async function extractCompetencies(file, fileType, onProgress = () => {})
     model: MODEL,
     max_tokens: 8000,
     system: SYSTEM_PROMPT,
+    tools: [COMPETENCY_TOOL],
+    tool_choice: { type: 'tool', name: 'save_competencies' },
     messages: [{ role: 'user', content: messageContent }],
   }
 
@@ -109,12 +172,9 @@ export async function extractCompetencies(file, fileType, onProgress = () => {})
 
   onProgress('Analyserar kompetenser...', 60)
   const data = await response.json()
-  const rawText = data.content[0].text
-
-  const jsonMatch = rawText.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
-  const parsed = JSON.parse(jsonMatch[0])
-  return parsed.competencies
+  const toolBlock = data.content.find((b) => b.type === 'tool_use')
+  if (!toolBlock) throw new Error('Inget tool_use-block i svaret')
+  return toolBlock.input.competencies
 }
 
 // ── Job posting analysis ─────────────────────────────────────────────────
@@ -146,6 +206,7 @@ const JOB_ANALYSIS_SYSTEM_PROMPT =
   '  }\n' +
   '}\n' +
   'Generera 8-12 intervjufrågor fördelade mellan kategorierna erfarenhet, kompetens, situation och motivation.\n' +
+  'Vid gap-analys: en kompetens räknas som täckt om kompetensens namn (namn) ELLER någon av dess taggar (taggar) matchar jobbkravet. Sök alltid mot BÅDE namn och taggar.\n' +
   NO_ID_INSTRUCTION
 
 /**

@@ -2,79 +2,72 @@ import { useEffect, useMemo, useState } from 'react'
 import { collection, onSnapshot, deleteDoc, doc, query, orderBy } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 
-// ── Category definitions ──────────────────────────────────────────────────
+// ── Category definitions (names must match CATEGORY_ENUM in claude.js) ────
 
 const CATEGORIES = [
   {
-    name: 'Ledning & styrning',
-    color: '#8064ad',
-    bg: '#1e2d45',
-    textColor: '#b19ae0',
-    tags: new Set([
-      'ledarskap', 'styrning', 'governance', 'strategi',
-      'beslutsunderlag', 'power-bi', 'rapportering',
-      'strategisk-kommunikation', 'ledningsstöd',
-    ]),
+    name: 'Mjukvaruutveckling & programmering',
+    color: '#3B82F6', bg: '#0d1f3c', textColor: '#7db4f8',
+    tags: new Set(['react', 'angular', 'vue', 'typescript', 'javascript', 'c#', '.net', 'java', 'python', 'nodejs', 'node.js', 'fullstack', 'backend', 'frontend', 'blazor', 'asp.net']),
   },
   {
-    name: 'Digitalisering',
-    color: '#7C5CBF',
-    bg: '#221533',
-    textColor: '#b19de0',
-    tags: new Set([
-      'digitalisering', 'transformation', 'förändringsledning',
-      'processautomation', 'effektivisering', 'affärsnytta',
-      'digitaleffektivisering',
-    ]),
-  },
-  {
-    name: 'IT-arkitektur',
-    color: '#2a9d8f',
-    bg: '#0d2b27',
-    textColor: '#5ecfc3',
-    tags: new Set([
-      'arkitektur', 'togaf', 'systemarkitektur', 'integration',
-      'kundportal', 'api-strategi', 'access-management',
-      'integrationsstrategi', 'skalbarhet',
-    ]),
+    name: 'IT-arkitektur & design',
+    color: '#2a9d8f', bg: '#0d2b27', textColor: '#5ecfc3',
+    tags: new Set(['arkitektur', 'togaf', 'systemarkitektur', 'api-strategi', 'access-management', 'integrationsstrategi', 'skalbarhet', 'ddd', 'systemdesign', 'lösningsarkitektur', 'domänmodellering']),
   },
   {
     name: 'Molntjänster & Azure',
-    color: '#0EA5E9',
-    bg: '#0d2233',
-    textColor: '#5bc4f5',
-    tags: new Set([
-      'azure', 'cloud', 'microsoft',
-      'cloud-migration', 'microsoft-azure', 'plattformsledning',
-      'teknisk-transformation',
-    ]),
+    color: '#0EA5E9', bg: '#0d2233', textColor: '#5bc4f5',
+    tags: new Set(['azure', 'cloud', 'aws', 'gcp', 'docker', 'kubernetes', 'cloud-migration', 'microsoft-azure', 'plattformsledning', 'teknisk-transformation', 'cosmosdb', 'service bus']),
+  },
+  {
+    name: 'Systemintegration & API',
+    color: '#8B5CF6', bg: '#1e1433', textColor: '#b48ef5',
+    tags: new Set(['integration', 'api', 'biztalk', 'webhooks', 'event-driven', 'meddelandehantering', 'kundportal']),
+  },
+  {
+    name: 'Testning & kvalitetssäkring',
+    color: '#10B981', bg: '#0d2b1f', textColor: '#4ec994',
+    tags: new Set(['testautomation', 'jest', 'selenium', 'enhetstester', 'integrationstester', 'storybook', 'puppeteer']),
+  },
+  {
+    name: 'Microsoft 365 & modern arbetsplats',
+    color: '#F59E0B', bg: '#2b2010', textColor: '#f5c060',
+    tags: new Set(['microsoft-365', 'sharepoint', 'teams', 'power-platform', 'power-apps', 'power-automate', 'intune']),
+  },
+  {
+    name: 'Informationsförvaltning & governance',
+    color: '#EC4899', bg: '#2b1020', textColor: '#f07dbf',
+    tags: new Set(['informationsförvaltning', 'datagovernance', 'governance', 'master-data', 'datakvalitet']),
+  },
+  {
+    name: 'Data & analys',
+    color: '#06B6D4', bg: '#0d2633', textColor: '#4dd8e8',
+    tags: new Set(['power-bi', 'sql', 'datamodellering', 'etl', 'dataplattform', 'rapportering', 'beslutsunderlag']),
   },
   {
     name: 'IT-säkerhet & compliance',
-    color: '#E76F51',
-    bg: '#2b1a14',
-    textColor: '#f0a085',
+    color: '#E76F51', bg: '#2b1a14', textColor: '#f0a085',
     tags: new Set(['säkerhet', 'gdpr', 'compliance', 'nis2']),
   },
   {
-    name: 'AI & innovation',
-    color: '#57A773',
-    bg: '#0d2b1a',
-    textColor: '#7dcc99',
-    tags: new Set(['ai', 'automation', 'innovation']),
+    name: 'Ledarskap & organisation',
+    color: '#8064ad', bg: '#1e2d45', textColor: '#b19ae0',
+    tags: new Set(['ledarskap', 'styrning', 'strategi', 'strategisk-kommunikation', 'ledningsstöd', 'teamledning', 'mentorskap', 'organisationsutveckling']),
   },
   {
-    name: 'Projektledning',
-    color: '#E9C46A',
-    bg: '#2b2414',
-    textColor: '#f0d48a',
-    tags: new Set(['projektledning', 'projektledare', 'portfolio']),
+    name: 'Affärsutveckling & strategi',
+    color: '#7C5CBF', bg: '#221533', textColor: '#b19de0',
+    tags: new Set(['affärsutveckling', 'digitalisering', 'transformation', 'förändringsledning', 'processautomation', 'effektivisering', 'affärsnytta', 'projektledning', 'projektledare', 'portfolio']),
+  },
+  {
+    name: 'AI & innovation',
+    color: '#57A773', bg: '#0d2b1a', textColor: '#7dcc99',
+    tags: new Set(['ai', 'automation', 'innovation', 'maskininlärning']),
   },
   {
     name: 'Övrigt',
-    color: '#6B7280',
-    bg: '#1e1f2a',
-    textColor: '#9ca3af',
+    color: '#6B7280', bg: '#1e1f2a', textColor: '#9ca3af',
     tags: new Set(),
   },
 ]
@@ -82,6 +75,12 @@ const CATEGORIES = [
 const MISC_CATEGORY = CATEGORIES[CATEGORIES.length - 1]
 
 function categorize(competency) {
+  // Primary: use the stored category field from Claude extraction
+  if (competency.category) {
+    const match = CATEGORIES.find((c) => c.name === competency.category)
+    if (match) return match
+  }
+  // Fallback: tag-based matching for older documents
   const tags = (competency.tags || []).map((t) => t.toLowerCase())
   let best = null
   let bestCount = 0
@@ -170,7 +169,7 @@ export default function CompetencyList() {
         style={{ borderColor: '#404040' }}
       >
         <p className="text-sm" style={{ color: '#6b7280' }}>
-          Ladda upp ditt CV eller LinkedIn-profil för att komma igång.
+          Kompetensbanken är tom. Ladda upp ett CV för att komma igång.
         </p>
       </div>
     )
@@ -330,8 +329,28 @@ function CategoryAccordions({ competencies, activeCategory, deletingId, onDelete
 
 // ── Card ──────────────────────────────────────────────────────────────────
 
+const STRENGTH_STYLE = {
+  hög:   { label: 'Hög',   color: '#4ade80', bg: '#0d2b1a' },
+  medel: { label: 'Medel', color: '#E9C46A', bg: '#2b2414' },
+  låg:   { label: 'Låg',   color: '#f87171', bg: '#2b0d0d' },
+}
+
+function StrengthBadge({ strength }) {
+  if (!strength) return null
+  const s = STRENGTH_STYLE[strength.toLowerCase()]
+  if (!s) return null
+  return (
+    <span
+      className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
+      style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.color}40` }}
+    >
+      {s.label}
+    </span>
+  )
+}
+
 function CompetencyCard({ competency, deleting, onDelete }) {
-  const { title, description, tags, impact, context, sourceFile } = competency
+  const { title, description, tags, impact, context, sourceFile, strength } = competency
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -343,9 +362,12 @@ function CompetencyCard({ competency, deleting, onDelete }) {
       {/* Always-visible header: title + tags + controls */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <h3 className="text-white font-semibold text-base leading-snug select-none">
-            {title}
-          </h3>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h3 className="text-white font-semibold text-base leading-snug select-none">
+              {title}
+            </h3>
+            <StrengthBadge strength={strength} />
+          </div>
 
           {tags && tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">

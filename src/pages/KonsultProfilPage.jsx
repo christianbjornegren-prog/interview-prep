@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   collection,
   db,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -11,28 +12,44 @@ import {
 } from '../lib/firebase'
 import FileUpload from '../components/FileUpload'
 
-// ── Category definitions (mirrors CompetencyList) ─────────────────────────
+// ── Category definitions (names must match CATEGORY_ENUM in claude.js) ────
 
 const CAT_DEFS = [
-  { name: 'Ledning & styrning', color: '#8064ad', bg: '#1e2d45', textColor: '#b19ae0',
-    tags: new Set(['ledarskap','styrning','governance','strategi','beslutsunderlag','power-bi','rapportering','strategisk-kommunikation','ledningsstöd']) },
-  { name: 'Digitalisering', color: '#7C5CBF', bg: '#221533', textColor: '#b19de0',
-    tags: new Set(['digitalisering','transformation','förändringsledning','processautomation','effektivisering','affärsnytta','digitaleffektivisering']) },
-  { name: 'IT-arkitektur', color: '#2a9d8f', bg: '#0d2b27', textColor: '#5ecfc3',
-    tags: new Set(['arkitektur','togaf','systemarkitektur','integration','kundportal','api-strategi','access-management','integrationsstrategi','skalbarhet']) },
+  { name: 'Mjukvaruutveckling & programmering', color: '#3B82F6', bg: '#0d1f3c', textColor: '#7db4f8',
+    tags: new Set(['react','angular','vue','typescript','javascript','c#','.net','java','python','nodejs','node.js','fullstack','backend','frontend','blazor','asp.net']) },
+  { name: 'IT-arkitektur & design', color: '#2a9d8f', bg: '#0d2b27', textColor: '#5ecfc3',
+    tags: new Set(['arkitektur','togaf','systemarkitektur','api-strategi','access-management','integrationsstrategi','skalbarhet','ddd','systemdesign','lösningsarkitektur','domänmodellering']) },
   { name: 'Molntjänster & Azure', color: '#0EA5E9', bg: '#0d2233', textColor: '#5bc4f5',
-    tags: new Set(['azure','cloud','microsoft','cloud-migration','microsoft-azure','plattformsledning','teknisk-transformation']) },
+    tags: new Set(['azure','cloud','aws','gcp','docker','kubernetes','cloud-migration','microsoft-azure','plattformsledning','teknisk-transformation']) },
+  { name: 'Systemintegration & API', color: '#8B5CF6', bg: '#1e1433', textColor: '#b48ef5',
+    tags: new Set(['integration','api','biztalk','webhooks','event-driven','meddelandehantering','kundportal']) },
+  { name: 'Testning & kvalitetssäkring', color: '#10B981', bg: '#0d2b1f', textColor: '#4ec994',
+    tags: new Set(['testautomation','jest','selenium','enhetstester','integrationstester','storybook','puppeteer']) },
+  { name: 'Microsoft 365 & modern arbetsplats', color: '#F59E0B', bg: '#2b2010', textColor: '#f5c060',
+    tags: new Set(['microsoft-365','sharepoint','teams','power-platform','power-apps','power-automate','intune']) },
+  { name: 'Informationsförvaltning & governance', color: '#EC4899', bg: '#2b1020', textColor: '#f07dbf',
+    tags: new Set(['informationsförvaltning','datagovernance','governance','master-data','datakvalitet']) },
+  { name: 'Data & analys', color: '#06B6D4', bg: '#0d2633', textColor: '#4dd8e8',
+    tags: new Set(['power-bi','sql','datamodellering','etl','dataplattform','rapportering','beslutsunderlag']) },
   { name: 'IT-säkerhet & compliance', color: '#E76F51', bg: '#2b1a14', textColor: '#f0a085',
     tags: new Set(['säkerhet','gdpr','compliance','nis2']) },
+  { name: 'Ledarskap & organisation', color: '#8064ad', bg: '#1e2d45', textColor: '#b19ae0',
+    tags: new Set(['ledarskap','styrning','strategi','strategisk-kommunikation','ledningsstöd','teamledning','mentorskap','organisationsutveckling']) },
+  { name: 'Affärsutveckling & strategi', color: '#7C5CBF', bg: '#221533', textColor: '#b19de0',
+    tags: new Set(['affärsutveckling','digitalisering','transformation','förändringsledning','processautomation','effektivisering','affärsnytta','projektledning','projektledare','portfolio']) },
   { name: 'AI & innovation', color: '#57A773', bg: '#0d2b1a', textColor: '#7dcc99',
-    tags: new Set(['ai','automation','innovation']) },
-  { name: 'Projektledning', color: '#E9C46A', bg: '#2b2414', textColor: '#f0d48a',
-    tags: new Set(['projektledning','projektledare','portfolio']) },
+    tags: new Set(['ai','automation','innovation','maskininlärning']) },
   { name: 'Övrigt', color: '#6B7280', bg: '#1e1f2a', textColor: '#9ca3af', tags: new Set() },
 ]
 const MISC_CAT = CAT_DEFS[CAT_DEFS.length - 1]
 
 function categorize(comp) {
+  // Primary: use the stored category field from Claude extraction
+  if (comp.category) {
+    const match = CAT_DEFS.find((c) => c.name === comp.category)
+    if (match) return match
+  }
+  // Fallback: tag-based matching for older documents
   const tags = (comp.tags || []).map((t) => t.toLowerCase())
   let best = null, bestCount = 0
   for (const cat of CAT_DEFS.slice(0, -1)) {
@@ -64,10 +81,28 @@ export default function KonsultProfilPage() {
   const [openCats, setOpenCats] = useState(new Set())
   const [showAddModal, setShowAddModal] = useState(false)
   const [showCvUpload, setShowCvUpload] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [clearing, setClearing] = useState(false)
 
   async function loadCompetencies() {
     const snap = await getDocs(collection(db, 'users', uid, 'competencies'))
     setCompetencies(snap.docs.map((d) => ({ docId: d.id, ...d.data() })))
+  }
+
+  async function handleClearAll() {
+    setClearing(true)
+    try {
+      const snap = await getDocs(collection(db, 'users', uid, 'competencies'))
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, 'users', uid, 'competencies', d.id))
+      }
+      setCompetencies([])
+      setConfirmClear(false)
+    } catch (err) {
+      console.error('Kunde inte tömma kompetensbanken:', err)
+    } finally {
+      setClearing(false)
+    }
   }
 
   useEffect(() => {
@@ -151,26 +186,60 @@ export default function KonsultProfilPage() {
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
               {competencies.length} kompetens{competencies.length === 1 ? '' : 'er'}
             </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowCvUpload((v) => !v)}
-                className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
-                style={{ backgroundColor: '#404040', color: '#9ca3af' }}
-                onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-                onMouseOut={(e) => (e.currentTarget.style.color = '#9ca3af')}
-              >
-                {showCvUpload ? '↑ Stäng CV-uppladdning' : '+ Ladda upp CV åt konsulten'}
-              </button>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-colors"
-                style={{ backgroundColor: '#8064ad' }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
-              >
-                + Lägg till kompetens manuellt
-              </button>
-            </div>
+            {confirmClear ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs" style={{ color: '#9ca3af' }}>
+                  Är du säker? Alla {competencies.length} kompetenser raderas permanent.
+                </span>
+                <button
+                  onClick={() => setConfirmClear(false)}
+                  className="px-2.5 py-1 rounded text-xs font-medium transition-colors"
+                  style={{ backgroundColor: '#404040', color: '#9ca3af' }}
+                >
+                  Avbryt
+                </button>
+                <button
+                  onClick={handleClearAll}
+                  disabled={clearing}
+                  className="px-2.5 py-1 rounded text-xs font-medium transition-colors disabled:opacity-60"
+                  style={{ backgroundColor: '#5b1a1a', color: '#f87171' }}
+                >
+                  {clearing ? 'Raderar...' : 'Ja, töm'}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                {competencies.length > 0 && (
+                  <button
+                    onClick={() => setConfirmClear(true)}
+                    className="text-xs font-medium transition-colors"
+                    style={{ color: '#6b7280' }}
+                    onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
+                    onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+                  >
+                    🗑 Töm kompetensbank
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowCvUpload((v) => !v)}
+                  className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+                  style={{ backgroundColor: '#404040', color: '#9ca3af' }}
+                  onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
+                  onMouseOut={(e) => (e.currentTarget.style.color = '#9ca3af')}
+                >
+                  {showCvUpload ? '↑ Stäng CV-uppladdning' : '+ Ladda upp CV åt konsulten'}
+                </button>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-colors"
+                  style={{ backgroundColor: '#8064ad' }}
+                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
+                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+                >
+                  + Lägg till kompetens manuellt
+                </button>
+              </div>
+            )}
           </div>
 
           {showCvUpload && (
@@ -181,7 +250,7 @@ export default function KonsultProfilPage() {
 
           {competencies.length === 0 ? (
             <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: '#404040' }}>
-              <p className="text-sm" style={{ color: '#6b7280' }}>Inga kompetenser ännu.</p>
+              <p className="text-sm" style={{ color: '#6b7280' }}>Kompetensbanken är tom. Ladda upp ett CV för att komma igång.</p>
             </div>
           ) : (
             <ReadOnlyAccordion
@@ -291,9 +360,16 @@ function ReadOnlyAccordion({ competencies, openCats, onToggle }) {
   )
 }
 
+const STRENGTH_STYLE = {
+  hög:   { label: 'Hög',   color: '#4ade80', bg: '#0d2b1a' },
+  medel: { label: 'Medel', color: '#E9C46A', bg: '#2b2414' },
+  låg:   { label: 'Låg',   color: '#f87171', bg: '#2b0d0d' },
+}
+
 function ReadOnlyCompetencyCard({ competency }) {
-  const { title, description, tags, impact, context } = competency
+  const { title, description, tags, impact, context, strength } = competency
   const [expanded, setExpanded] = useState(false)
+  const s = strength ? STRENGTH_STYLE[strength.toLowerCase()] : null
 
   return (
     <li
@@ -303,7 +379,17 @@ function ReadOnlyCompetencyCard({ competency }) {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <h3 className="text-white font-semibold text-base leading-snug select-none">{title}</h3>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h3 className="text-white font-semibold text-base leading-snug select-none">{title}</h3>
+            {s && (
+              <span
+                className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
+                style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.color}40` }}
+              >
+                {s.label}
+              </span>
+            )}
+          </div>
           {tags && tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {tags.map((tag, i) => (

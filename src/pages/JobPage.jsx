@@ -46,7 +46,6 @@ export default function JobPage() {
 
   const [job, setJob] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [competencies, setCompetencies] = useState([])
   const [feedbacks, setFeedbacks] = useState([])
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(true)
   const [activeTab, setActiveTab] = useState('preparation')
@@ -76,12 +75,6 @@ export default function JobPage() {
   }, [jobId, uid, pendingEmail])
 
   useEffect(() => {
-    getDocs(collection(db, 'users', uid, 'competencies')).then((snap) => {
-      setCompetencies(snap.docs.map((d) => ({ docId: d.id, ...d.data() })))
-    })
-  }, [uid])
-
-  useEffect(() => {
     if (!jobId || isReadOnly) return
     getDocs(
       query(
@@ -98,12 +91,6 @@ export default function JobPage() {
         setLoadingFeedbacks(false)
       })
   }, [jobId, uid, isSaljare])
-
-  const competencyById = useMemo(() => {
-    const map = new Map()
-    competencies.forEach((c) => map.set(c.id, c))
-    return map
-  }, [competencies])
 
   async function handleArchive() {
     if (!job) return
@@ -298,7 +285,6 @@ export default function JobPage() {
               job={job}
               covered={covered}
               gaps={gaps}
-              competencyById={competencyById}
               onRefreshGap={pendingEmail ? null : handleRefreshGap}
               refreshingGap={refreshingGap}
             />
@@ -342,6 +328,8 @@ export default function JobPage() {
 // ── Tab: Förberedelse ─────────────────────────────────────────────────────
 
 const MAX_VISIBLE = 5
+
+const STRENGTH_ORDER = { hög: 0, medel: 1, låg: 2 }
 
 // ── Job text parser ───────────────────────────────────────────────────────
 
@@ -426,12 +414,30 @@ function JobTextBlocks({ blocks }) {
   )
 }
 
-function PrepTab({ job, covered, gaps, competencyById, onRefreshGap, refreshingGap }) {
+function PrepTab({ job, covered, gaps, onRefreshGap, refreshingGap }) {
   const [summaryExpanded, setSummaryExpanded] = useState(false)
   const [showAllCovered, setShowAllCovered] = useState(false)
   const [showAllGaps, setShowAllGaps] = useState(false)
 
-  const visibleCovered = showAllCovered ? covered : covered.slice(0, MAX_VISIBLE)
+  useEffect(() => {
+    if (covered.length === 0) return
+    console.log('[CoveredRow debug] covered items:', covered.map((c) => ({
+      requirement: c.requirement,
+      competencyName: c.competencyName ?? '(saknas)',
+      strength: c.strength ?? '(saknas)',
+    })))
+  }, [covered])
+
+  const sortedCovered = useMemo(
+    () => [...covered].sort((a, b) => {
+      const aOrder = STRENGTH_ORDER[a.strength?.toLowerCase()] ?? 3
+      const bOrder = STRENGTH_ORDER[b.strength?.toLowerCase()] ?? 3
+      return aOrder - bOrder
+    }),
+    [covered]
+  )
+
+  const visibleCovered = showAllCovered ? sortedCovered : sortedCovered.slice(0, MAX_VISIBLE)
   const visibleGaps = showAllGaps ? gaps : gaps.slice(0, MAX_VISIBLE)
 
   const descText = job.rawJobText || job.description || job.jobDescription || job.summary || ''
@@ -490,7 +496,7 @@ function PrepTab({ job, covered, gaps, competencyById, onRefreshGap, refreshingG
           <SectionLabel>Täckta krav</SectionLabel>
           <ul className="space-y-2">
             {visibleCovered.map((item, i) => (
-              <CoveredRow key={i} item={item} competencyById={competencyById} />
+              <CoveredRow key={i} item={item} />
             ))}
           </ul>
           {covered.length > MAX_VISIBLE && (
@@ -539,37 +545,38 @@ function PrepTab({ job, covered, gaps, competencyById, onRefreshGap, refreshingG
   )
 }
 
-function CoveredRow({ item, competencyById }) {
+function CoveredRow({ item }) {
   const [expanded, setExpanded] = useState(false)
-  const comp = item.competencyId ? competencyById.get(item.competencyId) : null
-  const strength = STRENGTH_STYLE[item.strength] ?? null
+  const strength = STRENGTH_STYLE[item.strength?.toLowerCase()] ?? null
+  const name = item.competencyName?.trim() || null
 
   return (
     <li
       className="rounded-lg p-3 cursor-pointer"
       style={{ backgroundColor: '#0d2b1a', border: '1px solid #1a4d2e' }}
-      onClick={() => setExpanded((v) => !v)}
+      onClick={() => name ? setExpanded((v) => !v) : undefined}
     >
       <div className="flex items-start gap-3">
         <CheckIcon />
         <div className="flex-1 min-w-0">
           <p className="text-sm text-white">{item.requirement}</p>
-          {expanded && (comp || strength) && (
-            <div
-              className="flex flex-wrap items-center gap-2 mt-1 text-xs"
-              style={{ color: '#9ca3af' }}
-            >
-              {comp && <span>→ {comp.title}</span>}
-              {!comp && item.competencyId && (
-                <span style={{ color: '#6b7280' }}>(kompetens ej i banken längre)</span>
-              )}
-              {strength && (
-                <span style={{ color: strength.color }}>• Styrka: {strength.label}</span>
-              )}
-            </div>
+          {expanded && name && (
+            <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>→ {name}</p>
           )}
         </div>
-        <ChevronIcon expanded={expanded} />
+        {strength && (
+          <span
+            className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 self-center"
+            style={{
+              backgroundColor: strength.color + '20',
+              color: strength.color,
+              border: `1px solid ${strength.color}40`,
+            }}
+          >
+            {strength.label}
+          </span>
+        )}
+        {name && <ChevronIcon expanded={expanded} />}
       </div>
     </li>
   )
