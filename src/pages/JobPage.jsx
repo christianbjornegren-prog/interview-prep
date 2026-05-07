@@ -440,7 +440,9 @@ function PrepTab({ job, covered, gaps, onRefreshGap, refreshingGap }) {
   const visibleCovered = showAllCovered ? sortedCovered : sortedCovered.slice(0, MAX_VISIBLE)
   const visibleGaps = showAllGaps ? gaps : gaps.slice(0, MAX_VISIBLE)
 
-  const descText = job.rawJobText || job.description || job.jobDescription || job.summary || ''
+  const rawText     = job.rawJobText || job.description || job.jobDescription || ''
+  const summaryText = job.summary || ''
+  const descText    = rawText || summaryText
 
   const PREVIEW_CHARS = 300
 
@@ -451,13 +453,7 @@ function PrepTab({ job, covered, gaps, onRefreshGap, refreshingGap }) {
     return cut === -1 ? descText.slice(0, PREVIEW_CHARS) : descText.slice(0, cut)
   }, [descText])
 
-  // Normalize run-on text into lines before parsing
-  const fullText = useMemo(() => descText
-    .replace(/\.\s+/g, '.\n')
-    .replace(/\s{2,}/g, '\n'), [descText])
-
   const previewBlocks = useMemo(() => (previewText ? parseJobText(previewText) : []), [previewText])
-  const fullBlocks    = useMemo(() => (fullText    ? parseJobText(fullText)    : []), [fullText])
   const descHasMore   = descText.length > PREVIEW_CHARS
 
   return (
@@ -466,17 +462,44 @@ function PrepTab({ job, covered, gaps, onRefreshGap, refreshingGap }) {
       {descText.length > 0 && (
         <div>
           <SectionLabel>Uppdragsbeskrivning</SectionLabel>
-          <JobTextBlocks blocks={summaryExpanded ? fullBlocks : previewBlocks} />
-          {descHasMore && (
-            <button
-              onClick={() => setSummaryExpanded((v) => !v)}
-              className="text-xs mt-2 transition-colors"
-              style={{ color: '#8064ad' }}
-              onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
-              onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
-            >
-              {summaryExpanded ? 'Läs mindre ←' : 'Läs mer →'}
-            </button>
+          {summaryExpanded ? (
+            <>
+              <div
+                className="rounded-lg px-4 py-3 space-y-2"
+                style={{ backgroundColor: '#141414', border: '1px solid #323232' }}
+              >
+                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+                  Sammanfattning
+                </p>
+                <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+                  {summaryText || (rawText.slice(0, 800) + (rawText.length > 800 ? '…' : ''))}
+                </p>
+              </div>
+              <button
+                onClick={() => setSummaryExpanded(false)}
+                className="text-xs mt-2 transition-colors"
+                style={{ color: '#8064ad' }}
+                onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
+                onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
+              >
+                Läs mindre ←
+              </button>
+            </>
+          ) : (
+            <>
+              <JobTextBlocks blocks={previewBlocks} />
+              {descHasMore && (
+                <button
+                  onClick={() => setSummaryExpanded(true)}
+                  className="text-xs mt-2 transition-colors"
+                  style={{ color: '#8064ad' }}
+                  onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
+                  onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
+                >
+                  Läs mer →
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
