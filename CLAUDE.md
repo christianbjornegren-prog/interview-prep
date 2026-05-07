@@ -51,7 +51,7 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
 - JobPage: om role == 'saljare' döljs Historik-tabben och Starta-knappen; Förberedelse visas alltid
 - JobPage: ingen sticky footer – enda "Starta"-knappen finns i headern ovanför tabbar
 - JobPage läser targetUid från location.state – används för Firestore-anrop (säljare tittar på konsults jobb)
-- Uppdragsbeskrivning i Förberedelse-tabben visar 2 meningar som default; "Läs mer →" / "Läs mindre ←" expanderar
+- Uppdragsbeskrivning i Förberedelse-tabben: 300 tecken preview (avbruten vid ordgräns) + "Läs mer →" / "Läs mindre ←"; expanderad vy visar rawJobText med `whitespace-pre-wrap` och `. ` ersatt av `.\n\n`
 - Back-knapp i JobPage: om targetUid → /konsulter/:uid, annars → /
 - Intervjuflödet: JobPage → konfigurationsskärm (ersätter tab-innehållet) → InterviewSimulatorTTS
 - Konfigurationsskärm: tvåkolumns layout — vänster: inställningar, höger: live-preview av frågor
@@ -63,14 +63,33 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
 - Fokus: Mix (alternativ: Erfarenhet, Kompetens, Situation)
 - Svårighetsgrad: Standard (alternativ: Avslappnad, Standard, Hård)
 
-## Gap-analys & kompetenser
-- sanitizeCompetencies() i claude.js är den enda platsen kompetenser normaliseras
-  → skickar { namn, beskrivning, taggar } — inga ID-fält
+## Kompetensextraktion (claude.js)
+- `CATEGORY_ENUM` (exporterad konstant) — 13 kategorier, enda sanningskällan:
+  Mjukvaruutveckling & programmering | Systemintegration & middleware |
+  IT-arkitektur & design | Testning & kvalitetssäkring |
+  Microsoft 365 & Power Platform | Data & analys |
+  Ledarskap & styrning | Projektledning & agila metoder |
+  Affärsutveckling & försäljning | Kommunikation & presentation |
+  Processutveckling & förbättring | Branschkunskap & domänexpertis | Övrigt
+- `COMPETENCY_TOOL`: JSON schema med `category: { enum: CATEGORY_ENUM }` och `strength: { enum: ['Hög','Medel','Låg'] }`
+- `extractCompetencies()`: tool_use med `tool_choice: { type: 'tool', name: 'save_competencies' }`, min 5 max 25
+- `recategorizeCompetencies(competencies)`: skickar `[{title,description}]`, returnerar `[{title,category,tags}]` via samma tool_use-schema
+- `sanitizeCompetencies()` — enda platsen kompetenser normaliseras → skickar { namn, beskrivning, taggar } — inga ID-fält
 - Används i: analyzeJobPosting, analyzeInterviewFeedback, saveSession
-- NO_ID_INSTRUCTION-konstanten i claude.js läggs till i alla relevanta prompter
+- NO_ID_INSTRUCTION-konstanten läggs till i alla relevanta prompter
 - JobPage har "🔄 Uppdatera gap-analys"-knapp bredvid "Gap att adressera"-rubriken
   → hämtar senaste kompetenser från Firestore, kör analyzeJobPosting, skriver bara gapAnalysis-fältet
   → använder job.jobText (råtext) som indata, fallback till job.summary
+
+## Kompetensbank – UI & hantering
+- CompetencyList.jsx: `categorize(comp)` läser `comp.category` (exakt namn) FÖRST, faller sedan tillbaka på tagg-matchning
+- CATEGORIES-arrayen i CompetencyList har 13 poster med namn som matchar CATEGORY_ENUM exakt
+- CompetencyBank.jsx: "🔄 Kategorisera om"-knapp → kör `recategorizeCompetencies()` → updateDoc(category, tags) per kompetens
+- CompetencyBank.jsx: "🗑 Töm kompetensbank"-knapp med tvåstegs-bekräftelse → deleteDoc per kompetens
+- Samma recategorize + töm-mönster finns i KonsultProfilPage.jsx och PendingProfilPage.jsx
+  - KonsultProfilPage: updateDoc per Firestore-doc
+  - PendingProfilPage: updateDoc({ competencies: [] }) resp. updateDoc({ competencies: updatedArray }) på pendingProfiles-doc
+- FileUpload.jsx validerar kategorier mot `new Set(CATEGORY_ENUM)` (importerad från claude.js)
 
 ## Intervju state machine (InterviewSimulatorTTS)
 States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCESSING → PREPARING_NEXT → (loop eller FINISHED)
@@ -122,6 +141,7 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 - RequireAuth: blockerar ej inloggade → SignInScreen
 - RequireAdmin: blockerar ej admins → redirect /
 - /admin kräver BÅDE RequireAuth + RequireAdmin
+- /admin/drift kräver BÅDE RequireAuth + RequireAdmin
 
 ### Admin-UI (/admin → AdminPage.jsx)
 - Hämtar alla docs från users-collection
@@ -130,9 +150,16 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 - Rollbyte → updateDoc + optimistisk lokal uppdatering + bekräftelsetoast 3s
 - updatedAt: serverTimestamp() sätts vid rollbyte
 
+### Driftöversikt (/admin/drift → DriftPage.jsx)
+- Hämtar alla feedback-dokument via `collectionGroup(db, 'feedback')` sorterat på `createdAt desc`
+- Slår upp konsultnamn från `users`-collection (nameMap uid→namn)
+- Tabell: Datum & tid | Konsult | Uppdrag (jobTitle + company från feedback-doc) | Frågor | Poäng | Status
+- Status visas alltid som "Slutförd" (enbart avslutade sessioner sparas)
+- Poäng color-coded: ≥8 grön, ≥5 gul, <5 röd
+
 ### Navbar
 - Utloggade användare ser ENBART loggan (ingen knapp i navbar – knappen finns på startsidan)
-- Inloggade: Mina uppdrag | Kompetensbank | (Konsulter om säljare/admin) | (Användarhantering om admin) | Om | Avatar | Logga ut
+- Inloggade: Mina uppdrag | Kompetensbank | (Konsulter om säljare/admin) | (Användarhantering om admin) | (Driftöversikt om admin) | Om | Avatar | Logga ut
 - NavLink-styling: alla länkar identiska – ingen aktiv bakgrund, enbart vit textfärg på aktiv/hover vs #6b7280 inaktiv
 - /om (OmPage): synlig för alla inloggade, RequireAuth, innehåller Varför/Techstack/Byggt av
 
@@ -158,7 +185,10 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 
 ### Firestore Security Rules (firestore.rules)
 - Roller: admin kan läsa/skriva alla users; säljare kan läsa users + jobb + kompetenser; owner kan allt i sitt eget träd
-- feedback-subcollection: enbart owner + admin
+- feedback-subcollection: enbart owner + admin (specifik path-regel)
+- `collectionGroup('feedback')`-queries kräver separat rekursiv regel:
+  `match /{path=**}/feedback/{feedbackId} { allow read: if isAdmin() }`
+  (den specifika path-regeln täcker INTE collectionGroup-queries)
 - pendingProfiles: enbart admin + säljare (ej owner/konsult)
 - firebase.json pekar på firestore.rules
 
