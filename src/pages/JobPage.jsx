@@ -441,18 +441,32 @@ function PrepTab({ job, covered, gaps, onRefreshGap, refreshingGap }) {
   const visibleGaps = showAllGaps ? gaps : gaps.slice(0, MAX_VISIBLE)
 
   const descText = job.rawJobText || job.description || job.jobDescription || job.summary || ''
-  const descBlocks = useMemo(() => (descText ? parseJobText(descText) : []), [descText])
-  const firstHeadingIdx = descBlocks.findIndex((b, i) => i > 0 && b.type === 'heading')
-  const previewBlocks = firstHeadingIdx > 0 ? descBlocks.slice(0, firstHeadingIdx) : descBlocks.slice(0, 2)
-  const descHasMore = descBlocks.length > previewBlocks.length
+
+  const PREVIEW_CHARS = 300
+
+  // Truncate at 300 chars, break at nearest space to avoid mid-word cuts
+  const previewText = useMemo(() => {
+    if (descText.length <= PREVIEW_CHARS) return descText
+    const cut = descText.indexOf(' ', PREVIEW_CHARS)
+    return cut === -1 ? descText.slice(0, PREVIEW_CHARS) : descText.slice(0, cut)
+  }, [descText])
+
+  // Normalize run-on text into lines before parsing
+  const fullText = useMemo(() => descText
+    .replace(/\.\s+/g, '.\n')
+    .replace(/\s{2,}/g, '\n'), [descText])
+
+  const previewBlocks = useMemo(() => (previewText ? parseJobText(previewText) : []), [previewText])
+  const fullBlocks    = useMemo(() => (fullText    ? parseJobText(fullText)    : []), [fullText])
+  const descHasMore   = descText.length > PREVIEW_CHARS
 
   return (
     <div className="space-y-6">
       {/* Job description */}
-      {descBlocks.length > 0 && (
+      {descText.length > 0 && (
         <div>
           <SectionLabel>Uppdragsbeskrivning</SectionLabel>
-          <JobTextBlocks blocks={summaryExpanded ? descBlocks : previewBlocks} />
+          <JobTextBlocks blocks={summaryExpanded ? fullBlocks : previewBlocks} />
           {descHasMore && (
             <button
               onClick={() => setSummaryExpanded((v) => !v)}
