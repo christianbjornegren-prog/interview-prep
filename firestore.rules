@@ -34,6 +34,11 @@ service cloud.firestore {
         (isOwner(uid) || isAdmin())
     }
 
+    // collectionGroup('feedback') queries require a recursive-wildcard rule
+    match /{path=**}/feedback/{feedbackId} {
+      allow read: if request.auth != null && isAdmin()
+    }
+
     match /pendingProfiles/{email} {
       allow read, write: if request.auth != null &&
         (isAdmin() || isSaljare())
