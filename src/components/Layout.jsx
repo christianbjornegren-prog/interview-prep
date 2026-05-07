@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
 import { useAuth, useUser } from './AuthGate'
 import { auth } from '../lib/firebase'
+import logo from '../assets/logo.svg'
 
 // NavLink uses useLocation which works correctly inside HashRouter
 
@@ -20,16 +21,8 @@ export default function Layout({ children }) {
       <header className="border-b" style={{ borderColor: '#404040' }}>
         <nav className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <div
-              className="w-7 h-7 rounded-md flex items-center justify-center text-sm font-bold text-white"
-              style={{ backgroundColor: '#8064ad' }}
-            >
-              I
-            </div>
-            <span className="text-white font-semibold tracking-tight text-lg">
-              Intervjucoach
-            </span>
+          <Link to="/">
+            <img src={logo} alt="Boulder" style={{ height: 28 }} />
           </Link>
 
           {/* Nav links + user info */}
