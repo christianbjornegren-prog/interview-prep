@@ -440,44 +440,33 @@ function PrepTab({ job, covered, gaps, onRefreshGap, refreshingGap }) {
   const visibleCovered = showAllCovered ? sortedCovered : sortedCovered.slice(0, MAX_VISIBLE)
   const visibleGaps = showAllGaps ? gaps : gaps.slice(0, MAX_VISIBLE)
 
-  const rawText     = job.rawJobText || job.description || job.jobDescription || ''
-  const summaryText = job.summary || ''
-  const descText    = rawText || summaryText
-
+  const rawText = job.rawJobText || job.description || job.jobDescription || ''
   const PREVIEW_CHARS = 300
 
-  // Truncate at 300 chars, break at nearest space to avoid mid-word cuts
   const previewText = useMemo(() => {
-    if (descText.length <= PREVIEW_CHARS) return descText
-    const cut = descText.indexOf(' ', PREVIEW_CHARS)
-    return cut === -1 ? descText.slice(0, PREVIEW_CHARS) : descText.slice(0, cut)
-  }, [descText])
+    if (rawText.length <= PREVIEW_CHARS) return rawText
+    const cut = rawText.indexOf(' ', PREVIEW_CHARS)
+    return cut === -1 ? rawText.slice(0, PREVIEW_CHARS) : rawText.slice(0, cut)
+  }, [rawText])
 
-  const previewBlocks = useMemo(() => (previewText ? parseJobText(previewText) : []), [previewText])
-  const descHasMore   = descText.length > PREVIEW_CHARS
+  // Replace ". " with ".\n\n" so sentences become readable paragraphs when expanded
+  const fullText  = useMemo(() => rawText.replace(/\. /g, '.\n\n'), [rawText])
+  const descHasMore = rawText.length > PREVIEW_CHARS
 
   return (
     <div className="space-y-6">
       {/* Job description */}
-      {descText.length > 0 && (
+      {rawText.length > 0 && (
         <div>
           <SectionLabel>Uppdragsbeskrivning</SectionLabel>
           {summaryExpanded ? (
             <>
-              <div
-                className="rounded-lg px-4 py-3 space-y-2"
-                style={{ backgroundColor: '#141414', border: '1px solid #323232' }}
-              >
-                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
-                  Sammanfattning
-                </p>
-                <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
-                  {summaryText || (rawText.slice(0, 800) + (rawText.length > 800 ? '…' : ''))}
-                </p>
-              </div>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: '#d1d5db' }}>
+                {fullText}
+              </p>
               <button
                 onClick={() => setSummaryExpanded(false)}
-                className="text-xs mt-2 transition-colors"
+                className="text-xs mt-3 transition-colors"
                 style={{ color: '#8064ad' }}
                 onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
                 onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
@@ -487,7 +476,9 @@ function PrepTab({ job, covered, gaps, onRefreshGap, refreshingGap }) {
             </>
           ) : (
             <>
-              <JobTextBlocks blocks={previewBlocks} />
+              <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+                {previewText}{descHasMore ? '…' : ''}
+              </p>
               {descHasMore && (
                 <button
                   onClick={() => setSummaryExpanded(true)}
