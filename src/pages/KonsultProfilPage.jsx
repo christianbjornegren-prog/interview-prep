@@ -7,10 +7,12 @@ import {
   doc,
   getDoc,
   getDocs,
+  updateDoc,
   addDoc,
   serverTimestamp,
 } from '../lib/firebase'
 import FileUpload from '../components/FileUpload'
+import { recategorizeCompetencies } from '../lib/claude'
 
 // ── Category definitions (names must match CATEGORY_ENUM in claude.js) ────
 
@@ -83,10 +85,40 @@ export default function KonsultProfilPage() {
   const [showCvUpload, setShowCvUpload] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [recategorizing, setRecategorizing] = useState(false)
+  const [recategorizeMsg, setRecategorizeMsg] = useState('')
 
   async function loadCompetencies() {
     const snap = await getDocs(collection(db, 'users', uid, 'competencies'))
     setCompetencies(snap.docs.map((d) => ({ docId: d.id, ...d.data() })))
+  }
+
+  async function handleRecategorize() {
+    setRecategorizing(true)
+    setRecategorizeMsg('')
+    try {
+      const recategorized = await recategorizeCompetencies(competencies)
+      let updated = 0
+      for (const item of competencies) {
+        const match = recategorized.find(
+          (r) => r.title?.toLowerCase() === (item.title || '').toLowerCase()
+        )
+        if (match) {
+          await updateDoc(doc(db, 'users', uid, 'competencies', item.docId), {
+            category: match.category,
+            tags: match.tags,
+          })
+          updated++
+        }
+      }
+      await loadCompetencies()
+      setRecategorizeMsg(`✓ ${updated} kompetens${updated === 1 ? '' : 'er'} uppdaterade`)
+    } catch (err) {
+      console.error('Kategorisering misslyckades:', err)
+      setRecategorizeMsg('Något gick fel. Försök igen.')
+    } finally {
+      setRecategorizing(false)
+    }
   }
 
   async function handleClearAll() {
@@ -209,16 +241,33 @@ export default function KonsultProfilPage() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
+                {competencies.length > 0 && recategorizeMsg && (
+                  <span className="text-xs" style={{ color: recategorizeMsg.startsWith('✓') ? '#4ade80' : '#f87171' }}>
+                    {recategorizeMsg}
+                  </span>
+                )}
                 {competencies.length > 0 && (
-                  <button
-                    onClick={() => setConfirmClear(true)}
-                    className="text-xs font-medium transition-colors"
-                    style={{ color: '#6b7280' }}
-                    onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
-                    onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
-                  >
-                    🗑 Töm kompetensbank
-                  </button>
+                  <>
+                    <button
+                      onClick={handleRecategorize}
+                      disabled={recategorizing}
+                      className="text-xs font-medium transition-colors disabled:opacity-50"
+                      style={{ color: '#6b7280' }}
+                      onMouseOver={(e) => !recategorizing && (e.currentTarget.style.color = '#8064ad')}
+                      onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+                    >
+                      {recategorizing ? <KonsultSpinner /> : '🔄 Kategorisera om'}
+                    </button>
+                    <button
+                      onClick={() => { setConfirmClear(true); setRecategorizeMsg('') }}
+                      className="text-xs font-medium transition-colors"
+                      style={{ color: '#6b7280' }}
+                      onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
+                      onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+                    >
+                      🗑 Töm kompetensbank
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={() => setShowCvUpload((v) => !v)}
@@ -580,5 +629,17 @@ function ChevronIcon({ expanded }) {
     >
       <polyline points="6 9 12 15 18 9" />
     </svg>
+  )
+}
+
+function KonsultSpinner() {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+        <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+        <path d="M12 2a10 10 0 0 1 10 10" />
+      </svg>
+      Kategoriserar om...
+    </span>
   )
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { collection, deleteDoc, doc, getDocs, orderBy, query } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
+import { recategorizeCompetencies } from '../lib/claude'
 import FileUpload from '../components/FileUpload'
 import CompetencyList from '../components/CompetencyList'
 
@@ -8,6 +9,41 @@ export default function CompetencyBank() {
   const [summary, setSummary] = useState(null) // { count, lastUpload }
   const [confirmClear, setConfirmClear] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [recategorizing, setRecategorizing] = useState(false)
+  const [recategorizeMsg, setRecategorizeMsg] = useState('')
+
+  async function handleRecategorize() {
+    setRecategorizing(true)
+    setRecategorizeMsg('')
+    try {
+      const uid = auth.currentUser.uid
+      const snap = await getDocs(query(collection(db, 'users', uid, 'competencies')))
+      const existing = snap.docs.map((d) => ({ docId: d.id, ...d.data() }))
+      if (existing.length === 0) return
+
+      const recategorized = await recategorizeCompetencies(existing)
+
+      let updated = 0
+      for (const item of existing) {
+        const match = recategorized.find(
+          (r) => r.title?.toLowerCase() === (item.title || '').toLowerCase()
+        )
+        if (match) {
+          await updateDoc(doc(db, 'users', uid, 'competencies', item.docId), {
+            category: match.category,
+            tags: match.tags,
+          })
+          updated++
+        }
+      }
+      setRecategorizeMsg(`✓ ${updated} kompetens${updated === 1 ? '' : 'er'} uppdaterade`)
+    } catch (err) {
+      console.error('Kategorisering misslyckades:', err)
+      setRecategorizeMsg('Något gick fel. Försök igen.')
+    } finally {
+      setRecategorizing(false)
+    }
+  }
 
   async function handleClearAll() {
     setClearing(true)
@@ -112,15 +148,32 @@ export default function CompetencyBank() {
                 </button>
               </div>
             ) : (
-              <button
-                onClick={() => setConfirmClear(true)}
-                className="text-xs font-medium transition-colors"
-                style={{ color: '#6b7280' }}
-                onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
-                onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
-              >
-                🗑 Töm kompetensbank
-              </button>
+              <div className="flex items-center gap-2">
+                {recategorizeMsg && (
+                  <span className="text-xs" style={{ color: recategorizeMsg.startsWith('✓') ? '#4ade80' : '#f87171' }}>
+                    {recategorizeMsg}
+                  </span>
+                )}
+                <button
+                  onClick={handleRecategorize}
+                  disabled={recategorizing}
+                  className="text-xs font-medium transition-colors disabled:opacity-50"
+                  style={{ color: '#6b7280' }}
+                  onMouseOver={(e) => !recategorizing && (e.currentTarget.style.color = '#8064ad')}
+                  onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+                >
+                  {recategorizing ? <Spinner /> : '🔄 Kategorisera om'}
+                </button>
+                <button
+                  onClick={() => { setConfirmClear(true); setRecategorizeMsg('') }}
+                  className="text-xs font-medium transition-colors"
+                  style={{ color: '#6b7280' }}
+                  onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
+                  onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+                >
+                  🗑 Töm kompetensbank
+                </button>
+              </div>
             )
           )}
         </div>
@@ -138,5 +191,17 @@ function SectionLabel({ children }) {
     >
       {children}
     </p>
+  )
+}
+
+function Spinner() {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+        <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+        <path d="M12 2a10 10 0 0 1 10 10" />
+      </svg>
+      Kategoriserar om...
+    </span>
   )
 }

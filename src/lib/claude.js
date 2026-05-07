@@ -177,6 +177,62 @@ export async function extractCompetencies(file, fileType, onProgress = () => {})
   return toolBlock.input.competencies
 }
 
+// ── Competency recategorization ───────────────────────────────────────────
+
+const RECATEGORIZE_SYSTEM_PROMPT =
+  'Kategorisera om dessa befintliga kompetenser – tilldela rätt category och tags för varje.\n' +
+  'Boulder AB levererar främst utvecklingskonsulter. Var generös med "Mjukvaruutveckling & programmering" – ' +
+  'React, TypeScript, Angular, C#, .NET, Node.js och liknande ska ALLTID mappas dit, aldrig till "Övrigt".\n' +
+  'Returnera exakt samma antal kompetenser som du fick in. Behåll title och description exakt som de är.\n' +
+  'Tags: 3-6 kortare sökbara termer – inga meningar. Returnera ALDRIG en tom tags-array.'
+
+/**
+ * Re-categorize existing competencies by sending them to Claude.
+ * Only category and tags are updated – all other fields are preserved.
+ * @param {Array} competencies - existing competency objects from Firestore
+ * @returns {Promise<Array>} array of { title, category, tags } objects
+ */
+export async function recategorizeCompetencies(competencies) {
+  const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
+  if (!apiKey) throw new Error('Claude API-nyckel saknas. Kontrollera VITE_CLAUDE_API_KEY i .env.local.')
+
+  const input = competencies.map((c) => ({
+    title: c.title || c.namn || '',
+    description: c.description || c.beskrivning || '',
+  }))
+
+  const response = await fetch(CLAUDE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 8000,
+      system: RECATEGORIZE_SYSTEM_PROMPT,
+      tools: [COMPETENCY_TOOL],
+      tool_choice: { type: 'tool', name: 'save_competencies' },
+      messages: [{
+        role: 'user',
+        content: `Kategorisera dessa kompetenser och tilldela rätt category och tags:\n\n${JSON.stringify(input, null, 2)}`,
+      }],
+    }),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
+  }
+
+  const data = await response.json()
+  const toolBlock = data.content.find((b) => b.type === 'tool_use')
+  if (!toolBlock) throw new Error('Inget tool_use-block i svaret')
+  return toolBlock.input.competencies
+}
+
 // ── Job posting analysis ─────────────────────────────────────────────────
 
 const JOB_ANALYSIS_SYSTEM_PROMPT =
