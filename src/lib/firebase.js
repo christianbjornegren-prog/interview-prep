@@ -35,4 +35,5 @@ export {
   serverTimestamp,
   Timestamp,
   arrayUnion,
+  writeBatch,
 } from 'firebase/firestore'

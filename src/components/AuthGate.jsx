@@ -8,7 +8,7 @@ import {
 import {
   auth, db, doc, collection,
   getDoc, getDocs, setDoc, addDoc, deleteDoc,
-  serverTimestamp,
+  serverTimestamp, writeBatch,
 } from '../lib/firebase'
 
 // ── IAM config ────────────────────────────────────────────────────────────
@@ -86,33 +86,62 @@ export default function AuthGate({ children }) {
                    : SÄLJARE_WHITELIST.includes(u.email) ? 'saljare'
                    : 'konsult'
 
-          // Copy any pending profile prepared by a säljare
+          // Migrate any pending profile prepared by a säljare.
+          // Strategy: atomic batch write → only delete pending doc after commit →
+          // only create users/{uid} after migration succeeds, so a failed migration
+          // leaves snap.exists()=false and the next login retries cleanly.
           try {
             const pendingRef = doc(db, 'pendingProfiles', u.email)
             const pendingSnap = await getDoc(pendingRef)
+
             if (pendingSnap.exists()) {
               const pending = pendingSnap.data()
-              const compCol = collection(db, 'users', u.uid, 'competencies')
-              const jobCol  = collection(db, 'users', u.uid, 'jobs')
-              for (const { createdAt: _ct, ...comp } of (pending.competencies ?? [])) {
-                await addDoc(compCol, { ...comp, createdAt: serverTimestamp() })
+              const competencies = pending.competencies ?? []
+              const jobs         = pending.jobs         ?? []
+
+              console.log(
+                `[Migration] Startar för ${u.email}: ` +
+                `${competencies.length} kompetenser, ${jobs.length} uppdrag`
+              )
+
+              // Build an atomic batch – either ALL documents are written or NONE.
+              const batch = writeBatch(db)
+              for (const { createdAt: _ct, ...comp } of competencies) {
+                batch.set(
+                  doc(collection(db, 'users', u.uid, 'competencies')),
+                  { ...comp, createdAt: serverTimestamp() }
+                )
               }
-              for (const { createdAt: _ct, id: _id, ...job } of (pending.jobs ?? [])) {
-                await addDoc(jobCol, { ...job, createdAt: serverTimestamp() })
+              for (const { createdAt: _ct, id: _id, ...job } of jobs) {
+                batch.set(
+                  doc(collection(db, 'users', u.uid, 'jobs')),
+                  { ...job, createdAt: serverTimestamp() }
+                )
               }
+
+              await batch.commit()
+              console.log('[Migration] Batch commit lyckades')
+
+              // Delete pending profile ONLY after batch is confirmed.
               await deleteDoc(pendingRef)
               setProfileActivated(true)
+              console.log('[Migration] Klar – pending-profil raderad')
             }
-          } catch (err) {
-            console.warn('Kunde inte kopiera pending-profil:', err)
-          }
 
-          await setDoc(userRef, {
-            email: u.email,
-            name: u.displayName,
-            role: userRole,
-            createdAt: serverTimestamp(),
-          })
+            // Create users/{uid} AFTER migration so a batch failure keeps
+            // snap.exists()=false and lets the next login retry.
+            await setDoc(userRef, {
+              email: u.email,
+              name: u.displayName,
+              role: userRole,
+              createdAt: serverTimestamp(),
+            })
+          } catch (err) {
+            console.error('[Migration] Misslyckades – pending-profil behålls för omförsök:', err)
+            console.error('[Migration] Detaljer – email:', u.email, 'uid:', u.uid)
+            // Don't create users/{uid} on failure → next login will retry migration.
+            // Role is set in memory below so the user can still use the app this session.
+          }
         } else {
           userRole = snap.data().role ?? 'konsult'
         }
