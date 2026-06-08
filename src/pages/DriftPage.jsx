@@ -1,51 +1,86 @@
-import { useEffect, useState } from 'react'
-import { collection, collectionGroup, getDocs, orderBy, query } from 'firebase/firestore'
+import { useEffect, useState, useCallback } from 'react'
+import { collection, collectionGroup, getDocs, orderBy, query, updateDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 export default function DriftPage() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [migrating, setMigrating] = useState(false)
+  const [migrateResult, setMigrateResult] = useState(null)
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const usersSnap = await getDocs(collection(db, 'users'))
-        const nameMap = {}
-        usersSnap.forEach((d) => {
-          const data = d.data()
-          nameMap[d.id] = data.name || data.email || d.id
-        })
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'))
+      const nameMap = {}
+      usersSnap.forEach((d) => {
+        const data = d.data()
+        nameMap[d.id] = data.name || data.email || d.id
+      })
 
-        // collectionGroup requires a Firestore composite index on feedback(createdAt desc)
-        const fbQuery = query(collectionGroup(db, 'feedback'), orderBy('createdAt', 'desc'))
-        const fbSnap = await getDocs(fbQuery)
+      const fbQuery = query(collectionGroup(db, 'feedback'), orderBy('createdAt', 'desc'))
+      const fbSnap = await getDocs(fbQuery)
 
-        const results = fbSnap.docs.map((d) => {
-          const data = d.data()
-          // path: users/{uid}/jobs/{jobId}/feedback/{feedbackId}
-          const uid = d.ref.path.split('/')[1]
-          return {
-            id: d.id,
-            createdAt: data.createdAt?.toDate?.() ?? null,
-            konsult: nameMap[uid] ?? uid,
-            jobTitle: data.jobTitle || '—',
-            company: data.company || '',
-            questionCount: Array.isArray(data.questionFeedback) ? data.questionFeedback.length : 0,
-            overallScore: data.overallScore ?? null,
-          }
-        })
+      const results = fbSnap.docs.map((d) => {
+        const data = d.data()
+        const uid = d.ref.path.split('/')[1]
+        return {
+          id: d.id,
+          ref: d.ref,
+          createdAt: data.createdAt?.toDate?.() ?? null,
+          konsult: nameMap[uid] ?? uid,
+          jobTitle: data.jobTitle || '—',
+          company: data.company || '',
+          questionCount: Array.isArray(data.questionFeedback) ? data.questionFeedback.length : 0,
+          overallScore: data.overallScore ?? null,
+        }
+      })
 
-        setRows(results)
-      } catch (err) {
-        console.error('DriftPage:', err)
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
+      setRows(results)
+    } catch (err) {
+      console.error('DriftPage:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const legacyCount = rows.filter((r) => r.overallScore != null && r.overallScore <= 5).length
+
+  async function migrateScores() {
+    setMigrating(true)
+    setMigrateResult(null)
+    try {
+      const fbSnap = await getDocs(
+        query(collectionGroup(db, 'feedback'), orderBy('createdAt', 'desc'))
+      )
+      let migrated = 0
+      for (const d of fbSnap.docs) {
+        const data = d.data()
+        if (data.overallScore == null || data.overallScore > 5) continue
+        const updatedQF = (data.questionFeedback ?? []).map((qf) => ({
+          ...qf,
+          score: qf.score != null && qf.score <= 5 ? qf.score * 2 : qf.score,
+        }))
+        await updateDoc(d.ref, {
+          overallScore: data.overallScore * 2,
+          questionFeedback: updatedQF,
+        })
+        migrated++
+      }
+      setMigrateResult(`${migrated} sessioner migrerade till 1–10 skala.`)
+      await load()
+    } catch (err) {
+      console.error('Migrering misslyckades:', err)
+      setMigrateResult('Migrering misslyckades: ' + err.message)
+    } finally {
+      setMigrating(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -55,6 +90,42 @@ export default function DriftPage() {
           Alla genomförda intervjusessioner, senaste överst.
         </p>
       </div>
+
+      {/* One-time score migration banner */}
+      {!loading && legacyCount > 0 && (
+        <div
+          className="rounded-xl border px-5 py-4 flex items-center justify-between gap-4"
+          style={{ backgroundColor: '#1a1500', borderColor: '#5a4200' }}
+        >
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#E9C46A' }}>
+              {legacyCount} session{legacyCount !== 1 ? 'er' : ''} använder gammal 1–5 skala
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>
+              Klicka för att konvertera alla till 1–10 (multiplicerar poäng ×2 i databasen).
+            </p>
+          </div>
+          <button
+            onClick={migrateScores}
+            disabled={migrating}
+            className="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+            style={{ backgroundColor: '#5a4200', color: '#E9C46A' }}
+            onMouseOver={(e) => !migrating && (e.currentTarget.style.backgroundColor = '#7a5a00')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#5a4200')}
+          >
+            {migrating ? 'Migrerar…' : 'Konvertera poäng'}
+          </button>
+        </div>
+      )}
+
+      {migrateResult && (
+        <p
+          className="text-sm"
+          style={{ color: migrateResult.includes('misslyckades') ? '#f87171' : '#4ade80' }}
+        >
+          {migrateResult}
+        </p>
+      )}
 
       {loading && (
         <p className="text-sm" style={{ color: '#6b7280' }}>
