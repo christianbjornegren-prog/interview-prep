@@ -72,9 +72,9 @@ export default function FeedbackPage() {
   }
 
   const scoreColor =
-    feedback.overallScore >= 4
+    feedback.overallScore >= 8
       ? '#22c55e'
-      : feedback.overallScore >= 3
+      : feedback.overallScore >= 6
       ? '#E9C46A'
       : '#ef4444'
 
@@ -260,9 +260,9 @@ function QuestionFeedbackCard({ feedback, index }) {
   const [expanded, setExpanded] = useState(false)
 
   const scoreColor =
-    feedback.score >= 4
+    feedback.score >= 8
       ? '#22c55e'
-      : feedback.score >= 3
+      : feedback.score >= 6
       ? '#E9C46A'
       : '#ef4444'
 

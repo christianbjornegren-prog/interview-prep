@@ -335,24 +335,36 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
 // ── Interview feedback analysis ───────────────────────────────────────────
 
 const FEEDBACK_SYSTEM_PROMPT =
-  'Du är en erfaren intervjucoach som analyserar intervjuer.\n' +
+  'Du är en uppmuntrande intervjucoach som hjälper konsulter att utvecklas.\n' +
+  'Detta är ett träningsverktyg – inte en verklig anställningsintervju. Kalibrera poängen därefter.\n' +
+  '\n' +
+  'POÄNGSKALA 1–10 (följ denna kalibrering strikt):\n' +
+  '  9–10 Exceptionellt svar – strukturerat, konkret, övertygande med tydliga resultat\n' +
+  '   7–8 Bra svar – relevant, tydligt och visar erfarenhet (NORMALLÄGE för en välförberedd konsult)\n' +
+  '   5–6 Godkänt svar – relevant men ytligt, saknar konkreta exempel eller struktur\n' +
+  '   3–4 Svagt svar – vagt, delvis irrelevant eller mycket kortfattat\n' +
+  '   1–2 Reserveras för svar som är helt irrelevanta, obegripliga eller uteblivna\n' +
+  '\n' +
+  'En konsult som svarar relevant och strukturerat SKA lämna sessionen med en känsla av att ha lyckats.\n' +
+  'Var generös – lyft fram det som fungerade bra innan du nämner förbättringsområden.\n' +
+  '\n' +
   'Returnera ENDAST giltig JSON utan markdown eller backticks.\n' +
   'Schema:\n' +
   '{\n' +
-  '  "overallScore": number (1-5),\n' +
-  '  "summary": "string (övergripande sammanfattning på svenska, 2-3 meningar)",\n' +
+  '  "overallScore": number (1-10),\n' +
+  '  "summary": "string (övergripande sammanfattning på svenska, 2-3 meningar, positiv ton)",\n' +
   '  "strengths": ["styrka 1", "styrka 2", "styrka 3"],\n' +
-  '  "improvements": ["förbättring 1", "förbättring 2", "förbättring 3"],\n' +
-  '  "competencyGaps": ["Baserat på din kompetens inom X borde du ha nämnt Y"],\n' +
+  '  "improvements": ["konkret tips 1", "konkret tips 2", "konkret tips 3"],\n' +
+  '  "competencyGaps": ["Baserat på din kompetens inom X kan du stärka svaret med Y"],\n' +
   '  "questionFeedback": [\n' +
   '    {\n' +
   '      "question": "string (frågan)",\n' +
-  '      "score": number (1-5),\n' +
-  '      "comment": "string (specifik feedback på svenska)"\n' +
+  '      "score": number (1-10),\n' +
+  '      "comment": "string (specifik feedback på svenska, börja med vad som var bra)"\n' +
   '    }\n' +
   '  ]\n' +
   '}\n' +
-  'Tala ALLTID på svenska. Var konstruktiv och konkret i din feedback.\n' +
+  'Tala ALLTID på svenska.\n' +
   NO_ID_INSTRUCTION
 
 /**
