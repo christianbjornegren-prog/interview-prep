@@ -35,7 +35,10 @@ systemEvents/{eventId} → { type, severity: 'info'|'error', step, message, uid,
 - Jobbannonser sorteras på senaste aktivitet, arkivering som opt-in
 - Betygsskala: 1–10 (overallScore + questionFeedback.score). Kalibreras i claude.js
   (POÄNGSKALA 1–10). All display ska visa "/10" – aldrig "/5".
-  Färgtrösklar för betyg: ≥8 grön, ≥6 gul (FeedbackPage), <6 röd.
+  Färgtrösklar för betyg (gäller ALLA betygsdisplayer – FeedbackPage, JobPage Historik,
+  KonsultProfilPage Delad feedback): ≥8 grön (#22c55e), ≥6 gul (#E9C46A), <6 röd (#ef4444).
+  OBS: detta är betygströsklar (1–10), ej att förväxla med JobCard/gap-analysens
+  scoreRatio (0–1 matchningsandel: ≥0.7 grön, ≥0.4 gul).
 - Förtroende-i-arkitektur: konsulten äger sin träning. Feedback är PRIVAT by
   default och delas med säljaren ENBART via konsultens opt-in (sharedWithSeller),
   återkalleligt när som helst. Driften loggas tekniskt (systemEvents) utan betyg.

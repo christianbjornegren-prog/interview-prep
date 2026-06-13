@@ -672,9 +672,9 @@ function HistoryTab({ feedbacks, loading, hasQuestions, onNavigate, onStartInter
     <ul className="space-y-2">
       {feedbacks.map((feedback) => {
         const scoreColor =
-          feedback.overallScore >= 4
+          feedback.overallScore >= 8
             ? '#22c55e'
-            : feedback.overallScore >= 3
+            : feedback.overallScore >= 6
             ? '#E9C46A'
             : '#ef4444'
 

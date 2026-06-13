@@ -596,7 +596,7 @@ function SharedFeedbackItem({ feedback, onClick }) {
   const scoreColor =
     score == null ? '#6b7280'
     : score >= 8 ? '#22c55e'
-    : score >= 5 ? '#E9C46A'
+    : score >= 6 ? '#E9C46A'
     : '#ef4444'
 
   const dateStr = feedback.createdAt?.toDate
