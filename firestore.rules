@@ -29,14 +29,31 @@ service cloud.firestore {
         (isOwner(uid) || isAdmin() || isSaljare())
     }
 
+    // Feedback is consent-gated. The konsult (owner) sees everything; a
+    // säljare/admin may read a session ONLY when the owner has opted in via
+    // sharedWithSeller == true. Owner toggles sharing through update.
     match /users/{uid}/jobs/{jobId}/feedback/{feedbackId} {
-      allow read, write: if request.auth != null &&
-        (isOwner(uid) || isAdmin())
+      allow read: if request.auth != null && (
+        isOwner(uid) ||
+        ((isSaljare() || isAdmin()) && resource.data.sharedWithSeller == true)
+      )
+      allow create: if request.auth != null && isOwner(uid)
+      allow update: if request.auth != null && isOwner(uid)
+      allow delete: if request.auth != null && (isOwner(uid) || isAdmin())
     }
 
-    // collectionGroup('feedback') queries require a recursive-wildcard rule
-    match /{path=**}/feedback/{feedbackId} {
+    // NOTE: the old recursive `/{path=**}/feedback` rule (admin reads ALL
+    // feedback) has been removed. The driftöversikt no longer reads feedback,
+    // and a säljare reads shared sessions per-job via the consent-gated rule
+    // above (queries always filter .where('sharedWithSeller','==',true)).
+
+    // Technical operations log. Write-only for any signed-in user (own uid
+    // only); admins read for the driftöversikt. Immutable once written.
+    match /systemEvents/{eventId} {
+      allow create: if request.auth != null &&
+        request.resource.data.uid == request.auth.uid
       allow read: if request.auth != null && isAdmin()
+      allow update, delete: if false
     }
 
     match /pendingProfiles/{email} {

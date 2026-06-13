@@ -688,14 +688,25 @@ function HistoryTab({ feedbacks, loading, hasQuestions, onNavigate, onStartInter
               onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
             >
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-white">
-                  {feedback.createdAt
-                    ? new Date(feedback.createdAt.toDate()).toLocaleDateString(
-                        'sv-SE',
-                        { year: 'numeric', month: 'long', day: 'numeric' }
-                      )
-                    : 'Datum okänt'}
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm text-white">
+                    {feedback.createdAt
+                      ? new Date(feedback.createdAt.toDate()).toLocaleDateString(
+                          'sv-SE',
+                          { year: 'numeric', month: 'long', day: 'numeric' }
+                        )
+                      : 'Datum okänt'}
+                  </p>
+                  {feedback.sharedWithSeller && (
+                    <span
+                      className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
+                      style={{ backgroundColor: '#2a9d8f20', color: '#5ecfc3', border: '1px solid #2a9d8f40' }}
+                      title="Delad med din säljare"
+                    >
+                      Delad
+                    </span>
+                  )}
+                </div>
                 {feedback.interviewer && (
                   <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>
                     Intervjuare: {feedback.interviewer}

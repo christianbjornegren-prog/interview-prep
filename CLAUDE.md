@@ -21,13 +21,21 @@ uppdrag baserat på din egen kompetensbank.
 users/{uid}/competencies/{docId}
 users/{uid}/jobs/{jobId}
 users/{uid}/jobs/{jobId}/feedback/{feedbackId}
+  → inkluderar sharedWithSeller (boolean, default false) + sharedAt (timestamp|null)
+    Saknat sharedWithSeller behandlas överallt som false.
 pendingProfiles/{email} → { name, email, createdAt, competencies: [...], jobs: [...] }
+systemEvents/{eventId} → { type, severity: 'info'|'error', step, message, uid, createdAt }
+  → TEKNISK driftlogg (Whisper→Claude→TTS→Firestore). ALDRIG betyg/feedbackinnehåll.
+    Oföränderlig: write-only för inloggad (egen uid), läs endast admin.
 
 ## Viktiga beslut
 - Kompetensbanken är kumulativ – byggs av flera CV-uppladdningar över tid
 - Matchning sker per jobbannons mot hela kompetensbanken
 - Feedback sparas med historik per jobbannons
 - Jobbannonser sorteras på senaste aktivitet, arkivering som opt-in
+- Förtroende-i-arkitektur: konsulten äger sin träning. Feedback är PRIVAT by
+  default och delas med säljaren ENBART via konsultens opt-in (sharedWithSeller),
+  återkalleligt när som helst. Driften loggas tekniskt (systemEvents) utan betyg.
 
 ## Miljövariabler (.env.local)
 VITE_FIREBASE_PROJECT_ID=interview-prep-81cb6 (INTE .firebaseapp.com)
@@ -150,12 +158,15 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 - Rollbyte → updateDoc + optimistisk lokal uppdatering + bekräftelsetoast 3s
 - updatedAt: serverTimestamp() sätts vid rollbyte
 
-### Driftöversikt (/admin/drift → DriftPage.jsx)
-- Hämtar alla feedback-dokument via `collectionGroup(db, 'feedback')` sorterat på `createdAt desc`
-- Slår upp konsultnamn från `users`-collection (nameMap uid→namn)
-- Tabell: Datum & tid | Konsult | Uppdrag (jobTitle + company från feedback-doc) | Frågor | Poäng | Status
-- Status visas alltid som "Slutförd" (enbart avslutade sessioner sparas)
-- Poäng color-coded: ≥8 grön, ≥5 gul, <5 röd
+### Driftöversikt (/admin/drift → DriftPage.jsx) — TEKNISK hälsovy
+- Läser ENBART systemEvents (`collection(db,'systemEvents')`, orderBy createdAt desc).
+  Läser INTE längre feedback. INGA betyg, INGEN feedbacktext, INGEN personrankning.
+- KPI:er via `summarizeEvents()` (ren funktion i lib/systemEvents.js):
+  slutförda sessioner totalt / 7d / 30d, aktiva konsulter (distinkta uid med
+  session_completed), tekniska fel, felfrekvens = fel / (fel + slutförda).
+- "Senaste tekniska fel": tabell Tid | Steg | Meddelande | Konsult (uid→namn via
+  users-collection, enbart för läsbarhet — felets steg, ej prestation).
+- Steg-etiketter: whisper | claude | tts | firestore | complete.
 
 ### Navbar
 - Utloggade användare ser ENBART loggan (ingen knapp i navbar – knappen finns på startsidan)
@@ -185,12 +196,58 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 
 ### Firestore Security Rules (firestore.rules)
 - Roller: admin kan läsa/skriva alla users; säljare kan läsa users + jobb + kompetenser; owner kan allt i sitt eget träd
-- feedback-subcollection: enbart owner + admin (specifik path-regel)
-- `collectionGroup('feedback')`-queries kräver separat rekursiv regel:
-  `match /{path=**}/feedback/{feedbackId} { allow read: if isAdmin() }`
-  (den specifika path-regeln täcker INTE collectionGroup-queries)
+- feedback-subcollection (SAMTYCKESSTYRD, specifik path-regel):
+  - read:   owner ELLER ((säljare||admin) OCH resource.data.sharedWithSeller == true)
+  - create: owner
+  - update: owner (konsulten slår på/av delning)
+  - delete: owner ELLER admin
+  - Admins GENERELLA läsrätt till all feedback är BORTTAGEN. Admin ser bara delad feedback.
+- Den gamla rekursiva `/{path=**}/feedback`-regeln (admin läser ALL feedback) är
+  BORTTAGEN. Driftvyn läser inte längre feedback, och säljaren läser delad feedback
+  PER JOBB: `query(collection(...,'feedback'), where('sharedWithSeller','==',true))`
+  — den specifika path-regeln räcker, queryn MÅSTE filtrera på sharedWithSeller==true.
+- systemEvents: create om inloggad och request.resource.data.uid == auth.uid;
+  read endast admin; update/delete alltid false (oföränderlig logg).
 - pendingProfiles: enbart admin + säljare (ej owner/konsult)
-- firebase.json pekar på firestore.rules
+- firebase.json pekar på firestore.rules; emulators.firestore satt (port 8080) för regeltester
+- VIKTIGT: regeländringar måste DEPLOYAS separat – `firebase deploy --only firestore:rules
+  --project interview-prep-81cb6`. En odeployad regel ger "Missing or insufficient
+  permissions" i appen även om firestore.rules är korrekt lokalt. (Drift-buggen 2026-06-13
+  berodde på att systemEvents-regeln aldrig deployats – inga regeländringar behövdes.)
+- DriftPage gör en ENKEL collection-query (`collection(db,'systemEvents')` + orderBy),
+  inte collectionGroup → `match /systemEvents/{eventId}` räcker, ingen rekursiv regel behövs.
+- isAdmin()/isSaljare() jämför mot exakt gemener: produktionens admin har role=='admin',
+  säljare role=='saljare' (verifierat mot Firestore).
+
+### Delning / dataintegritet (samtyckesflöde)
+- lib/sharing.js (rena hjälpare): describeShareStatus(), buildShareUpdate(), toDate()
+- FeedbackPage: ShareCard med toggle "Dela denna feedback med din säljare" (AV default).
+  På → updateDoc({sharedWithSeller:true, sharedAt:serverTimestamp()});
+  Av → updateDoc({sharedWithSeller:false, sharedAt:null}). Status visas ("Delad sedan
+  {datum}" / "Privat"). Integritetstext överst. Toggle visas BARA för ägaren.
+- FeedbackPage läser targetUid från location.state — säljare/admin tittar på konsultens
+  delade session (uid = targetUid ?? auth.currentUser.uid); toggle döljs då (isOwner=false).
+- JobPage Historik: diskret "Delad"-chip per delad session.
+- KonsultProfilPage: tredje tab "Delad feedback" — itererar konsultens jobb och kör
+  per-jobb-query (where sharedWithSeller==true), länkar till /feedback/:jobId/:id med
+  state {targetUid}. Tomt → "Konsulten har inte delat någon feedback."
+
+### Teknisk driftloggning (lib/systemEvents.js)
+- buildSystemEvent() (ren): normaliserar payload, klipper message till 500 tecken,
+  tvingar severity till 'info'|'error'. summarizeEvents() (ren): driftaggregat.
+- logSystemEvent(): fire-and-forget skriv till systemEvents; kräver inloggad (egen uid);
+  sväljer alla egna fel (try/catch) — blockerar ALDRIG användarflödet.
+- InterviewSimulatorTTS loggar pipeline_error per externt steg (whisper/tts/claude/
+  firestore) + session_completed (info) när en intervju slutförs. Ny feedback skapas med
+  sharedWithSeller:false, sharedAt:null.
+
+### Tester
+- Vitest enhetstester (test/unit/, körs utan emulator): `npm test`
+  - sharing.test.js + systemEvents.test.js (rena hjälpare). 18 tester.
+- Firestore-regeltester (@firebase/rules-unit-testing mot emulatorn): `npm run test:rules`
+  - test/rules/firestore.rules.test.js bevisar samtyckesgrindning + systemEvents-åtkomst.
+  - Kräver Java/Firestore-emulatorn; körs via `firebase emulators:exec --only firestore`.
+- Manuell röktest-checklista (ljudkedjan går ej att automatisera): docs/SMOKE_TEST.md
 
 ## Konventioner
 - Svenska i hela UI

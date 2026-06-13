@@ -10,6 +10,8 @@ import {
   updateDoc,
   addDoc,
   serverTimestamp,
+  query,
+  where,
 } from '../lib/firebase'
 import FileUpload from '../components/FileUpload'
 import { recategorizeCompetencies } from '../lib/claude'
@@ -87,6 +89,8 @@ export default function KonsultProfilPage() {
   const [clearing, setClearing] = useState(false)
   const [recategorizing, setRecategorizing] = useState(false)
   const [recategorizeMsg, setRecategorizeMsg] = useState('')
+  const [sharedFeedback, setSharedFeedback] = useState([])
+  const [loadingShared, setLoadingShared] = useState(true)
 
   async function loadCompetencies() {
     const snap = await getDocs(collection(db, 'users', uid, 'competencies'))
@@ -152,6 +156,49 @@ export default function KonsultProfilPage() {
     load()
   }, [uid])
 
+  // Load the sessions the konsult has chosen to share. Each per-job query
+  // MUST filter sharedWithSeller==true so the security rules permit the read.
+  useEffect(() => {
+    if (loading) return
+    let cancelled = false
+    async function loadShared() {
+      setLoadingShared(true)
+      try {
+        const perJob = await Promise.all(
+          jobs.map(async (job) => {
+            const snap = await getDocs(
+              query(
+                collection(db, 'users', uid, 'jobs', job.docId, 'feedback'),
+                where('sharedWithSeller', '==', true)
+              )
+            )
+            return snap.docs.map((d) => ({
+              id: d.id,
+              jobId: job.docId,
+              jobTitle: job.jobTitle || d.data().jobTitle || 'Namnlöst uppdrag',
+              company: job.company || d.data().company || '',
+              ...d.data(),
+            }))
+          })
+        )
+        if (cancelled) return
+        const all = perJob.flat().sort((a, b) => {
+          const ta = a.createdAt?.toMillis?.() ?? 0
+          const tb = b.createdAt?.toMillis?.() ?? 0
+          return tb - ta
+        })
+        setSharedFeedback(all)
+      } catch (err) {
+        console.error('Kunde inte hämta delad feedback:', err)
+        if (!cancelled) setSharedFeedback([])
+      } finally {
+        if (!cancelled) setLoadingShared(false)
+      }
+    }
+    loadShared()
+    return () => { cancelled = true }
+  }, [uid, jobs, loading])
+
   function toggleCat(name) {
     setOpenCats((prev) => {
       const next = new Set(prev)
@@ -171,6 +218,7 @@ export default function KonsultProfilPage() {
   const tabs = [
     { id: 'kompetensbank', label: 'Kompetensbank' },
     { id: 'uppdrag', label: 'Uppdrag' },
+    { id: 'feedback', label: 'Delad feedback' },
   ]
 
   return (
@@ -347,6 +395,37 @@ export default function KonsultProfilPage() {
         </div>
       )}
 
+      {/* Tab: Delad feedback */}
+      {activeTab === 'feedback' && (
+        <div className="space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+            Sessioner konsulten delat
+          </p>
+
+          {loadingShared ? (
+            <p className="text-sm" style={{ color: '#6b7280' }}>Laddar delad feedback...</p>
+          ) : sharedFeedback.length === 0 ? (
+            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: '#404040' }}>
+              <p className="text-sm" style={{ color: '#6b7280' }}>
+                Konsulten har inte delat någon feedback.
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {sharedFeedback.map((fb) => (
+                <SharedFeedbackItem
+                  key={`${fb.jobId}/${fb.id}`}
+                  feedback={fb}
+                  onClick={() =>
+                    navigate(`/feedback/${fb.jobId}/${fb.id}`, { state: { targetUid: uid } })
+                  }
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* Add competency modal */}
       {showAddModal && (
         <AddCompetencyModal
@@ -505,6 +584,49 @@ function JobItem({ job, onClick }) {
             Matchning: {covered.length} av {total} krav
           </span>
         )}
+      </button>
+    </li>
+  )
+}
+
+// ── Shared feedback item ──────────────────────────────────────────────────
+
+function SharedFeedbackItem({ feedback, onClick }) {
+  const score = feedback.overallScore
+  const scoreColor =
+    score == null ? '#6b7280'
+    : score >= 8 ? '#22c55e'
+    : score >= 5 ? '#E9C46A'
+    : '#ef4444'
+
+  const dateStr = feedback.createdAt?.toDate
+    ? feedback.createdAt.toDate().toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric' })
+    : 'Datum okänt'
+
+  return (
+    <li>
+      <button
+        onClick={onClick}
+        className="w-full text-left rounded-xl border p-4 transition-colors flex items-center justify-between gap-4"
+        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+        onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
+        onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-white truncate">
+            {feedback.jobTitle}
+            {feedback.company && <span style={{ color: '#6b7280' }}> · {feedback.company}</span>}
+          </p>
+          <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>{dateStr}</p>
+        </div>
+        <div
+          className="flex items-center justify-center rounded-full shrink-0"
+          style={{ width: 44, height: 44, backgroundColor: scoreColor + '20', border: `2px solid ${scoreColor}` }}
+        >
+          <span className="text-base font-bold" style={{ color: scoreColor }}>
+            {score != null ? score : '—'}
+          </span>
+        </div>
       </button>
     </li>
   )

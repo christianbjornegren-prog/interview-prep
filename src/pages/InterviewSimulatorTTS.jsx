@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
 import { analyzeInterviewFeedback, sanitizeCompetencies } from '../lib/claude'
+import { logSystemEvent } from '../lib/systemEvents'
 
 const VERCEL_WHISPER =
   'https://interview-prep-liard-three.vercel.app/api/whisper'
@@ -231,6 +232,7 @@ export default function InterviewSimulatorTTS() {
       setInterviewState(STATES.WAITING_FOR_USER)
     } catch (err) {
       console.error('TTS-fel:', err)
+      logSystemEvent({ type: 'pipeline_error', severity: 'error', step: 'tts', message: err.message })
       setErrorMsg(err.message ?? 'Kunde inte spela upp AI-rösten.')
     }
   }
@@ -281,12 +283,14 @@ export default function InterviewSimulatorTTS() {
   }
 
   async function processAnswer(audioBlob) {
+    let step = 'whisper'
     try {
       const whisperRes = await fetch(VERCEL_WHISPER, {
         method: 'POST',
         headers: { 'Content-Type': 'audio/webm' },
         body: audioBlob,
       })
+      if (!whisperRes.ok) throw new Error(`Whisper HTTP ${whisperRes.status}`)
       const { text: userText } = await whisperRes.json()
       if (!userText) throw new Error('Inget tal detekterat')
       addToTranscript('candidate', userText)
@@ -309,6 +313,7 @@ export default function InterviewSimulatorTTS() {
         finishing = true
       }
 
+      step = 'tts'
       setInterviewState(STATES.PREPARING_NEXT)
       await speakText(aiText)
       addToTranscript('interviewer', aiText)
@@ -321,6 +326,7 @@ export default function InterviewSimulatorTTS() {
       }
     } catch (error) {
       console.error(error)
+      logSystemEvent({ type: 'pipeline_error', severity: 'error', step, message: error.message })
       setErrorMsg(error.message)
       setInterviewState(STATES.WAITING_FOR_USER)
     }
@@ -345,13 +351,19 @@ export default function InterviewSimulatorTTS() {
       const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
       const rawCompetencies = compSnap.docs.map((d) => d.data())
 
-      const feedback = await analyzeInterviewFeedback(
-        transcriptForAnalysis,
-        job?.jobTitle ?? '',
-        job?.company ?? '',
-        sanitizeCompetencies(rawCompetencies),
-        { focus: interviewConfig.focus, difficulty: interviewConfig.difficulty }
-      )
+      let feedback
+      try {
+        feedback = await analyzeInterviewFeedback(
+          transcriptForAnalysis,
+          job?.jobTitle ?? '',
+          job?.company ?? '',
+          sanitizeCompetencies(rawCompetencies),
+          { focus: interviewConfig.focus, difficulty: interviewConfig.difficulty }
+        )
+      } catch (err) {
+        logSystemEvent({ type: 'pipeline_error', severity: 'error', step: 'claude', message: err.message })
+        throw err
+      }
 
       // ── Flow 3 audit ──────────────────────────────────────────────────────
       console.group('[Flow 3] analyzeInterviewFeedback → Firestore audit')
@@ -369,22 +381,39 @@ export default function InterviewSimulatorTTS() {
       console.groupEnd()
       // ─────────────────────────────────────────────────────────────────────
 
-      const feedbackRef = await addDoc(
-        collection(db, 'users', uid, 'jobs', jobId, 'feedback'),
-        {
-          createdAt: serverTimestamp(),
-          overallScore: feedback.overallScore,
-          summary: feedback.summary,
-          strengths: feedback.strengths,
-          improvements: feedback.improvements,
-          competencyGaps: feedback.competencyGaps ?? [],
-          questionFeedback: feedback.questionFeedback,
-          jobTitle: job?.jobTitle ?? '',
-          company: job?.company ?? '',
-          interviewer: interviewerName,
-          transcript: transcriptForAnalysis,
-        }
-      )
+      let feedbackRef
+      try {
+        feedbackRef = await addDoc(
+          collection(db, 'users', uid, 'jobs', jobId, 'feedback'),
+          {
+            createdAt: serverTimestamp(),
+            overallScore: feedback.overallScore,
+            summary: feedback.summary,
+            strengths: feedback.strengths,
+            improvements: feedback.improvements,
+            competencyGaps: feedback.competencyGaps ?? [],
+            questionFeedback: feedback.questionFeedback,
+            jobTitle: job?.jobTitle ?? '',
+            company: job?.company ?? '',
+            interviewer: interviewerName,
+            transcript: transcriptForAnalysis,
+            // Delning är opt-in: ny feedback är privat tills konsulten själv delar.
+            sharedWithSeller: false,
+            sharedAt: null,
+          }
+        )
+      } catch (err) {
+        logSystemEvent({ type: 'pipeline_error', severity: 'error', step: 'firestore', message: err.message })
+        throw err
+      }
+
+      // Teknisk driftsignal – inga betyg, bara att en session slutfördes.
+      logSystemEvent({
+        type: 'session_completed',
+        severity: 'info',
+        step: 'complete',
+        message: `${activeQuestions.length} frågor`,
+      })
 
       navigate(`/feedback/${jobId}/${feedbackRef.id}`)
     } catch (err) {

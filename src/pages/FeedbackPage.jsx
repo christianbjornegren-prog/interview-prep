@@ -1,21 +1,29 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { doc, getDoc } from 'firebase/firestore'
-import { auth, db } from '../lib/firebase'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { auth, db, doc, getDoc, updateDoc, serverTimestamp } from '../lib/firebase'
+import { describeShareStatus } from '../lib/sharing'
 
 export default function FeedbackPage() {
   const { jobId, feedbackId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [feedback, setFeedback] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [savingShare, setSavingShare] = useState(false)
+  const [shareError, setShareError] = useState('')
+
+  // A säljare/admin viewing a konsult's shared session passes targetUid in
+  // navigation state. The owner (konsult) has no targetUid → owns the doc.
+  const targetUid = location.state?.targetUid ?? null
+  const isOwner = !targetUid
+  const uid = targetUid ?? auth.currentUser.uid
 
   useEffect(() => {
     let cancelled = false
 
     async function loadFeedback() {
       try {
-        const uid = auth.currentUser.uid
         const feedbackSnap = await getDoc(
           doc(db, 'users', uid, 'jobs', jobId, 'feedback', feedbackId)
         )
@@ -39,7 +47,34 @@ export default function FeedbackPage() {
     return () => {
       cancelled = true
     }
-  }, [jobId, feedbackId])
+  }, [jobId, feedbackId, uid])
+
+  async function handleToggleShare() {
+    if (!isOwner || savingShare || !feedback) return
+    const turningOn = !feedback.sharedWithSeller
+    setSavingShare(true)
+    setShareError('')
+    try {
+      const update = turningOn
+        ? { sharedWithSeller: true, sharedAt: serverTimestamp() }
+        : { sharedWithSeller: false, sharedAt: null }
+      await updateDoc(
+        doc(db, 'users', uid, 'jobs', jobId, 'feedback', feedbackId),
+        update
+      )
+      // Mirror locally; use a Date now so the label updates immediately.
+      setFeedback((prev) => ({
+        ...prev,
+        sharedWithSeller: turningOn,
+        sharedAt: turningOn ? { toDate: () => new Date() } : null,
+      }))
+    } catch (err) {
+      console.error('Kunde inte uppdatera delning:', err)
+      setShareError('Kunde inte uppdatera delningen. Försök igen.')
+    } finally {
+      setSavingShare(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -86,18 +121,21 @@ export default function FeedbackPage() {
       })
     : '—'
 
+  const backPath = targetUid ? `/konsulter/${targetUid}` : `/jobb/${jobId}`
+  const backLabel = targetUid ? '← Tillbaka till konsultprofil' : '← Tillbaka till uppdraget'
+
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="space-y-4">
         <button
-          onClick={() => navigate(`/jobb/${jobId}`)}
+          onClick={() => navigate(backPath)}
           className="text-sm transition-colors"
           style={{ color: '#6b7280' }}
           onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
           onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
         >
-          ← Tillbaka till uppdraget
+          {backLabel}
         </button>
 
         <div>
@@ -110,6 +148,14 @@ export default function FeedbackPage() {
           </p>
         </div>
       </div>
+
+      {/* Delning / integritet – visas bara för ägaren (konsulten) */}
+      {isOwner && <ShareCard
+        status={describeShareStatus(feedback)}
+        saving={savingShare}
+        error={shareError}
+        onToggle={handleToggleShare}
+      />}
 
       {/* Overall Score */}
       <div className="flex flex-col items-center gap-4 py-8">
@@ -251,6 +297,66 @@ export default function FeedbackPage() {
             ))}
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ── Share card ────────────────────────────────────────────────────────────
+
+function ShareCard({ status, saving, error, onToggle }) {
+  const on = status.shared
+  return (
+    <div
+      className="rounded-xl border p-5 space-y-4"
+      style={{ backgroundColor: '#1d1d1d', borderColor: on ? '#2a9d8f' : '#404040' }}
+    >
+      <p className="text-sm leading-relaxed" style={{ color: '#9ca3af' }}>
+        Din träning är privat. Den delas med din säljare endast om du själv
+        väljer det – och du kan ta tillbaka det när som helst.
+      </p>
+
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-white">
+            Dela denna feedback med din säljare
+          </p>
+          <p
+            className="text-xs mt-0.5"
+            style={{ color: on ? '#5ecfc3' : '#6b7280' }}
+          >
+            {status.label}
+          </p>
+        </div>
+
+        <button
+          onClick={onToggle}
+          disabled={saving}
+          role="switch"
+          aria-checked={on}
+          aria-label="Dela denna feedback med din säljare"
+          className="relative shrink-0 rounded-full transition-colors disabled:opacity-50"
+          style={{
+            width: 48,
+            height: 28,
+            backgroundColor: on ? '#2a9d8f' : '#404040',
+          }}
+        >
+          <span
+            className="absolute rounded-full bg-white transition-transform"
+            style={{
+              width: 22,
+              height: 22,
+              top: 3,
+              left: 3,
+              transform: on ? 'translateX(20px)' : 'translateX(0)',
+            }}
+          />
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>
       )}
     </div>
   )
