@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore'
 import { useAuth, useUser, signInWithGoogle } from '../components/AuthGate'
 import { db, auth } from '../lib/firebase'
+import { computeChecklist, resolvePrimaryCta, resolveEmptyState } from '../lib/onboarding'
 
 export default function Home() {
   const user = useAuth()
@@ -125,7 +126,9 @@ function Dashboard({ user }) {
   const [loadingJobs, setLoadingJobs] = useState(true)
   const [competencyCount, setCompetencyCount] = useState(null)
   const [jobFeedbacks, setJobFeedbacks] = useState({})
+  const [loadingFeedbacks, setLoadingFeedbacks] = useState(true)
   const [showArchived, setShowArchived] = useState(false)
+  const [showJobPicker, setShowJobPicker] = useState(false)
 
   const firstName = user.displayName?.split(' ')[0] ?? 'där'
 
@@ -147,7 +150,11 @@ function Dashboard({ user }) {
   }, [])
 
   useEffect(() => {
-    if (jobs.length === 0) return
+    if (jobs.length === 0) {
+      setJobFeedbacks({})
+      setLoadingFeedbacks(false)
+      return
+    }
     const uid = auth.currentUser.uid
     async function fetchFeedbacks() {
       const results = {}
@@ -172,6 +179,7 @@ function Dashboard({ user }) {
         })
       )
       setJobFeedbacks(results)
+      setLoadingFeedbacks(false)
     }
     fetchFeedbacks()
   }, [jobs])
@@ -189,27 +197,27 @@ function Dashboard({ user }) {
     return bDate - aDate
   })
 
+  // ── Onboarding-härledningar ─────────────────────────────────────────────
+  const feedbackCount = Object.keys(jobFeedbacks).length
+  const checklist = computeChecklist({ profileActivated, jobCount: jobs.length, feedbackCount })
+  const showChecklist = profileActivated && !checklist.allDone
+
+  const primaryCta = resolvePrimaryCta(sortedActive)
+  const emptyStateRaw = resolveEmptyState({ jobCount: activeJobs.length, feedbackCount })
+  // Undvik att 'no-training'-kortet blinkar förbi innan feedback hunnit laddas.
+  const emptyState =
+    emptyStateRaw === 'no-training' && loadingFeedbacks ? 'normal' : emptyStateRaw
+
+  function handleStartTraining() {
+    if (primaryCta.mode === 'single') navigate(`/jobb/${primaryCta.jobId}`)
+    else if (primaryCta.mode === 'multi') setShowJobPicker(true)
+  }
+
   return (
     <div className="space-y-6">
-      {/* Pending-profil aktiverad */}
-      {profileActivated && (
-        <div
-          className="rounded-xl border px-5 py-4 flex items-center justify-between gap-4"
-          style={{ backgroundColor: '#052e16', borderColor: '#166534' }}
-        >
-          <p className="text-sm font-medium" style={{ color: '#86efac' }}>
-            🎉 Din profil är förberedd och redo! Kompetenser och uppdrag har lagts till i din bank.
-          </p>
-          <button
-            onClick={clearProfileActivated}
-            className="text-xs shrink-0 transition-colors"
-            style={{ color: '#4ade80' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#4ade80')}
-          >
-            ✕
-          </button>
-        </div>
+      {/* Onboarding-checklista (visas efter att profilen aktiverats) */}
+      {showChecklist && (
+        <OnboardingChecklist checklist={checklist} onDismiss={clearProfileActivated} />
       )}
 
       {/* Competency warning banner */}
@@ -249,19 +257,31 @@ function Dashboard({ user }) {
         </button>
       </div>
 
-      {/* Active jobs */}
+      {/* Primär CTA – Starta intervjuträning (normalläge: uppdrag + tidigare träning) */}
+      {!loadingJobs && emptyState === 'normal' && primaryCta.mode !== 'hidden' && (
+        <StartTrainingButton onClick={handleStartTraining} />
+      )}
+
+      {/* Uppdrag + vägledande tomma states */}
       {loadingJobs ? (
         <p className="text-sm py-8" style={{ color: '#6b7280' }}>
           Laddar dina uppdrag...
         </p>
-      ) : sortedActive.length === 0 ? (
-        <div
-          className="rounded-xl border-2 border-dashed p-12 text-center"
-          style={{ borderColor: '#404040' }}
-        >
-          <p className="text-sm" style={{ color: '#6b7280' }}>
-            Du har inga uppdrag ännu. Lägg till din första jobbannons.
-          </p>
+      ) : emptyState === 'no-jobs' ? (
+        <NoJobsCard onAdd={() => navigate('/jobb/ny')} />
+      ) : emptyState === 'no-training' ? (
+        <div className="space-y-6">
+          <ReadyToTrainCard onStart={handleStartTraining} />
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {sortedActive.map((job) => (
+              <JobCard
+                key={job.docId}
+                job={job}
+                feedback={jobFeedbacks[job.docId]}
+                onClick={() => navigate(`/jobb/${job.docId}`)}
+              />
+            ))}
+          </ul>
         </div>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
@@ -304,6 +324,201 @@ function Dashboard({ user }) {
           )}
         </div>
       )}
+
+      {/* Uppdragsväljare (flera uppdrag → välj vilket att träna på) */}
+      {showJobPicker && (
+        <JobPickerModal
+          jobs={sortedActive}
+          onPick={(jobId) => {
+            setShowJobPicker(false)
+            navigate(`/jobb/${jobId}`)
+          }}
+          onClose={() => setShowJobPicker(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Onboarding checklist ──────────────────────────────────────────────────
+
+function OnboardingChecklist({ checklist, onDismiss }) {
+  const items = [
+    { done: checklist.cvUploaded, label: 'CV uppladdat' },
+    { done: checklist.jobAdded, label: 'Uppdrag tillagt' },
+    { done: checklist.firstTraining, label: 'Första träning' },
+  ]
+  return (
+    <div
+      className="rounded-xl border px-5 py-4"
+      style={{ backgroundColor: '#052e16', borderColor: '#166534' }}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-sm font-semibold" style={{ color: '#86efac' }}>
+          🎉 Din profil är redo – tre steg till din första träning
+        </p>
+        <button
+          onClick={onDismiss}
+          className="text-xs shrink-0 transition-colors"
+          style={{ color: '#4ade80' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
+          onMouseOut={(e) => (e.currentTarget.style.color = '#4ade80')}
+          aria-label="Stäng checklista"
+        >
+          ✕
+        </button>
+      </div>
+      <ul className="mt-3 space-y-2">
+        {items.map((item, i) => (
+          <li key={i} className="flex items-center gap-3">
+            <ChecklistBox done={item.done} />
+            <span
+              className="text-sm"
+              style={{
+                color: item.done ? '#86efac' : '#9ca3af',
+                textDecoration: item.done ? 'line-through' : 'none',
+              }}
+            >
+              {item.label}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function ChecklistBox({ done }) {
+  if (done) {
+    return (
+      <span
+        className="flex items-center justify-center rounded-md shrink-0"
+        style={{ width: 20, height: 20, backgroundColor: '#16a34a' }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      </span>
+    )
+  }
+  return (
+    <span
+      className="rounded-md shrink-0"
+      style={{ width: 20, height: 20, border: '2px solid #4d7c5a' }}
+    />
+  )
+}
+
+// ── Primary CTA + empty-state guiding cards ───────────────────────────────
+
+function StartTrainingButton({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 px-5 py-3 rounded-lg text-white text-sm font-semibold transition-colors"
+      style={{ backgroundColor: '#8064ad' }}
+      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
+      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+    >
+      🎙 Starta intervjuträning
+    </button>
+  )
+}
+
+function NoJobsCard({ onAdd }) {
+  return (
+    <div
+      className="rounded-xl border-2 border-dashed p-12 text-center space-y-4"
+      style={{ borderColor: '#404040' }}
+    >
+      <p className="text-sm" style={{ color: '#9ca3af' }}>
+        Lägg till ditt första uppdrag för att komma igång
+      </p>
+      <button
+        onClick={onAdd}
+        className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-white text-sm font-semibold transition-colors"
+        style={{ backgroundColor: '#8064ad' }}
+        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
+        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+      >
+        Lägg till uppdrag →
+      </button>
+    </div>
+  )
+}
+
+function ReadyToTrainCard({ onStart }) {
+  return (
+    <div
+      className="rounded-xl border p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+      style={{ backgroundColor: '#1a1229', borderColor: '#8064ad' }}
+    >
+      <div>
+        <h2 className="text-white font-semibold text-base">Du är redo – starta din första träning</h2>
+        <p className="text-sm mt-1" style={{ color: '#9ca3af' }}>
+          Dina uppdrag är på plats. Kör en AI-intervju för att se hur du står dig.
+        </p>
+      </div>
+      <button
+        onClick={onStart}
+        className="shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-lg text-white text-sm font-semibold transition-colors"
+        style={{ backgroundColor: '#8064ad' }}
+        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
+        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+      >
+        Starta intervjuträning →
+      </button>
+    </div>
+  )
+}
+
+// ── Job picker modal (flera uppdrag) ──────────────────────────────────────
+
+function JobPickerModal({ jobs, onPick, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border p-6 space-y-4"
+        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-white font-semibold text-lg">Välj uppdrag att träna på</h2>
+          <button
+            onClick={onClose}
+            className="text-sm transition-colors"
+            style={{ color: '#6b7280' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
+            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+            aria-label="Stäng"
+          >
+            ✕
+          </button>
+        </div>
+        <ul className="space-y-2 max-h-80 overflow-y-auto">
+          {jobs.map((job) => (
+            <li key={job.docId}>
+              <button
+                onClick={() => onPick(job.docId)}
+                className="w-full text-left rounded-xl border p-4 transition-colors"
+                style={{ backgroundColor: '#141414', borderColor: '#404040' }}
+                onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
+                onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
+              >
+                <p className="text-sm text-white font-medium">
+                  {job.jobTitle || 'Namnlös jobbannons'}
+                </p>
+                {job.company && (
+                  <p className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>{job.company}</p>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }
@@ -328,7 +543,7 @@ function JobCard({ job, feedback, onClick, dimmed }) {
     ? `Senaste träning: ${new Date(feedback.date).toLocaleDateString('sv-SE', {
         month: 'short',
         day: 'numeric',
-      })} · Betyg ${feedback.score}/5`
+      })} · Betyg ${feedback.score}/10`
     : null
 
   return (

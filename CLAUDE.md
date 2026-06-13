@@ -33,6 +33,9 @@ systemEvents/{eventId} → { type, severity: 'info'|'error', step, message, uid,
 - Matchning sker per jobbannons mot hela kompetensbanken
 - Feedback sparas med historik per jobbannons
 - Jobbannonser sorteras på senaste aktivitet, arkivering som opt-in
+- Betygsskala: 1–10 (overallScore + questionFeedback.score). Kalibreras i claude.js
+  (POÄNGSKALA 1–10). All display ska visa "/10" – aldrig "/5".
+  Färgtrösklar för betyg: ≥8 grön, ≥6 gul (FeedbackPage), <6 röd.
 - Förtroende-i-arkitektur: konsulten äger sin träning. Feedback är PRIVAT by
   default och delas med säljaren ENBART via konsultens opt-in (sharedWithSeller),
   återkalleligt när som helst. Driften loggas tekniskt (systemEvents) utan betyg.
@@ -65,6 +68,26 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
 - Konfigurationsskärm: tvåkolumns layout — vänster: inställningar, höger: live-preview av frågor
 - Konfiguration skickas som location.state: { numQuestions, focus, difficulty, selectedQuestions }
 - selectedQuestions är den förberäknade listan — simulatorn använder den direkt
+
+### Dashboard onboarding (Home.jsx, inloggad konsult)
+- Ren logik i lib/onboarding.js (enhetstestad): computeChecklist(), resolvePrimaryCta(),
+  resolveEmptyState(). Inga Firestore-anrop i hjälparna.
+- Primär CTA "🎙 Starta intervjuträning" (brand-purple) högst upp:
+  - 0 aktiva uppdrag → knappen visas inte (tomma-state-kortet tar över)
+  - exakt 1 uppdrag → navigerar direkt till /jobb/:jobId (Förberedelse-tabben)
+  - flera uppdrag → öppnar JobPickerModal (välj uppdrag att träna på)
+- Vägledande tomma states (resolveEmptyState):
+  - 'no-jobs': kort "Lägg till ditt första uppdrag…" + knapp → /jobb/ny
+  - 'no-training': kort "Du är redo – starta din första träning" + Starta-knapp, ovanför listan
+  - 'normal': primär CTA + uppdragslista. 'no-training' undertrycks tills feedback laddats
+    (loadingFeedbacks) för att undvika flimmer.
+- Onboarding-checklista ersätter gamla profileActivated-bannern: tre steg (CV uppladdat /
+  Uppdrag tillagt / Första träning) med avbockning. Visas medan profileActivated && !allDone;
+  döljs automatiskt när alla tre är klara, eller manuellt via ✕ (clearProfileActivated).
+- FileUpload success-state: ersätter uppladdningsformuläret med "✓ {antal} kompetenser
+  tillagda!" + nästa-steg-länk till /jobb/ny (ENDAST när !targetUid, dvs konsultens egen
+  upload — döljs för säljare). Diskret "Ladda upp ett till CV" återställer formuläret.
+- recharts är INTE installerat (övervägt för dashboard-grafik, ej infört).
 
 ## Intervjukonfiguration (standardvärden)
 - Antal frågor: 5 (alternativ: 3, 5, 8)
@@ -192,7 +215,8 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
   - Sparar jobb via arrayUnion till pendingProfiles/{email}.jobs (med genererat id-fält)
   - Navigerar till /konsulter/pending/:email efter save
 - AuthGate: vid första login, kopierar pendingProfiles/{email} → users/{uid}/competencies + jobs → raderar pending-doc → sätter profileActivated=true
-- Home.jsx Dashboard: visar grön banner om profileActivated=true (kan stängas)
+- Home.jsx Dashboard: visar onboarding-checklista om profileActivated=true (se Dashboard
+  onboarding ovan) – ersätter den tidigare gröna engångsbannern
 
 ### Firestore Security Rules (firestore.rules)
 - Roller: admin kan läsa/skriva alla users; säljare kan läsa users + jobb + kompetenser; owner kan allt i sitt eget träd
@@ -243,11 +267,13 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 
 ### Tester
 - Vitest enhetstester (test/unit/, körs utan emulator): `npm test`
-  - sharing.test.js + systemEvents.test.js (rena hjälpare). 18 tester.
+  - sharing.test.js + systemEvents.test.js + onboarding.test.js (rena hjälpare). 31 tester.
 - Firestore-regeltester (@firebase/rules-unit-testing mot emulatorn): `npm run test:rules`
   - test/rules/firestore.rules.test.js bevisar samtyckesgrindning + systemEvents-åtkomst.
   - Kräver Java/Firestore-emulatorn; körs via `firebase emulators:exec --only firestore`.
-- Manuell röktest-checklista (ljudkedjan går ej att automatisera): docs/SMOKE_TEST.md
+- Manuella röktest-checklistor (det som ej kan automatiseras):
+  - docs/SMOKE_TEST.md (delning/drift, ljudkedjan)
+  - docs/SMOKE_TEST_ONBOARDING.md (förstagångsupplevelse: utan data / uppdrag utan träning / genomförd träning)
 
 ## Konventioner
 - Svenska i hela UI

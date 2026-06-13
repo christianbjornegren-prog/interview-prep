@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 import { extractCompetencies, CATEGORY_ENUM } from '../lib/claude'
@@ -31,6 +32,8 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
   const [status, setStatus] = useState('idle') // idle | loading | success | error
   const [message, setMessage] = useState('')
   const [progressPct, setProgressPct] = useState(0)
+  const [addedCount, setAddedCount] = useState(0)
+  const [skippedCount, setSkippedCount] = useState(0)
 
   function onProgress(_msg, pct) {
     setProgressPct(pct)
@@ -111,15 +114,13 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
       }
 
       const skipped = competencies.length - toSave.length
-      let msg = `${toSave.length} kompetens${toSave.length === 1 ? '' : 'er'} extraherade och sparade.`
-      if (skipped > 0)
-        msg += ` ${skipped} dubblett${skipped === 1 ? '' : 'er'} hoppades över.`
 
-      // Show all-done state for 1 second before revealing success banner
+      // Show all-done state for 1 second before revealing success card
       onProgress('Klart!', 100)
       await new Promise((r) => setTimeout(r, 1000))
+      setAddedCount(toSave.length)
+      setSkippedCount(skipped)
       setStatus('success')
-      setMessage(msg)
       setSelectedFile(null)
       onSuccess?.()
     } catch (err) {
@@ -127,6 +128,15 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
       setStatus('error')
       setMessage(err.message ?? 'Något gick fel. Försök igen.')
     }
+  }
+
+  function resetForAnotherUpload() {
+    setStatus('idle')
+    setMessage('')
+    setSelectedFile(null)
+    setAddedCount(0)
+    setSkippedCount(0)
+    setProgressPct(0)
   }
 
   function onDrop(e) {
@@ -149,8 +159,8 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
         <StepIndicator steps={CV_STEPS} currentStep={percentToStep(progressPct)} />
       )}
 
-      {/* Drop zone – hidden while loading */}
-      {!isLoading && (
+      {/* Drop zone – hidden while loading and after a successful upload */}
+      {!isLoading && status !== 'success' && (
         <div
           onDragOver={(e) => {
             e.preventDefault()
@@ -214,18 +224,49 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
         </button>
       )}
 
-      {/* Success feedback */}
+      {/* Success state – replaces the upload form until user chooses to upload again */}
       {status === 'success' && (
         <div
-          className="flex items-start gap-3 rounded-lg px-4 py-3 text-sm"
-          style={{
-            backgroundColor: '#0d2b1a',
-            border: '1px solid #1a4d2e',
-            color: '#4ade80',
-          }}
+          className="rounded-xl p-5 space-y-3"
+          style={{ backgroundColor: '#0d2b1a', border: '1px solid #1a4d2e' }}
         >
-          <CheckIcon />
-          <span>{message}</span>
+          <div className="flex items-center gap-2">
+            <span style={{ color: '#4ade80' }}><CheckIcon /></span>
+            <p className="text-base font-semibold" style={{ color: '#4ade80' }}>
+              {addedCount} kompetens{addedCount === 1 ? '' : 'er'} tillagda!
+            </p>
+          </div>
+
+          {skippedCount > 0 && (
+            <p className="text-xs" style={{ color: '#6b9a7a' }}>
+              {skippedCount} dubblett{skippedCount === 1 ? '' : 'er'} hoppades över.
+            </p>
+          )}
+
+          {/* Nästa steg – endast för konsultens egen uppladdning (ej säljare) */}
+          {!targetUid && (
+            <Link
+              to="/jobb/ny"
+              className="inline-flex items-center gap-1 text-sm font-semibold transition-colors"
+              style={{ color: '#8064ad' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
+              onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
+            >
+              Nästa steg: lägg till ett uppdrag och starta din träning →
+            </Link>
+          )}
+
+          <div>
+            <button
+              onClick={resetForAnotherUpload}
+              className="text-xs transition-colors"
+              style={{ color: '#6b7280' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = '#9ca3af')}
+              onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+            >
+              Ladda upp ett till CV
+            </button>
+          </div>
         </div>
       )}
 
