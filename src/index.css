@@ -15,6 +15,9 @@
     --brand-blue: #6497d1;
     --brand-orange: #d18a54;
     --brand-pink: #c05d8a;
+    /* Semantiska textfärger – LJUSA så de syns på mörk bakgrund (aldrig mörka ramp-hex) */
+    --color-text-warning: #f59e0b;
+    --color-text-success: #4ade80;
   }
 
   html {
@@ -36,6 +39,17 @@
   * {
     box-sizing: border-box;
   }
+}
+
+/* Kort markering när man hoppar till en sektion via metric-korten (wayfinding) */
+@keyframes sectionFlash {
+  0%   { box-shadow: 0 0 0 0 rgba(128, 100, 173, 0.0); }
+  20%  { box-shadow: 0 0 0 2px rgba(128, 100, 173, 0.55); }
+  100% { box-shadow: 0 0 0 0 rgba(128, 100, 173, 0.0); }
+}
+.section-flash {
+  border-radius: 0.75rem;
+  animation: sectionFlash 1.2s ease-out;
 }
 
 @layer utilities {

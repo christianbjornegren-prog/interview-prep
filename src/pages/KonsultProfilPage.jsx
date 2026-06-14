@@ -15,6 +15,7 @@ import {
 } from '../lib/firebase'
 import FileUpload from '../components/FileUpload'
 import { recategorizeCompetencies } from '../lib/claude'
+import { coverageFromJob } from '../lib/gapAnalysis'
 
 // ── Category definitions (names must match CATEGORY_ENUM in claude.js) ────
 
@@ -552,10 +553,8 @@ function ReadOnlyCompetencyCard({ competency }) {
 // ── Job item ──────────────────────────────────────────────────────────────
 
 function JobItem({ job, onClick }) {
-  const covered = job.gapAnalysis?.covered ?? []
-  const gaps = job.gapAnalysis?.gaps ?? []
-  const total = covered.length + gaps.length
-  const scoreRatio = total > 0 ? covered.length / total : null
+  const { covered, total } = coverageFromJob(job)
+  const scoreRatio = total > 0 ? covered / total : null
   const matchColor = scoreRatio === null ? '#6b7280'
     : scoreRatio >= 0.7 ? '#22c55e'
     : scoreRatio >= 0.4 ? '#E9C46A'
@@ -581,7 +580,7 @@ function JobItem({ job, onClick }) {
             className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full"
             style={{ backgroundColor: matchColor + '20', color: matchColor, border: `1px solid ${matchColor}40` }}
           >
-            Matchning: {covered.length} av {total} krav
+            Matchning: {covered} av {total} krav
           </span>
         )}
       </button>

@@ -236,14 +236,20 @@ export async function recategorizeCompetencies(competencies) {
 // ── Job posting analysis ─────────────────────────────────────────────────
 
 const JOB_ANALYSIS_SYSTEM_PROMPT =
-  'Du är en senior karriärcoach och intervjuspecialist.\n' +
+  'Du är konsultens förberedelsepartner inför en intervju – INTE ett bedömningssystem.\n' +
+  'Inta ALLTID konsultens perspektiv: "jag är på din sida och hjälper dig gå in i rummet förberedd".\n' +
+  'Peka aldrig bara ut brister – ge strategi och förberedelse.\n' +
   'Analysera jobbannonsen och generera ett strukturerat underlag för intervjuförberedelse.\n' +
   'Returnera ENDAST giltig JSON utan markdown eller backticks.\n' +
   'Schema:\n' +
   '{\n' +
   '  "jobTitle": "string",\n' +
   '  "company": "string",\n' +
-  '  "summary": "string (2-3 meningar om rollen)",\n' +
+  '  "summary": "string (2-3 meningar som sammanfattar rollen, ur konsultens perspektiv)",\n' +
+  '  "quickFacts": { "kund": "string", "roll": "string", "miljö": "string (teknik/metod/kontext)", "fokus": "string (rollens huvudfokus i några ord)" },\n' +
+  '  "sections": [\n' +
+  '    { "heading": "string (kort tematisk rubrik)", "points": ["string (kort punkt)", "..."] }\n' +
+  '  ],\n' +
   '  "questions": [\n' +
   '    {\n' +
   '      "id": "string (kort unikt id, t.ex. q1, q2)",\n' +
@@ -252,17 +258,30 @@ const JOB_ANALYSIS_SYSTEM_PROMPT =
   '      "rationale": "string (varför denna fråga ställs i sammanhanget)"\n' +
   '    }\n' +
   '  ],\n' +
-  '  "gapAnalysis": {\n' +
-  '    "covered": [\n' +
-  '      { "requirement": "string (krav från annonsen)", "competencyName": "string (matchande kompetensnamn)", "strength": "hög|medel|låg" }\n' +
-  '    ],\n' +
-  '    "gaps": [\n' +
-  '      { "requirement": "string (ej täckt krav)", "suggestion": "string (hur kandidaten kan adressera gapet)" }\n' +
-  '    ]\n' +
-  '  }\n' +
+  '  "requirements": [\n' +
+  '    {\n' +
+  '      "requirement": "string (ett konkret krav/kompetens från annonsen)",\n' +
+  '      "importance": "hög|medel|låg (hur kritiskt kravet är enligt annonsen)",\n' +
+  '      "match": "stark|delvis|svag (konsultens matchning mot kompetensbanken – bedöm ÄRLIGT)",\n' +
+  '      "note": "string (kort: var/hur det syns i banken, eller varför det saknas)",\n' +
+  '      "howToAddress": "string (sätts för svag/delvis: strategiskt råd; tom \\"\\" för stark)"\n' +
+  '    }\n' +
+  '  ]\n' +
   '}\n' +
   'Generera 8-12 intervjufrågor fördelade mellan kategorierna erfarenhet, kompetens, situation och motivation.\n' +
-  'Vid gap-analys: en kompetens räknas som täckt om kompetensens namn (namn) ELLER någon av dess taggar (taggar) matchar jobbkravet. Sök alltid mot BÅDE namn och taggar.\n' +
+  'quickFacts: kondensera uppdraget till korta fakta. Lämna ett fält som "" om det inte framgår.\n' +
+  'sections: strukturera annonsens innehåll i 2-5 tematiska avsnitt (t.ex. Ansvar, Krav, Meriterande, Om uppdraget) med rubrik + kort punktlista. Hitta inte på innehåll som saknas i annonsen.\n' +
+  'requirements: lista annonsens FAKTISKA krav (ca 8-15 st). Ett objekt per krav.\n' +
+  'KALIBRERING (viktigast av allt – inflatera INTE matchningen):\n' +
+  '- match bedöms ärligt mot kompetensbanken. Sök mot BÅDE namn och taggar.\n' +
+  '  "stark"  = direkt, påvisbar erfarenhet av exakt detta krav.\n' +
+  '  "delvis" = angränsande eller partiell erfarenhet (närliggande teknik/roll).\n' +
+  '  "svag"   = lite eller ingen erfarenhet i banken.\n' +
+  '  Ett brett senior-CV gör INTE allt till "stark" – var diskriminerande och ärlig. ' +
+  'Tveka du mellan två nivåer, välj den lägre.\n' +
+  '- importance = hur kritiskt kravet är i annonsen (hög = uttalat skall-krav, låg = nice-to-have).\n' +
+  '- howToAddress: fyll i för krav med "svag" ELLER "delvis" matchning – konkret, strategiskt råd skrivet ' +
+  'som en erfaren kollega som hjälper konsulten att ärligt och professionellt hantera kravet i rummet. Lämna "" för "stark".\n' +
   NO_ID_INSTRUCTION
 
 /**
@@ -299,7 +318,7 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
 
   const requestBody = {
     model: MODEL,
-    max_tokens: 4000,
+    max_tokens: 6000,
     system: JOB_ANALYSIS_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   }

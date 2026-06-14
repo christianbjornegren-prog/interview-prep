@@ -11,6 +11,7 @@ import {
 import { useAuth, useUser, signInWithGoogle } from '../components/AuthGate'
 import { db, auth } from '../lib/firebase'
 import { computeChecklist, resolvePrimaryCta, resolveEmptyState } from '../lib/onboarding'
+import { coverageFromJob } from '../lib/gapAnalysis'
 
 export default function Home() {
   const user = useAuth()
@@ -526,10 +527,8 @@ function JobPickerModal({ jobs, onPick, onClose }) {
 // ── Job card ──────────────────────────────────────────────────────────────
 
 function JobCard({ job, feedback, onClick, dimmed }) {
-  const covered = job.gapAnalysis?.covered ?? []
-  const gaps = job.gapAnalysis?.gaps ?? []
-  const total = covered.length + gaps.length
-  const scoreRatio = total > 0 ? covered.length / total : null
+  const { covered, total } = coverageFromJob(job)
+  const scoreRatio = total > 0 ? covered / total : null
   const matchColor =
     scoreRatio === null
       ? '#6b7280'
@@ -582,7 +581,7 @@ function JobCard({ job, feedback, onClick, dimmed }) {
                 border: `1px solid ${matchColor}40`,
               }}
             >
-              Matchning: {covered.length} av {total} krav
+              Matchning: {covered} av {total} krav
             </span>
           </div>
         )}

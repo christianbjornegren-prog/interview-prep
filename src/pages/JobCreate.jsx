@@ -55,22 +55,15 @@ export default function JobCreate() {
 
       // ── Flow 2 audit ──────────────────────────────────────────────────────
       console.group('[Flow 2] analyzeJobPosting → Firestore audit')
-      ;['jobTitle', 'company', 'summary', 'questions', 'gapAnalysis'].forEach((f) => {
+      ;['jobTitle', 'company', 'summary', 'quickFacts', 'sections', 'questions', 'requirements'].forEach((f) => {
         const returned = f in result
         console.log(`  ${f}: returnerades av Claude ${returned ? '✓' : '✗'} / sparas i Firestore ${returned ? '✓' : '✗'}`)
       })
-      const covered = result.gapAnalysis?.covered ?? []
-      const gaps = result.gapAnalysis?.gaps ?? []
-      console.log(`  gapAnalysis.covered (${covered.length} st):`)
-      covered.slice(0, 3).forEach((item, i) => {
+      const requirements = Array.isArray(result.requirements) ? result.requirements : []
+      console.log(`  requirements (${requirements.length} st):`)
+      requirements.slice(0, 5).forEach((item, i) => {
         console.log(
-          `    [${i}] requirement ${item.requirement ? '✓' : '✗'} | competencyName ${item.competencyName ? '✓' : '✗'} ("${item.competencyName ?? '—'}") | strength ${item.strength ? '✓' : '✗'} ("${item.strength ?? '—'}")`
-        )
-      })
-      console.log(`  gapAnalysis.gaps (${gaps.length} st):`)
-      gaps.slice(0, 3).forEach((item, i) => {
-        console.log(
-          `    [${i}] requirement ${item.requirement ? '✓' : '✗'} | suggestion ${item.suggestion ? '✓' : '✗'}`
+          `    [${i}] requirement ${item.requirement ? '✓' : '✗'} | importance "${item.importance ?? '—'}" | match "${item.match ?? '—'}" | howToAddress ${item.howToAddress ? '✓' : '✗'}`
         )
       })
       console.log('  Extra fält (app-tillagda): id ✓ | rawJobText ✓ | companyInfo ✓ | competencySnapshot ✓ | createdAt ✓')
@@ -82,10 +75,12 @@ export default function JobCreate() {
         jobTitle: result.jobTitle ?? '',
         company: result.company ?? '',
         summary: result.summary ?? '',
+        quickFacts: result.quickFacts ?? null,
+        sections: result.sections ?? [],
         rawJobText: jobText.trim(),
         companyInfo: companyInfo.trim(),
         questions: result.questions ?? [],
-        gapAnalysis: result.gapAnalysis ?? { covered: [], gaps: [] },
+        requirements: result.requirements ?? [],
         competencySnapshot: competencies.length,
       }
 

@@ -8,6 +8,7 @@ import {
   arrayUnion,
 } from '../lib/firebase'
 import { extractCompetencies, recategorizeCompetencies, CATEGORY_ENUM } from '../lib/claude'
+import { coverageFromJob } from '../lib/gapAnalysis'
 import StepIndicator, { percentToStep } from '../components/StepIndicator'
 
 // ── Category definitions (names must match CATEGORY_ENUM in claude.js) ────
@@ -644,10 +645,8 @@ function CompetencyCard({ competency }) {
 // ── Job card ──────────────────────────────────────────────────────────────
 
 function PendingJobCard({ job, onClick }) {
-  const covered = job.gapAnalysis?.covered ?? []
-  const gaps = job.gapAnalysis?.gaps ?? []
-  const total = covered.length + gaps.length
-  const scoreRatio = total > 0 ? covered.length / total : null
+  const { covered, total } = coverageFromJob(job)
+  const scoreRatio = total > 0 ? covered / total : null
   const matchColor = scoreRatio === null ? '#6b7280'
     : scoreRatio >= 0.7 ? '#22c55e'
     : scoreRatio >= 0.4 ? '#E9C46A'
@@ -680,7 +679,7 @@ function PendingJobCard({ job, onClick }) {
                 border: `1px solid ${matchColor}40`,
               }}
             >
-              Matchning: {covered.length} av {total} krav
+              Matchning: {covered} av {total} krav
             </span>
           </div>
         )}

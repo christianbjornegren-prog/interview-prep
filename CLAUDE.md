@@ -4,6 +4,18 @@
 AI-driven intervjuträningsapp för konsulter. Träna inför specifika 
 uppdrag baserat på din egen kompetensbank.
 
+## Designprincip
+Coach not judge: appen är en förberedelsepartner, inte ett bedömningssystem.
+All copy ska inta konsultens perspektiv – fokus på strategi och förberedelse,
+aldrig på brister. Perspektivet är alltid "jag är på din sida och hjälper dig
+gå in i rummet förberedd".
+Namnkonventioner: "Förbered dig på" (ej "gap"), "Prioritera dessa" (ej "kritiska
+gap"), "Dina styrkor" (ej "täckta krav"), "träningsindikator" (ej "betyg").
+Färgspråk: EN ENDA uppmärksamhetsfärg – amber (var(--color-text-warning)) reserveras
+för "Prioritera dessa". "Förbered dig på" är NEUTRALT (inga varningstrianglar/röd/amber).
+Styrkor = grön (var(--color-text-success)), täckning = lila #8064ad. Färgade siffervärden
+i mörkt läge MÅSTE använda ljusa semantiska vars/#8064ad – aldrig mörka ramp-hex.
+
 ## Tech Stack
 - React + Vite, HashRouter, Tailwind CSS
 - Firebase (Firestore + Auth + Storage), Blaze-plan
@@ -20,6 +32,11 @@ uppdrag baserat på din egen kompetensbank.
 ## Datamodell
 users/{uid}/competencies/{docId}
 users/{uid}/jobs/{jobId}
+  → bl.a. jobTitle, company, summary, rawJobText, questions[],
+    requirements [{ requirement, importance:'hög'|'medel'|'låg', match:'stark'|'delvis'|'svag', note, howToAddress }],
+    quickFacts { kund, roll, miljö, fokus } och sections [{ heading, points[] }]
+    (äldre jobb har gapAnalysis {covered,gaps} ELLER {criticalGaps,...} istället för
+     requirements; resolveRequirements() mappar dem framåt → vyn kraschar aldrig)
 users/{uid}/jobs/{jobId}/feedback/{feedbackId}
   → inkluderar sharedWithSeller (boolean, default false) + sharedAt (timestamp|null)
     Saknat sharedWithSeller behandlas överallt som false.
@@ -63,9 +80,27 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
 - Filter-chips i kompetensbanken behålls och styr vilka kategorier som syns
 - JobPage har ENBART två tabbar: "Förberedelse" och "Historik" (Intervjufrågor-tabben är borttagen)
 - JobPage: om role == 'saljare' döljs Historik-tabben och Starta-knappen; Förberedelse visas alltid
-- JobPage: ingen sticky footer – enda "Starta"-knappen finns i headern ovanför tabbar
 - JobPage läser targetUid från location.state – används för Firestore-anrop (säljare tittar på konsults jobb)
-- Uppdragsbeskrivning i Förberedelse-tabben: 300 tecken preview (avbruten vid ordgräns) + "Läs mer →" / "Läs mindre ←"; expanderad vy visar rawJobText med `whitespace-pre-wrap` och `. ` ersatt av `.\n\n`
+- JobPage = executive briefing-layout (desktop-first). Bryter ut ur appens smala max-w-5xl till
+  ~1200px centrerat via `relative left-1/2 -translate-x-1/2 w-[min(1200px,100vw-2rem)]`
+  (gäller ENBART uppdragsvyn; Layout/övriga vyer orörda). Stackar till en kolumn under lg.
+- JobPage header: titel + kund till vänster, "🎙 Starta intervjuträning" (brand-purple) till höger
+  på samma rad. Flikar under headern.
+- Förberedelse-tab = FULLBREDD, ingen högerräls. Uppifrån och ned:
+  1. AI-summering (job.summary) + "🔄 Uppdatera analys" (höger)
+  2. Quick facts som rad av pills (Kund/Roll/Miljö/Fokus, från resolveQuickFacts)
+  3. Metric-rad (4 kort, deriveGapBuckets): Kravtäckning %, Att prioritera, Att förbereda, Dina styrkor.
+     Kravtäckning-kortet innehåller progressbaren OCH "X av Y krav starkt matchade" (ingen lös rad under).
+     Övriga kort har m-sub som förklarar talet. Korten är KLICKBARA wayfinding (role=button, tabindex,
+     Enter/Space, fokusring, ti-chevron-down) → smooth-scroll till sektionens id-ankare + .section-flash.
+  4. "Prioritera dessa" (amber) – 2-kolumnsgrid; per kort: krav, metarad (Krav/Din matchning), howToAddress
+     prominent. 0 prioritera → positivt tomtillstånd ("Stark matchning – inget kritiskt att prioritera").
+  5. "Förbered dig på" – NEUTRAL 2-kolumnslista med "Delvis"-märkning (inga varningstrianglar).
+  6. "Dina styrkor" – chip-moln fullbredd, ALLTID synligt.
+  7. "Hela uppdragsbeskrivningen" längst ned: job.sections strukturerat, annars parseJobDescription(rawText)
+     (prefix-strippad, BEVARAR radbrytningar, detekterar rubriker/punkter).
+  Wayfinding-färger (ikonbricka ljus bg + mörk ikon, samma ikon på rubriken): Kravtäckning lila ti-chart-pie,
+  Att prioritera amber ti-flag, Att förbereda neutral ti-list-check, Dina styrkor grön ti-star.
 - Back-knapp i JobPage: om targetUid → /konsulter/:uid, annars → /
 - Intervjuflödet: JobPage → konfigurationsskärm (ersätter tab-innehållet) → InterviewSimulatorTTS
 - Konfigurationsskärm: tvåkolumns layout — vänster: inställningar, höger: live-preview av frågor
@@ -111,9 +146,27 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
 - `sanitizeCompetencies()` — enda platsen kompetenser normaliseras → skickar { namn, beskrivning, taggar } — inga ID-fält
 - Används i: analyzeJobPosting, analyzeInterviewFeedback, saveSession
 - NO_ID_INSTRUCTION-konstanten läggs till i alla relevanta prompter
-- JobPage har "🔄 Uppdatera gap-analys"-knapp bredvid "Gap att adressera"-rubriken
-  → hämtar senaste kompetenser från Firestore, kör analyzeJobPosting, skriver bara gapAnalysis-fältet
-  → använder job.jobText (råtext) som indata, fallback till job.summary
+- `analyzeJobPosting()` returnerar (utöver jobTitle/company/questions): `summary`,
+  `quickFacts` { kund, roll, miljö, fokus }, `sections` [{ heading, points[] }], och kärnan:
+  `requirements` [{ requirement, importance:'hög'|'medel'|'låg', match:'stark'|'delvis'|'svag', note, howToAddress }].
+  - KALIBRERING (rotorsaksfix mot inflation): match bedöms ÄRLIGT. stark = direkt påvisbar erfarenhet,
+    delvis = angränsande/partiell, svag = lite/ingen. Brett senior-CV gör INTE allt 'stark'.
+    howToAddress sätts för svag/delvis, skrivet som en erfaren kollega. max_tokens = 6000.
+- lib/gapAnalysis.js (rena, enhetstestade):
+  - `deriveGapBuckets(requirements)` → { styrkor(stark), förbered(delvis | svag&låg),
+    prioritera(svag & hög|medel), coverage(=antal stark/antal krav), total }.
+    Reconciliation: styrkor + förbered + prioritera === requirements.length. Ogiltiga värden normaliseras.
+  - `resolveRequirements(job)` → requirements[] (job.requirements, annars härlett från gammal gapAnalysis:
+    covered→stark, prep→delvis, critical→svag/hög). `coverageFromJob(job)` → { covered=stark, total, ratio }.
+  - (kvar för bakåtkompat/tester) `normalizeGapAnalysis`, `computeCoverage`.
+- lib/jobDescription.js (rena, enhetstestade): `cleanJobDescription(raw)` strippar dubblerat
+  "Uppdragsbeskrivning:"-prefix + bevarar radbrytningar; `parseJobDescription(raw)` → block
+  [{heading|list|paragraph}] med BEVARADE radbrytningar (tom rad = nytt stycke, rubrik/punkt-detektion);
+  `resolveQuickFacts(job)` bygger pills (quickFacts, fallback company/jobTitle, filtrerar tomma).
+- Match-badgen "Matchning: X av Y krav" på uppdragskorten (Home/Konsult/Pending) använder coverageFromJob(job)
+  (X = starkt matchade krav) → funkar för både nya och äldre jobb.
+- "🔄 Uppdatera analys" i JobPage kör analyzeJobPosting och skriver requirements + summary + sections
+  + quickFacts (genererar nya fält för befintliga jobb). JobCreate sparar samma fält vid skapande.
 
 ## Kompetensbank – UI & hantering
 - CompetencyList.jsx: `categorize(comp)` läser `comp.category` (exakt namn) FÖRST, faller sedan tillbaka på tagg-matchning
@@ -270,13 +323,17 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 
 ### Tester
 - Vitest enhetstester (test/unit/, körs utan emulator): `npm test`
-  - sharing.test.js + systemEvents.test.js + onboarding.test.js (rena hjälpare). 31 tester.
+  - sharing.test.js + systemEvents.test.js + onboarding.test.js + gapAnalysis.test.js
+    + jobBriefing.test.js (deriveGapBuckets/resolveRequirements/coverageFromJob/parseJobDescription).
+    68 tester.
 - Firestore-regeltester (@firebase/rules-unit-testing mot emulatorn): `npm run test:rules`
   - test/rules/firestore.rules.test.js bevisar samtyckesgrindning + systemEvents-åtkomst.
   - Kräver Java/Firestore-emulatorn; körs via `firebase emulators:exec --only firestore`.
 - Manuella röktest-checklistor (det som ej kan automatiseras):
   - docs/SMOKE_TEST.md (delning/drift, ljudkedjan)
   - docs/SMOKE_TEST_ONBOARDING.md (förstagångsupplevelse: utan data / uppdrag utan träning / genomförd träning)
+  - docs/SMOKE_TEST_GAPANALYSIS.md (gap-analys: äldre jobb / nytt jobb med criticalGaps / utan gaps)
+  - docs/SMOKE_TEST_JOBPAGE.md (executive briefing: äldre jobb / nytt jobb efter "Uppdatera analys" / smal vs bred skärm)
 
 ## Konventioner
 - Svenska i hela UI

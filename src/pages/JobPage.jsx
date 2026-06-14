@@ -12,12 +12,8 @@ import {
 import { db, auth } from '../lib/firebase'
 import { useUser } from '../components/AuthGate'
 import { analyzeJobPosting, sanitizeCompetencies } from '../lib/claude'
-
-const STRENGTH_STYLE = {
-  hög:   { color: '#4ade80', label: 'Hög' },
-  medel: { color: '#e9c46a', label: 'Medel' },
-  låg:   { color: '#f87171', label: 'Låg' },
-}
+import { resolveRequirements, deriveGapBuckets } from '../lib/gapAnalysis'
+import { parseJobDescription, resolveQuickFacts } from '../lib/jobDescription'
 
 const TABS = [
   { key: 'preparation', label: 'Förberedelse' },
@@ -132,18 +128,6 @@ export default function JobPage() {
   }
 
   const questions = job.questions ?? []
-  const covered = job.gapAnalysis?.covered ?? []
-  const gaps = job.gapAnalysis?.gaps ?? []
-  const total = covered.length + gaps.length
-  const scoreRatio = total > 0 ? covered.length / total : null
-  const scoreColor =
-    scoreRatio === null
-      ? '#6b7280'
-      : scoreRatio >= 0.7
-      ? '#22c55e'
-      : scoreRatio >= 0.4
-      ? '#E9C46A'
-      : '#ef4444'
 
   function startInterview() {
     setShowConfig(true)
@@ -173,7 +157,10 @@ export default function JobPage() {
         sanitizeCompetencies(latestComps)
       )
       await updateDoc(doc(db, 'users', uid, 'jobs', jobId), {
-        gapAnalysis: result.gapAnalysis,
+        requirements: result.requirements ?? [],
+        summary: result.summary ?? job.summary ?? '',
+        sections: result.sections ?? [],
+        quickFacts: result.quickFacts ?? null,
       })
     } catch (err) {
       console.error('Kunde inte uppdatera gap-analys:', err)
@@ -190,7 +177,9 @@ export default function JobPage() {
     : targetUid ? '← Tillbaka till konsultprofil' : '← Tillbaka till alla uppdrag'
 
   return (
-    <div className="space-y-6">
+    // Desktop-first executive briefing: bryt ut ur appens smala max-w-5xl och
+    // bli bredare (~1200px), centrerad. Gäller ENBART uppdragsvyn.
+    <div className="relative left-1/2 -translate-x-1/2 w-[min(1200px,100vw-2rem)] space-y-6">
       {/* Back */}
       <button
         onClick={() => navigate(backPath)}
@@ -202,30 +191,16 @@ export default function JobPage() {
         {backLabel}
       </button>
 
-      {/* Header */}
-      <div className="space-y-4">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">
-              {job.jobTitle || 'Namnlös roll'}
-            </h1>
-            {job.company && (
-              <p className="text-sm mt-1" style={{ color: '#9ca3af' }}>
-                {job.company}
-              </p>
-            )}
-          </div>
-          {scoreRatio !== null && (
-            <span
-              className="text-sm font-semibold px-3 py-1.5 rounded-full"
-              style={{
-                backgroundColor: scoreColor + '20',
-                color: scoreColor,
-                border: `1px solid ${scoreColor}40`,
-              }}
-            >
-              {covered.length} av {total} krav täckta
-            </span>
+      {/* Header: titel + kund vänster, Starta höger */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">
+            {job.jobTitle || 'Namnlös roll'}
+          </h1>
+          {job.company && (
+            <p className="text-sm mt-1" style={{ color: '#9ca3af' }}>
+              {job.company}
+            </p>
           )}
         </div>
 
@@ -233,7 +208,7 @@ export default function JobPage() {
           <button
             onClick={startInterview}
             disabled={questions.length === 0}
-            className="flex items-center gap-2 px-5 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="shrink-0 flex items-center gap-2 px-5 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#8064ad' }}
             onMouseOver={(e) => {
               if (questions.length > 0) e.currentTarget.style.backgroundColor = '#9781be'
@@ -283,8 +258,6 @@ export default function JobPage() {
           {(isReadOnly || activeTab === 'preparation') && (
             <PrepTab
               job={job}
-              covered={covered}
-              gaps={gaps}
               onRefreshGap={pendingEmail ? null : handleRefreshGap}
               refreshingGap={refreshingGap}
             />
@@ -327,86 +300,74 @@ export default function JobPage() {
 
 // ── Tab: Förberedelse ─────────────────────────────────────────────────────
 
-const MAX_VISIBLE = 5
+// ── Wayfinding (ikon + färg per metric/sektion) ───────────────────────────
+// Ikonbrickor: ljus bakgrund + mörk ikon (läsbart). Stora siffervärden i vyn
+// använder LJUSA semantiska färger (CSS-vars / #8064ad) – aldrig dessa mörka hex.
 
-const STRENGTH_ORDER = { hög: 0, medel: 1, låg: 2 }
-
-// ── Job text parser ───────────────────────────────────────────────────────
-
-function parseJobText(text) {
-  const lines = text.split(/\n/).map((l) => l.trim()).filter(Boolean)
-  const blocks = []
-  let inListContext = false
-
-  for (const line of lines) {
-    const isHeading = !/[a-zåäö]/.test(line) && /[A-ZÅÄÖ]/.test(line) && line.length >= 4 && line.length < 70
-    const isSubheading = line.endsWith(':') && line.length < 120
-    const isBullet = /^[-•*–·▸▪]\s/.test(line)
-
-    if (isHeading) {
-      inListContext = false
-      blocks.push({ type: 'heading', text: line })
-    } else if (isSubheading) {
-      inListContext = true
-      blocks.push({ type: 'subheading', text: line })
-    } else if (isBullet) {
-      const cleanText = line.replace(/^[-•*–·▸▪]\s*/, '')
-      const last = blocks[blocks.length - 1]
-      if (last?.type === 'list') last.items.push(cleanText)
-      else blocks.push({ type: 'list', items: [cleanText] })
-      inListContext = false
-    } else if (inListContext && line.length < 120) {
-      const last = blocks[blocks.length - 1]
-      if (last?.type === 'list') last.items.push(line)
-      else blocks.push({ type: 'list', items: [line] })
-    } else {
-      inListContext = false
-      const last = blocks[blocks.length - 1]
-      if (last?.type === 'paragraph') last.text += ' ' + line
-      else blocks.push({ type: 'paragraph', text: line })
-    }
-  }
-
-  return blocks
+const WF = {
+  coverage:   { badgeBg: '#EEEDFE', iconColor: '#26215C', icon: (s) => <TiChartPie size={s} /> },
+  prioritera: { badgeBg: '#FAEEDA', iconColor: '#854F0B', icon: (s) => <TiFlag size={s} /> },
+  forbered:   { badgeBg: '#F1EFE8', iconColor: '#444441', icon: (s) => <TiListCheck size={s} /> },
+  styrkor:    { badgeBg: '#EAF3DE', iconColor: '#27500A', icon: (s) => <TiStar size={s} /> },
 }
 
-function JobTextBlocks({ blocks }) {
+function IconBadge({ bg, color, size = 32, children }) {
   return (
-    <div className="space-y-1">
-      {blocks.map((block, i) => {
-        if (block.type === 'heading') {
-          return (
-            <p
-              key={i}
-              className="text-xs font-semibold uppercase tracking-widest mt-4 mb-1"
-              style={{ color: '#8064ad' }}
-            >
-              {block.text}
-            </p>
-          )
+    <span
+      className="inline-flex items-center justify-center rounded-lg shrink-0"
+      style={{ width: size, height: size, backgroundColor: bg, color }}
+    >
+      {children}
+    </span>
+  )
+}
+
+function SectionHeading({ wf, title, count, titleColor }) {
+  return (
+    <div className="flex items-center gap-2.5 mb-3">
+      <IconBadge bg={wf.badgeBg} color={wf.iconColor} size={28}>{wf.icon(16)}</IconBadge>
+      <h3 className="text-sm font-semibold" style={{ color: titleColor }}>
+        {title}
+        {count != null && <span className="font-normal" style={{ color: '#6b7280' }}> · {count}</span>}
+      </h3>
+    </div>
+  )
+}
+
+// Smooth-scrolla till en sektion och blinka kort (wayfinding från metric-korten)
+function scrollToSection(id) {
+  if (typeof document === 'undefined') return
+  const el = document.getElementById(id)
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  el.classList.remove('section-flash')
+  void el.offsetWidth // restart animation
+  el.classList.add('section-flash')
+  window.setTimeout(() => el.classList.remove('section-flash'), 1300)
+}
+
+function DescriptionView({ blocks }) {
+  return (
+    <div className="space-y-2">
+      {blocks.map((b, i) => {
+        if (b.type === 'heading') {
+          return <p key={i} className="text-sm font-semibold text-white mt-4 mb-1">{b.text}</p>
         }
-        if (block.type === 'subheading') {
-          return (
-            <p key={i} className="text-sm font-semibold mt-3 mb-1 text-white">
-              {block.text}
-            </p>
-          )
-        }
-        if (block.type === 'list') {
+        if (b.type === 'list') {
           return (
             <ul key={i} className="space-y-0.5 my-1">
-              {block.items.map((item, j) => (
+              {b.items.map((it, j) => (
                 <li key={j} className="flex gap-2 text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
                   <span className="shrink-0 mt-0.5" style={{ color: '#8064ad' }}>•</span>
-                  {item}
+                  {it}
                 </li>
               ))}
             </ul>
           )
         }
         return (
-          <p key={i} className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
-            {block.text}
+          <p key={i} className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#d1d5db' }}>
+            {b.text}
           </p>
         )
       })}
@@ -414,90 +375,33 @@ function JobTextBlocks({ blocks }) {
   )
 }
 
-function PrepTab({ job, covered, gaps, onRefreshGap, refreshingGap }) {
-  const [summaryExpanded, setSummaryExpanded] = useState(false)
-  const [showAllCovered, setShowAllCovered] = useState(false)
-  const [showAllGaps, setShowAllGaps] = useState(false)
+function PrepTab({ job, onRefreshGap, refreshingGap }) {
+  const requirements = resolveRequirements(job)
+  const buckets = deriveGapBuckets(requirements)
+  const hasReqs = buckets.total > 0
+  const metrics = {
+    coveragePct: Math.round(buckets.coverage * 100),
+    strong: buckets.styrkor.length,
+    total: buckets.total,
+    prioritize: buckets.prioritera.length,
+    prepare: buckets.förbered.length,
+    strengths: buckets.styrkor.length,
+  }
 
-  useEffect(() => {
-    if (covered.length === 0) return
-    console.log('[CoveredRow debug] covered items:', covered.map((c) => ({
-      requirement: c.requirement,
-      competencyName: c.competencyName ?? '(saknas)',
-      strength: c.strength ?? '(saknas)',
-    })))
-  }, [covered])
-
-  const sortedCovered = useMemo(
-    () => [...covered].sort((a, b) => {
-      const aOrder = STRENGTH_ORDER[a.strength?.toLowerCase()] ?? 3
-      const bOrder = STRENGTH_ORDER[b.strength?.toLowerCase()] ?? 3
-      return aOrder - bOrder
-    }),
-    [covered]
-  )
-
-  const visibleCovered = showAllCovered ? sortedCovered : sortedCovered.slice(0, MAX_VISIBLE)
-  const visibleGaps = showAllGaps ? gaps : gaps.slice(0, MAX_VISIBLE)
-
+  const sections = Array.isArray(job.sections) ? job.sections : []
   const rawText = job.rawJobText || job.description || job.jobDescription || ''
-  const PREVIEW_CHARS = 300
-
-  const previewText = useMemo(() => {
-    if (rawText.length <= PREVIEW_CHARS) return rawText
-    const cut = rawText.indexOf(' ', PREVIEW_CHARS)
-    return cut === -1 ? rawText.slice(0, PREVIEW_CHARS) : rawText.slice(0, cut)
-  }, [rawText])
-
-  // Replace ". " with ".\n\n" so sentences become readable paragraphs when expanded
-  const fullText  = useMemo(() => rawText.replace(/\. /g, '.\n\n'), [rawText])
-  const descHasMore = rawText.length > PREVIEW_CHARS
+  const descBlocks = useMemo(() => parseJobDescription(rawText), [rawText])
+  const quickFacts = resolveQuickFacts(job)
+  const summary = (job.summary ?? '').trim()
+  const hasDescription = sections.length > 0 || descBlocks.length > 0
 
   return (
-    <div className="space-y-6">
-      {/* Job description */}
-      {rawText.length > 0 && (
-        <div>
-          <SectionLabel>Uppdragsbeskrivning</SectionLabel>
-          {summaryExpanded ? (
-            <>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: '#d1d5db' }}>
-                {fullText}
-              </p>
-              <button
-                onClick={() => setSummaryExpanded(false)}
-                className="text-xs mt-3 transition-colors"
-                style={{ color: '#8064ad' }}
-                onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
-                onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
-              >
-                Läs mindre ←
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
-                {previewText}{descHasMore ? '…' : ''}
-              </p>
-              {descHasMore && (
-                <button
-                  onClick={() => setSummaryExpanded(true)}
-                  className="text-xs mt-2 transition-colors"
-                  style={{ color: '#8064ad' }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
-                  onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
-                >
-                  Läs mer →
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Gap analysis header – always visible */}
-      <div className="flex items-center justify-between gap-3">
-        <SectionLabel noMargin>Gap-analys</SectionLabel>
+    <div className="space-y-8">
+      {/* b. AI-summering + refresh */}
+      <div className="flex items-start justify-between gap-6">
+        {summary
+          ? <p className="text-sm leading-relaxed max-w-3xl" style={{ color: '#d1d5db' }}>{summary}</p>
+          : <span />}
         {onRefreshGap && (
           <button
             onClick={onRefreshGap}
@@ -507,131 +411,266 @@ function PrepTab({ job, covered, gaps, onRefreshGap, refreshingGap }) {
             onMouseOver={(e) => !refreshingGap && (e.currentTarget.style.color = '#fff')}
             onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
           >
-            🔄 Uppdatera gap-analys
+            🔄 Uppdatera analys
           </button>
         )}
       </div>
 
       {refreshingGap && (
-        <p className="text-xs -mt-4" style={{ color: '#9ca3af' }}>
+        <p className="text-xs" style={{ color: '#9ca3af' }}>
           Analyserar mot din uppdaterade kompetensbank...
         </p>
       )}
 
-      {/* Covered requirements */}
-      {covered.length > 0 && (
-        <div>
-          <SectionLabel>Täckta krav</SectionLabel>
-          <ul className="space-y-2">
-            {visibleCovered.map((item, i) => (
-              <CoveredRow key={i} item={item} />
-            ))}
-          </ul>
-          {covered.length > MAX_VISIBLE && (
-            <button
-              onClick={() => setShowAllCovered((v) => !v)}
-              className="text-xs mt-2 transition-colors"
-              style={{ color: '#8064ad' }}
-              onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
-              onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
-            >
-              {showAllCovered ? 'Visa färre' : `Visa alla ${covered.length}`}
-            </button>
-          )}
-        </div>
-      )}
+      {/* c. quick facts som pills */}
+      {quickFacts.length > 0 && <QuickFactPills facts={quickFacts} />}
 
-      {/* Gaps */}
-      {gaps.length > 0 && (
-        <div>
-          <SectionLabel>Gap att adressera</SectionLabel>
-          <ul className="space-y-2">
-            {visibleGaps.map((item, i) => (
-              <GapRow key={i} item={item} />
-            ))}
-          </ul>
-          {gaps.length > MAX_VISIBLE && (
-            <button
-              onClick={() => setShowAllGaps((v) => !v)}
-              className="text-xs mt-2 transition-colors"
-              style={{ color: '#E9C46A' }}
-              onMouseOver={(e) => (e.currentTarget.style.color = '#f0d48a')}
-              onMouseOut={(e) => (e.currentTarget.style.color = '#E9C46A')}
-            >
-              {showAllGaps ? 'Visa färre' : `Visa alla ${gaps.length}`}
-            </button>
-          )}
-        </div>
-      )}
+      {hasReqs ? (
+        <>
+          {/* d. metric-rad */}
+          <MetricRow metrics={metrics} onJump={scrollToSection} />
 
-      {covered.length === 0 && gaps.length === 0 && !refreshingGap && (
-        <p className="text-sm -mt-4" style={{ color: '#6b7280' }}>
-          Ingen gap-analys tillgänglig än.
+          {/* e. prioritera, f. förbered, g. styrkor – allt fullbredd */}
+          <section id="sec-prioritera" className="scroll-mt-4">
+            <PrioritizeSection items={buckets.prioritera} />
+          </section>
+          <section id="sec-forbered" className="scroll-mt-4">
+            <PrepareSection items={buckets.förbered} />
+          </section>
+          <section id="sec-styrkor" className="scroll-mt-4">
+            <StrengthsSection items={buckets.styrkor} />
+          </section>
+        </>
+      ) : !refreshingGap ? (
+        <p className="text-sm" style={{ color: '#6b7280' }}>
+          Ingen analys tillgänglig än.
         </p>
+      ) : null}
+
+      {/* h. hela uppdragsbeskrivningen längst ned */}
+      {hasDescription && (
+        <section id="sec-beskrivning" className="scroll-mt-4 pt-6 border-t" style={{ borderColor: '#323232' }}>
+          <SectionLabel>Hela uppdragsbeskrivningen</SectionLabel>
+          {sections.length > 0 ? (
+            <StructuredSections sections={sections} />
+          ) : (
+            <DescriptionView blocks={descBlocks} />
+          )}
+        </section>
       )}
     </div>
   )
 }
 
-function CoveredRow({ item }) {
-  const [expanded, setExpanded] = useState(false)
-  const strength = STRENGTH_STYLE[item.strength?.toLowerCase()] ?? null
-  const name = item.competencyName?.trim() || null
+// ── d. Metric-rad (klickbara wayfinding-kort) ─────────────────────────────
 
+function MetricRow({ metrics, onJump }) {
+  const { coveragePct, strong, total, prioritize, prepare, strengths } = metrics
   return (
-    <li
-      className="rounded-lg p-3 cursor-pointer"
-      style={{ backgroundColor: '#0d2b1a', border: '1px solid #1a4d2e' }}
-      onClick={() => name ? setExpanded((v) => !v) : undefined}
-    >
-      <div className="flex items-start gap-3">
-        <CheckIcon />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-white">{item.requirement}</p>
-          {expanded && name && (
-            <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>→ {name}</p>
-          )}
+    <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <MetricCard
+        wf={WF.coverage} label="Kravtäckning" value={`${coveragePct}%`}
+        valueColor="#8064ad" sub={`${strong} av ${total} krav starkt matchade`}
+        onActivate={() => onJump('sec-beskrivning')}
+      >
+        <div className="mt-2 w-full rounded-full h-1.5" style={{ backgroundColor: '#404040' }}>
+          <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${coveragePct}%`, backgroundColor: '#8064ad' }} />
         </div>
-        {strength && (
-          <span
-            className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 self-center"
-            style={{
-              backgroundColor: strength.color + '20',
-              color: strength.color,
-              border: `1px solid ${strength.color}40`,
-            }}
-          >
-            {strength.label}
-          </span>
-        )}
-        {name && <ChevronIcon expanded={expanded} />}
-      </div>
-    </li>
+      </MetricCard>
+      <MetricCard
+        wf={WF.prioritera} label="Att prioritera" value={prioritize}
+        valueColor="var(--color-text-warning)" sub="svag matchning på viktiga krav"
+        onActivate={() => onJump('sec-prioritera')}
+      />
+      <MetricCard
+        wf={WF.forbered} label="Att förbereda" value={prepare}
+        valueColor="#fff" sub="delvis matchning"
+        onActivate={() => onJump('sec-forbered')}
+      />
+      <MetricCard
+        wf={WF.styrkor} label="Dina styrkor" value={strengths}
+        valueColor="var(--color-text-success)" sub="stark matchning"
+        onActivate={() => onJump('sec-styrkor')}
+      />
+    </div>
   )
 }
 
-function GapRow({ item }) {
-  const [expanded, setExpanded] = useState(false)
-
+function MetricCard({ wf, label, value, valueColor, sub, onActivate, children }) {
   return (
-    <li
-      className="rounded-lg p-3 cursor-pointer"
-      style={{ backgroundColor: '#2b1a0d', border: '1px solid #4d2e1a' }}
-      onClick={() => setExpanded((v) => !v)}
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`${label}: ${value}. Hoppa till sektionen.`}
+      onClick={onActivate}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivate() } }}
+      className="rounded-xl border p-4 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[#8064ad]"
+      style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+      onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
+      onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
     >
-      <div className="flex items-start gap-3">
-        <WarnIcon />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-white">{item.requirement}</p>
-          {expanded && item.suggestion && (
-            <p className="text-xs mt-1 leading-relaxed" style={{ color: '#f0a085' }}>
-              {item.suggestion}
-            </p>
+      <div className="flex items-start justify-between">
+        <IconBadge bg={wf.badgeBg} color={wf.iconColor} size={32}>{wf.icon(18)}</IconBadge>
+        <TiChevronDown size={16} color="#6b7280" />
+      </div>
+      <p className="text-xs font-medium mt-3" style={{ color: '#6b7280' }}>{label}</p>
+      <p className="text-3xl font-bold mt-0.5" style={{ color: valueColor }}>{value}</p>
+      {children}
+      {sub && <p className="text-xs mt-1.5" style={{ color: '#6b7280' }}>{sub}</p>}
+    </div>
+  )
+}
+
+// ── c. Quick facts pills ──────────────────────────────────────────────────
+
+function QuickFactPills({ facts }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {facts.map((f, i) => (
+        <span
+          key={i}
+          className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+          style={{ backgroundColor: '#1d1d1d', border: '1px solid #404040' }}
+        >
+          <span className="font-medium" style={{ color: '#6b7280' }}>{f.label}:</span>
+          <span style={{ color: '#d1d5db' }}>{f.value}</span>
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// ── e. Prioritera dessa ───────────────────────────────────────────────────
+
+function MetaPill({ label, value }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
+      style={{ backgroundColor: '#1d1d1d', border: '1px solid #404040' }}
+    >
+      <span style={{ color: '#6b7280' }}>{label}:</span>
+      <span className="font-medium" style={{ color: '#d1d5db' }}>{value}</span>
+    </span>
+  )
+}
+
+function PrioritizeSection({ items }) {
+  return (
+    <div>
+      <SectionHeading wf={WF.prioritera} title="Prioritera dessa" count={items.length} titleColor="var(--color-text-warning)" />
+      {items.length === 0 ? (
+        <div className="rounded-xl border p-4" style={{ backgroundColor: '#0d2b1a', borderColor: '#1a4d2e' }}>
+          <p className="text-sm" style={{ color: 'var(--color-text-success)' }}>
+            Stark matchning – inget kritiskt att prioritera inför det här uppdraget.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {items.map((r, i) => (
+            <div
+              key={i}
+              className="rounded-xl border p-4 space-y-3"
+              style={{ backgroundColor: '#211a0d', borderColor: '#7c5a1a' }}
+            >
+              <p className="text-base text-white" style={{ fontWeight: 500 }}>{r.requirement}</p>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <MetaPill label="Krav" value={r.importance} />
+                <MetaPill label="Din matchning" value={r.match} />
+              </div>
+              {r.howToAddress && (
+                <div className="rounded-lg p-3" style={{ backgroundColor: '#2b2414', border: '1px solid #4d3e1a' }}>
+                  <p className="text-xs font-semibold mb-1" style={{ color: '#f0c674' }}>Så här hanterar du det:</p>
+                  <p className="text-sm leading-relaxed" style={{ color: '#f0e3c8' }}>{r.howToAddress}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── f. Förbered dig på (neutral, ingen varningsfärg) ──────────────────────
+
+function PrepareSection({ items }) {
+  return (
+    <div>
+      <SectionHeading wf={WF.forbered} title="Förbered dig på" count={items.length} titleColor="#e5e5e5" />
+      {items.length === 0 ? (
+        <p className="text-sm" style={{ color: '#6b7280' }}>Inget extra att förbereda just nu.</p>
+      ) : (
+        <ul className="grid gap-2 md:grid-cols-2">
+          {items.map((r, i) => (
+            <li
+              key={i}
+              className="flex items-center gap-3 rounded-lg p-3"
+              style={{ backgroundColor: '#1d1d1d', border: '1px solid #404040' }}
+            >
+              <span className="text-sm text-white flex-1 min-w-0">{r.requirement}</span>
+              <span
+                className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
+                style={{ backgroundColor: '#2a2a2a', color: '#9ca3af', border: '1px solid #404040' }}
+              >
+                {r.match === 'delvis' ? 'Delvis' : 'Låg vikt'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+// ── g. Dina styrkor (chip-moln, alltid synligt) ───────────────────────────
+
+function StrengthsSection({ items }) {
+  return (
+    <div>
+      <SectionHeading wf={WF.styrkor} title="Dina styrkor" count={items.length} titleColor="var(--color-text-success)" />
+      {items.length === 0 ? (
+        <p className="text-sm" style={{ color: '#6b7280' }}>Inga starkt matchade krav ännu.</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {items.map((r, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
+              style={{ backgroundColor: '#0d2b1a', color: '#86efac', border: '1px solid #1a4d2e' }}
+            >
+              <TiCheck size={12} color="#4ade80" />
+              {r.requirement}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Structured description (from AI sections) ──────────────────────────────
+
+function StructuredSections({ sections }) {
+  return (
+    <div className="space-y-4">
+      {sections.map((sec, i) => (
+        <div key={i}>
+          {sec.heading && (
+            <p className="text-sm font-semibold text-white mb-1">{sec.heading}</p>
+          )}
+          {Array.isArray(sec.points) && sec.points.length > 0 && (
+            <ul className="space-y-0.5">
+              {sec.points.map((pt, j) => (
+                <li key={j} className="flex gap-2 text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+                  <span className="shrink-0 mt-0.5" style={{ color: '#8064ad' }}>•</span>
+                  {pt}
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-        {item.suggestion && <ChevronIcon expanded={expanded} />}
-      </div>
-    </li>
+      ))}
+    </div>
   )
 }
 
@@ -897,65 +936,71 @@ function SectionLabel({ children, noMargin }) {
   )
 }
 
-// ── Icons ─────────────────────────────────────────────────────────────────
+// ── Icons (Tabler-stil, stroke=currentColor så de ärver brickans färg) ─────
 
-function CheckIcon() {
+function Svg({ size = 16, color = 'currentColor', children }) {
   return (
     <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#4ade80"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="shrink-0 mt-0.5"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  )
-}
-
-function WarnIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#f0a085"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="shrink-0 mt-0.5"
-    >
-      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  )
-}
-
-function ChevronIcon({ expanded }) {
-  return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
       className="shrink-0"
-      style={{
-        transition: 'transform 0.2s',
-        transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-        color: '#6b7280',
-      }}
     >
-      <polyline points="6 9 12 15 18 9" />
+      {children}
     </svg>
+  )
+}
+
+function TiChartPie({ size, color }) {
+  return (
+    <Svg size={size} color={color}>
+      <path d="M10 3.2a9 9 0 1 0 10.8 10.8a1 1 0 0 0 -1 -1h-6.8a1 1 0 0 1 -1 -1v-7a.9 .9 0 0 0 -1 -.8" />
+      <path d="M15 3.5a9 9 0 0 1 5.5 5.5h-4.5a1 1 0 0 1 -1 -1z" />
+    </Svg>
+  )
+}
+
+function TiFlag({ size, color }) {
+  return (
+    <Svg size={size} color={color}>
+      <path d="M5 21V4" />
+      <path d="M5 4h12l-2.5 4 2.5 4H5" />
+    </Svg>
+  )
+}
+
+function TiListCheck({ size, color }) {
+  return (
+    <Svg size={size} color={color}>
+      <path d="M4 5.5l1.5 1.5l2.5 -2.5" />
+      <path d="M4 11.5l1.5 1.5l2.5 -2.5" />
+      <path d="M4 17.5l1.5 1.5l2.5 -2.5" />
+      <line x1="11" y1="6" x2="20" y2="6" />
+      <line x1="11" y1="12" x2="20" y2="12" />
+      <line x1="11" y1="18" x2="20" y2="18" />
+    </Svg>
+  )
+}
+
+function TiStar({ size, color }) {
+  return (
+    <Svg size={size} color={color}>
+      <path d="M12 4l2.4 4.9l5.4 .8l-3.9 3.8l.9 5.4l-4.8 -2.5l-4.8 2.5l.9 -5.4l-3.9 -3.8l5.4 -.8z" />
+    </Svg>
+  )
+}
+
+function TiChevronDown({ size, color }) {
+  return (
+    <Svg size={size} color={color}>
+      <path d="M6 9l6 6l6 -6" />
+    </Svg>
+  )
+}
+
+function TiCheck({ size, color }) {
+  return (
+    <Svg size={size} color={color}>
+      <path d="M5 12l5 5l9 -9" />
+    </Svg>
   )
 }
