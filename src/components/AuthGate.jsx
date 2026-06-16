@@ -13,13 +13,19 @@ import {
 
 // ── IAM config ────────────────────────────────────────────────────────────
 
-const ALLOWED_DOMAIN = 'boulder.se'
-const ADMIN_WHITELIST = ['christian.bjornegren@gmail.com']
+const ALLOWED_DOMAIN    = 'boulder.se'
+const ADMIN_WHITELIST   = ['christian.bjornegren@gmail.com']
 const SÄLJARE_WHITELIST = ['filip.almstrom@boulder.se', 'johanna@boulder.se']
 
+/** Canonical email form used everywhere – prevents case-mismatch bugs. */
+export function normalizeEmail(email) {
+  return (email ?? '').trim().toLowerCase()
+}
+
 function isAllowed(email) {
-  if (ADMIN_WHITELIST.includes(email)) return true
-  if (email.endsWith('@' + ALLOWED_DOMAIN)) return true
+  const e = normalizeEmail(email)
+  if (ADMIN_WHITELIST.map(normalizeEmail).includes(e)) return true
+  if (e.endsWith('@' + ALLOWED_DOMAIN)) return true
   return false
 }
 
@@ -78,33 +84,41 @@ export default function AuthGate({ children }) {
 
       // Fetch or create user profile; default to 'konsult' on any error
       try {
+        const email   = normalizeEmail(u.email)
         const userRef = doc(db, 'users', u.uid)
-        const snap = await getDoc(userRef)
+        const snap    = await getDoc(userRef)
         let userRole
+
         if (!snap.exists()) {
-          userRole = ADMIN_WHITELIST.includes(u.email) ? 'admin'
-                   : SÄLJARE_WHITELIST.includes(u.email) ? 'saljare'
+          userRole = ADMIN_WHITELIST.map(normalizeEmail).includes(email) ? 'admin'
+                   : SÄLJARE_WHITELIST.map(normalizeEmail).includes(email) ? 'saljare'
                    : 'konsult'
 
-          // Migrate any pending profile prepared by a säljare.
-          // Strategy: atomic batch write → only delete pending doc after commit →
-          // only create users/{uid} after migration succeeds, so a failed migration
-          // leaves snap.exists()=false and the next login retries cleanly.
+          // ALWAYS create users/{uid} first so the user can log in regardless of
+          // what happens during migration.
+          await setDoc(userRef, {
+            email,
+            name:      u.displayName ?? '',
+            role:      userRole,
+            createdAt: serverTimestamp(),
+          })
+
+          // Migrate pending profile as best-effort – failure is logged to
+          // systemEvents but does NOT block login.
           try {
-            const pendingRef = doc(db, 'pendingProfiles', u.email)
+            const pendingRef  = doc(db, 'pendingProfiles', email)
             const pendingSnap = await getDoc(pendingRef)
 
             if (pendingSnap.exists()) {
-              const pending = pendingSnap.data()
+              const pending      = pendingSnap.data()
               const competencies = pending.competencies ?? []
               const jobs         = pending.jobs         ?? []
 
               console.log(
-                `[Migration] Startar för ${u.email}: ` +
+                `[Migration] Startar för ${email}: ` +
                 `${competencies.length} kompetenser, ${jobs.length} uppdrag`
               )
 
-              // Build an atomic batch – either ALL documents are written or NONE.
               const batch = writeBatch(db)
               for (const { createdAt: _ct, ...comp } of competencies) {
                 batch.set(
@@ -122,25 +136,22 @@ export default function AuthGate({ children }) {
               await batch.commit()
               console.log('[Migration] Batch commit lyckades')
 
-              // Delete pending profile ONLY after batch is confirmed.
               await deleteDoc(pendingRef)
               setProfileActivated(true)
               console.log('[Migration] Klar – pending-profil raderad')
             }
-
-            // Create users/{uid} AFTER migration so a batch failure keeps
-            // snap.exists()=false and lets the next login retry.
-            await setDoc(userRef, {
-              email: u.email,
-              name: u.displayName,
-              role: userRole,
-              createdAt: serverTimestamp(),
-            })
-          } catch (err) {
-            console.error('[Migration] Misslyckades – pending-profil behålls för omförsök:', err)
-            console.error('[Migration] Detaljer – email:', u.email, 'uid:', u.uid)
-            // Don't create users/{uid} on failure → next login will retry migration.
-            // Role is set in memory below so the user can still use the app this session.
+          } catch (migErr) {
+            console.error('[Migration] Misslyckades:', migErr)
+            // Log to systemEvents so it surfaces in Driftöversikten
+            try {
+              await addDoc(collection(db, 'systemEvents'), {
+                step:      'pending_migration',
+                uid:       u.uid,
+                email,
+                error:     migErr.message ?? String(migErr),
+                createdAt: serverTimestamp(),
+              })
+            } catch (_) { /* ignore logging failure */ }
           }
         } else {
           userRole = snap.data().role ?? 'konsult'
