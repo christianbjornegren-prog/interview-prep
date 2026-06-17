@@ -107,6 +107,26 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
 - Konfiguration skickas som location.state: { numQuestions, focus, difficulty, selectedQuestions }
 - selectedQuestions är den förberäknade listan — simulatorn använder den direkt
 
+### Intervjuaffordans (InterviewSimulatorTTS)
+- Tillståndsstyrd copy bärs av BÅDE ring-färg OCH text (a11y):
+  - AI_SPEAKING: subLabel "{Namn} frågar...", ingen knapp
+  - WAITING_FOR_USER: subLabel "Din tur — tryck på knappen när du är redo", grön
+    puls-knapp "🎙 Tryck för att svara" (waitingPulse-animation), intro-hint visas
+  - RECORDING: knapp "⏹ M:SS — tryck när du är klar" (live-timer), röd
+  - PROCESSING: subLabel "Analyserar ditt svar...", pulsande text, ingen knapp
+- Inspelnings-timer: `recordingSeconds`-state + setInterval i useEffect, formateras
+  via `formatRecordingTime(s)` från lib/interviewPhase.js
+- Engångs-introhint (dismissbar): visas när `WAITING_FOR_USER && currentQuestionIndex === 0`
+  och `users/{uid}.hasSeenInterviewIntro !== true`. Vid dismiss: updateDoc → hasSeenInterviewIntro:true.
+  Ton: lugn, ingen press. Hämtas via getDoc på mount.
+- Ren logik i `src/lib/interviewPhase.js` (exporterad, enhetstestad):
+  - `PHASE_STATES` – kanoniska state-strängar (ersätter lokal STATES-konstant i simulatorn)
+  - `buttonStateForPhase(phase, { interviewerName })` → `{ label, subLabel, enabled, recording, showSpinner }`
+  - `shouldShowIntroHint(hasSeenInterviewIntro)` → boolean
+  - `formatRecordingTime(totalSeconds)` → "M:SS"
+- Testtäckning: `test/unit/interviewPhase.test.js` – 50 tester täcker alla 7 states,
+  fallback för okänt state, intro-hint-logik, timer-formatering
+
 ### Dashboard onboarding (Home.jsx, inloggad konsult)
 - Ren logik i lib/onboarding.js (enhetstestad): computeChecklist(), resolvePrimaryCta(),
   resolveEmptyState(). Inga Firestore-anrop i hjälparna.

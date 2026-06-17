@@ -7,10 +7,17 @@ import {
   getDoc,
   getDocs,
   serverTimestamp,
+  updateDoc,
 } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
 import { analyzeInterviewFeedback, sanitizeCompetencies } from '../lib/claude'
 import { logSystemEvent } from '../lib/systemEvents'
+import {
+  buttonStateForPhase,
+  shouldShowIntroHint,
+  formatRecordingTime,
+  PHASE_STATES as STATES,
+} from '../lib/interviewPhase'
 
 const VERCEL_WHISPER =
   'https://interview-prep-liard-three.vercel.app/api/whisper'
@@ -43,30 +50,7 @@ const DEFAULT_CONFIG = {
   selectedQuestions: null,
 }
 
-// ── State machine ─────────────────────────────────────────────────────────
-
-const STATES = {
-  CONNECTING:       'connecting',       // initial greeting only
-  AI_SPEAKING:      'ai_speaking',
-  WAITING_FOR_USER: 'waiting_for_user',
-  RECORDING:        'recording',
-  PROCESSING:       'processing',       // Whisper transcription
-  PREPARING_NEXT:   'preparing_next',   // TTS fetch for next question
-  FINISHED:         'finished',
-}
-
-function statusLabel(state, interviewerName) {
-  switch (state) {
-    case STATES.CONNECTING:       return 'Ansluter till intervjuaren...'
-    case STATES.AI_SPEAKING:      return `${interviewerName} frågar...`
-    case STATES.WAITING_FOR_USER: return 'Din tur'
-    case STATES.RECORDING:        return 'Spelar in... klicka när du är klar'
-    case STATES.PROCESSING:       return 'Transkriberar ditt svar...'
-    case STATES.PREPARING_NEXT:   return 'Förbereder nästa fråga...'
-    case STATES.FINISHED:         return 'Intervjun är klar – analyserar dina svar...'
-    default:                      return ''
-  }
-}
+// STATES is imported from ../lib/interviewPhase as PHASE_STATES
 
 // ── Component ─────────────────────────────────────────────────────────────
 
@@ -84,6 +68,8 @@ export default function InterviewSimulatorTTS() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [transcript, setTranscript] = useState([])
   const [errorMsg, setErrorMsg] = useState('')
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
+  const [showIntroHint, setShowIntroHint] = useState(false)
 
   const { voice: interviewerVoice, name: interviewerName } = useMemo(
     () => pickVoiceAndName(),
@@ -107,6 +93,28 @@ export default function InterviewSimulatorTTS() {
   useEffect(() => {
     currentQuestionIndexRef.current = currentQuestionIndex
   }, [currentQuestionIndex])
+
+  // Recording timer
+  useEffect(() => {
+    if (interviewState !== STATES.RECORDING) { setRecordingSeconds(0); return }
+    const id = setInterval(() => setRecordingSeconds((s) => s + 1), 1000)
+    return () => clearInterval(id)
+  }, [interviewState])
+
+  // Load intro-hint flag once on mount
+  useEffect(() => {
+    async function loadHintFlag() {
+      try {
+        const uid = auth.currentUser?.uid
+        if (!uid) return
+        const snap = await getDoc(doc(db, 'users', uid))
+        if (snap.exists() && shouldShowIntroHint(snap.data().hasSeenInterviewIntro)) {
+          setShowIntroHint(true)
+        }
+      } catch { /* non-critical */ }
+    }
+    loadHintFlag()
+  }, [])
 
   // Load job
   useEffect(() => {
@@ -157,6 +165,15 @@ export default function InterviewSimulatorTTS() {
 
   function addToTranscript(role, text) {
     setTranscript((prev) => [...prev, { role, text }])
+  }
+
+  async function dismissIntroHint() {
+    setShowIntroHint(false)
+    try {
+      const uid = auth.currentUser?.uid
+      if (!uid) return
+      await updateDoc(doc(db, 'users', uid), { hasSeenInterviewIntro: true })
+    } catch { /* non-critical */ }
   }
 
   // speakText: fetches TTS, signals AI_SPEAKING when audio starts, resolves when done
@@ -467,7 +484,7 @@ export default function InterviewSimulatorTTS() {
   }
 
   const activeQuestions = activeQuestionsRef.current
-  const totalQuestions = activeQuestions.length
+  const totalQuestions  = activeQuestions.length
   const currentQuestion = activeQuestions[currentQuestionIndex]
 
   const showQuestion =
@@ -477,11 +494,16 @@ export default function InterviewSimulatorTTS() {
       interviewState === STATES.PROCESSING) &&
     currentQuestion != null
 
-  const showButton =
-    interviewState === STATES.WAITING_FOR_USER ||
-    interviewState === STATES.RECORDING
-
   const showProgress = interviewState !== STATES.CONNECTING && totalQuestions > 0
+
+  const btnState = buttonStateForPhase(interviewState, { interviewerName })
+
+  // Build button label: append live timer when recording
+  const buttonLabel = btnState.recording
+    ? `⏹ ${formatRecordingTime(recordingSeconds)} — tryck när du är klar`
+    : btnState.label
+      ? `🎙 ${btnState.label}`
+      : ''
 
   return (
     <div className="space-y-10">
@@ -549,22 +571,48 @@ export default function InterviewSimulatorTTS() {
       {/* Status circle + label */}
       <div className="flex flex-col items-center gap-6">
         <StatusCircle state={interviewState} />
-        {interviewState === STATES.PROCESSING || interviewState === STATES.PREPARING_NEXT ? (
+        {btnState.showSpinner ? (
           <p
             className="text-lg font-semibold text-white text-center"
             style={{ animation: 'ttsTextPulse 1.4s ease-in-out infinite' }}
           >
-            {statusLabel(interviewState, interviewerName)}
+            {btnState.subLabel}
           </p>
         ) : (
           <p
             className="text-sm font-medium"
             style={{ color: interviewState === STATES.WAITING_FOR_USER ? '#22c55e' : '#9ca3af' }}
           >
-            {statusLabel(interviewState, interviewerName)}
+            {btnState.subLabel}
           </p>
         )}
       </div>
+
+      {/* One-time intro hint: shown before the first answer */}
+      {showIntroHint &&
+        interviewState === STATES.WAITING_FOR_USER &&
+        currentQuestionIndex === 0 && (
+        <div
+          className="flex items-start gap-3 rounded-xl border px-5 py-4"
+          style={{ backgroundColor: '#141414', borderColor: '#323232' }}
+        >
+          <p className="flex-1 text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+            <span className="font-semibold text-white">Så här fungerar det: </span>
+            lyssna på frågan, tryck sedan på knappen för att svara, och tryck
+            igen när du är klar. Ta den tid du behöver.
+          </p>
+          <button
+            onClick={dismissIntroHint}
+            aria-label="Stäng tips"
+            className="shrink-0 mt-0.5 text-xs transition-colors"
+            style={{ color: '#6b7280' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
+            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Current question */}
       {showQuestion && (
@@ -587,19 +635,23 @@ export default function InterviewSimulatorTTS() {
       {/* Finished screen */}
       {interviewState === STATES.FINISHED && <FinishedScreen />}
 
-      {/* Recording button */}
-      {showButton && (
-        <div className="flex flex-col items-center">
+      {/* Action button */}
+      {btnState.label && (
+        <div className="flex flex-col items-center gap-3">
           <button
             onClick={handleRecordingToggle}
-            className="px-8 py-4 rounded-full text-white text-base font-semibold transition-colors select-none"
+            disabled={!btnState.enabled}
+            aria-label={buttonLabel}
+            className="px-8 py-4 rounded-full text-white text-base font-semibold select-none transition-colors disabled:opacity-50"
             style={{
-              backgroundColor:
-                interviewState === STATES.RECORDING ? '#c0392b' : '#22c55e',
-              minWidth: '240px',
+              backgroundColor: btnState.recording ? '#c0392b' : '#22c55e',
+              minWidth: '260px',
+              animation: btnState.enabled && !btnState.recording
+                ? 'waitingPulse 2s ease-in-out infinite'
+                : 'none',
             }}
           >
-            {interviewState === STATES.RECORDING ? '⏹ Klar' : '🎙 Klicka för att svara'}
+            {buttonLabel}
           </button>
         </div>
       )}
@@ -765,6 +817,10 @@ function StatusCircle({ state }) {
         @keyframes ttsTextPulse {
           0%, 100% { opacity: 1; }
           50%      { opacity: 0.4; }
+        }
+        @keyframes waitingPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+          60%      { box-shadow: 0 0 0 14px rgba(34, 197, 94, 0); }
         }
       `}</style>
     </div>
