@@ -53,23 +53,6 @@ export default function JobCreate() {
 
       const result = await analyzeJobPosting(jobText, companyInfo, competencies, onProgress)
 
-      // ── Flow 2 audit ──────────────────────────────────────────────────────
-      console.group('[Flow 2] analyzeJobPosting → Firestore audit')
-      ;['jobTitle', 'company', 'summary', 'quickFacts', 'sections', 'questions', 'requirements'].forEach((f) => {
-        const returned = f in result
-        console.log(`  ${f}: returnerades av Claude ${returned ? '✓' : '✗'} / sparas i Firestore ${returned ? '✓' : '✗'}`)
-      })
-      const requirements = Array.isArray(result.requirements) ? result.requirements : []
-      console.log(`  requirements (${requirements.length} st):`)
-      requirements.slice(0, 5).forEach((item, i) => {
-        console.log(
-          `    [${i}] requirement ${item.requirement ? '✓' : '✗'} | importance "${item.importance ?? '—'}" | match "${item.match ?? '—'}" | howToAddress ${item.howToAddress ? '✓' : '✗'}`
-        )
-      })
-      console.log('  Extra fält (app-tillagda): id ✓ | rawJobText ✓ | companyInfo ✓ | competencySnapshot ✓ | createdAt ✓')
-      console.groupEnd()
-      // ─────────────────────────────────────────────────────────────────────
-
       const jobData = {
         id: `job_${Date.now()}`,
         jobTitle: result.jobTitle ?? '',
