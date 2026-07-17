@@ -82,6 +82,7 @@ export default function KonsultProfilPage() {
   const [competencies, setCompetencies] = useState([])
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [activeTab, setActiveTab] = useState('kompetensbank')
   const [openCats, setOpenCats] = useState(new Set())
   const [showAddModal, setShowAddModal] = useState(false)
@@ -143,18 +144,27 @@ export default function KonsultProfilPage() {
   }
 
   useEffect(() => {
+    let cancelled = false
     async function load() {
-      const [userSnap, compSnap, jobsSnap] = await Promise.all([
-        getDoc(doc(db, 'users', uid)),
-        getDocs(collection(db, 'users', uid, 'competencies')),
-        getDocs(collection(db, 'users', uid, 'jobs')),
-      ])
-      if (userSnap.exists()) setKonsult({ uid, ...userSnap.data() })
-      setCompetencies(compSnap.docs.map((d) => ({ docId: d.id, ...d.data() })))
-      setJobs(jobsSnap.docs.map((d) => ({ docId: d.id, ...d.data() })))
-      setLoading(false)
+      try {
+        const [userSnap, compSnap, jobsSnap] = await Promise.all([
+          getDoc(doc(db, 'users', uid)),
+          getDocs(collection(db, 'users', uid, 'competencies')),
+          getDocs(collection(db, 'users', uid, 'jobs')),
+        ])
+        if (cancelled) return
+        if (userSnap.exists()) setKonsult({ uid, ...userSnap.data() })
+        setCompetencies(compSnap.docs.map((d) => ({ docId: d.id, ...d.data() })))
+        setJobs(jobsSnap.docs.map((d) => ({ docId: d.id, ...d.data() })))
+      } catch (err) {
+        console.error('Kunde inte ladda konsultprofilen:', err)
+        if (!cancelled) setLoadError(err.message ?? 'Kunde inte ladda profilen.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
     load()
+    return () => { cancelled = true }
   }, [uid])
 
   // Load the sessions the konsult has chosen to share. Each per-job query
@@ -210,6 +220,10 @@ export default function KonsultProfilPage() {
 
   if (loading) {
     return <p className="text-sm py-8" style={{ color: '#6b7280' }}>Laddar profil...</p>
+  }
+
+  if (loadError) {
+    return <p className="text-sm py-8" style={{ color: '#f87171' }}>Kunde inte ladda profilen: {loadError}</p>
   }
 
   if (!konsult) {

@@ -13,13 +13,17 @@ const CV_STEPS = [
 ]
 
 const ACCEPTED_TYPES = '.pdf,.docx'
+const MAX_FILE_MB = 20
 
 function getFileType(file) {
-  if (file.type === 'application/pdf') return 'pdf'
+  const name = (file.name ?? '').toLowerCase()
+  // Some browsers report an empty/incorrect MIME for drag-dropped files, so
+  // fall back to the filename extension for BOTH formats.
+  if (file.type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf'
   if (
     file.type ===
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    file.name.endsWith('.docx')
+    name.endsWith('.docx')
   )
     return 'docx'
   return null
@@ -44,6 +48,12 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
     if (!getFileType(file)) {
       setStatus('error')
       setMessage('Otillåtet filformat. Ladda upp en PDF- eller DOCX-fil.')
+      setSelectedFile(null)
+      return
+    }
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      setStatus('error')
+      setMessage(`Filen är för stor (max ${MAX_FILE_MB} MB). Komprimera eller dela upp den.`)
       setSelectedFile(null)
       return
     }

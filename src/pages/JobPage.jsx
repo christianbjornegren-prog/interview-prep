@@ -47,6 +47,7 @@ export default function JobPage() {
   const [activeTab, setActiveTab] = useState('preparation')
   const [archiving, setArchiving] = useState(false)
   const [refreshingGap, setRefreshingGap] = useState(false)
+  const [refreshError, setRefreshError] = useState('')
   const [showConfig, setShowConfig] = useState(false)
   const [config, setConfig] = useState({ numQuestions: 5, focus: 'Mix', difficulty: 'Standard' })
 
@@ -148,6 +149,7 @@ export default function JobPage() {
   async function handleRefreshGap() {
     if (!job || refreshingGap) return
     setRefreshingGap(true)
+    setRefreshError('')
     try {
       const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
       const latestComps = compSnap.docs.map((d) => d.data())
@@ -164,6 +166,7 @@ export default function JobPage() {
       })
     } catch (err) {
       console.error('Kunde inte uppdatera gap-analys:', err)
+      setRefreshError(err.message ?? 'Kunde inte uppdatera analysen. Försök igen.')
     } finally {
       setRefreshingGap(false)
     }
@@ -258,8 +261,12 @@ export default function JobPage() {
           {(isReadOnly || activeTab === 'preparation') && (
             <PrepTab
               job={job}
-              onRefreshGap={pendingEmail ? null : handleRefreshGap}
+              // "Uppdatera analys" writes the job doc, which a säljare/pending
+              // viewer can't do (rules deny) and shouldn't trigger a Claude call
+              // on someone else's data. Gate on the full read-only flag.
+              onRefreshGap={isReadOnly ? null : handleRefreshGap}
               refreshingGap={refreshingGap}
+              refreshError={refreshError}
             />
           )}
           {!isReadOnly && activeTab === 'history' && (
@@ -375,7 +382,7 @@ function DescriptionView({ blocks }) {
   )
 }
 
-function PrepTab({ job, onRefreshGap, refreshingGap }) {
+function PrepTab({ job, onRefreshGap, refreshingGap, refreshError }) {
   const requirements = resolveRequirements(job)
   const buckets = deriveGapBuckets(requirements)
   const hasReqs = buckets.total > 0
@@ -415,6 +422,12 @@ function PrepTab({ job, onRefreshGap, refreshingGap }) {
           </button>
         )}
       </div>
+
+      {refreshError && !refreshingGap && (
+        <p className="text-xs" style={{ color: '#f87171' }}>
+          {refreshError}
+        </p>
+      )}
 
       {refreshingGap && (
         <p className="text-xs" style={{ color: '#9ca3af' }}>

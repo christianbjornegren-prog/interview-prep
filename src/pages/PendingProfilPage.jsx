@@ -75,6 +75,7 @@ export default function PendingProfilPage() {
 
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [activeTab, setActiveTab] = useState('kompetensbank')
   const [openCats, setOpenCats] = useState(new Set())
   const [showAddModal, setShowAddModal] = useState(false)
@@ -85,9 +86,16 @@ export default function PendingProfilPage() {
   const [recategorizeMsg, setRecategorizeMsg] = useState('')
 
   async function loadProfile() {
-    const snap = await getDoc(doc(db, 'pendingProfiles', email))
-    if (snap.exists()) setProfile({ email, ...snap.data() })
-    setLoading(false)
+    setLoadError('')
+    try {
+      const snap = await getDoc(doc(db, 'pendingProfiles', email))
+      if (snap.exists()) setProfile({ email, ...snap.data() })
+    } catch (err) {
+      console.error('Kunde inte ladda profilen:', err)
+      setLoadError(err.message ?? 'Kunde inte ladda profilen.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleRecategorize() {
@@ -142,6 +150,9 @@ export default function PendingProfilPage() {
 
   if (loading) {
     return <p className="text-sm py-8" style={{ color: '#6b7280' }}>Laddar profil...</p>
+  }
+  if (loadError) {
+    return <p className="text-sm py-8" style={{ color: '#f87171' }}>Kunde inte ladda profilen: {loadError}</p>
   }
   if (!profile) {
     return <p className="text-sm py-8" style={{ color: '#f87171' }}>Profilen hittades inte.</p>
@@ -348,7 +359,9 @@ export default function PendingProfilPage() {
                   key={job.id ?? i}
                   job={job}
                   onClick={() =>
-                    navigate(`/jobb/${job.id}`, { state: { pendingEmail: email } })
+                    job.id
+                      ? navigate(`/jobb/${job.id}`, { state: { pendingEmail: email } })
+                      : undefined
                   }
                 />
               ))}

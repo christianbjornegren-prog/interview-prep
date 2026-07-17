@@ -12,6 +12,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [confirmation, setConfirmation] = useState(null) // { name, role }
+  const [actionError, setActionError] = useState('')
 
   useEffect(() => {
     getDocs(collection(db, 'users')).then((snap) => {
@@ -26,10 +27,17 @@ export default function AdminPage() {
     const userDoc = users.find((u) => u.uid === uid)
     if (!userDoc || userDoc.role === newRole) return
 
-    await updateDoc(doc(db, 'users', uid), {
-      role: newRole,
-      updatedAt: serverTimestamp(),
-    })
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        role: newRole,
+        updatedAt: serverTimestamp(),
+      })
+    } catch (err) {
+      console.error('Kunde inte ändra roll:', err)
+      setActionError('Kunde inte ändra rollen. Försök igen.')
+      setTimeout(() => setActionError(''), 4000)
+      return
+    }
 
     setUsers((prev) =>
       prev.map((u) => (u.uid === uid ? { ...u, role: newRole } : u))
@@ -68,6 +76,16 @@ export default function AdminPage() {
             <polyline points="20 6 9 17 4 12" />
           </svg>
           {confirmation.name} är nu {confirmation.role} ✓
+        </div>
+      )}
+
+      {/* Error toast */}
+      {actionError && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ backgroundColor: '#2b0d0d', borderColor: '#4d1a1a', color: '#f87171' }}
+        >
+          {actionError}
         </div>
       )}
 

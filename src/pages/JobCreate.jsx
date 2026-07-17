@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { db, auth, collection, addDoc, getDocs, serverTimestamp, doc, getDoc, updateDoc, arrayUnion } from '../lib/firebase'
+import { db, auth, collection, addDoc, getDocs, serverTimestamp, Timestamp, doc, getDoc, updateDoc, arrayUnion } from '../lib/firebase'
 import { analyzeJobPosting } from '../lib/claude'
 import StepIndicator, { percentToStep } from '../components/StepIndicator'
 
@@ -86,8 +86,11 @@ export default function JobCreate() {
 
       let navigateTo
       if (pendingEmail) {
+        // serverTimestamp() is a sentinel that can't live inside an array, so
+        // stamp pending jobs with a concrete Timestamp for consistent sorting.
+        // (Migration to users/{uid}/jobs re-stamps createdAt server-side.)
         await updateDoc(doc(db, 'pendingProfiles', pendingEmail), {
-          jobs: arrayUnion(jobData),
+          jobs: arrayUnion({ ...jobData, createdAt: Timestamp.now() }),
         })
         navigateTo = `/konsulter/pending/${encodeURIComponent(pendingEmail)}`
       } else {

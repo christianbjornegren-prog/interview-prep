@@ -136,10 +136,17 @@ function Dashboard({ user }) {
   useEffect(() => {
     const uid = auth.currentUser.uid
     const q = query(collection(db, 'users', uid, 'jobs'), orderBy('createdAt', 'desc'))
-    const unsub = onSnapshot(q, (snap) => {
-      setJobs(snap.docs.map((d) => ({ docId: d.id, ...d.data() })))
-      setLoadingJobs(false)
-    })
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setJobs(snap.docs.map((d) => ({ docId: d.id, ...d.data() })))
+        setLoadingJobs(false)
+      },
+      (err) => {
+        console.error('Kunde inte lyssna på uppdrag:', err)
+        setLoadingJobs(false)
+      }
+    )
     return unsub
   }, [])
 
@@ -199,12 +206,16 @@ function Dashboard({ user }) {
   })
 
   // ── Onboarding-härledningar ─────────────────────────────────────────────
+  // Checklist: har konsulten NÅGONSIN tränat (alla jobb, inkl. arkiverade)?
   const feedbackCount = Object.keys(jobFeedbacks).length
+  // Tomtillstånd: gäller AKTIVA jobb – arkiverade jobbs feedback ska inte
+  // dölja "redo att träna"-kortet för ett nytt otränat aktivt uppdrag.
+  const activeFeedbackCount = activeJobs.filter((j) => jobFeedbacks[j.docId]).length
   const checklist = computeChecklist({ profileActivated, jobCount: jobs.length, feedbackCount })
   const showChecklist = profileActivated && !checklist.allDone
 
   const primaryCta = resolvePrimaryCta(sortedActive)
-  const emptyStateRaw = resolveEmptyState({ jobCount: activeJobs.length, feedbackCount })
+  const emptyStateRaw = resolveEmptyState({ jobCount: activeJobs.length, feedbackCount: activeFeedbackCount })
   // Undvik att 'no-training'-kortet blinkar förbi innan feedback hunnit laddas.
   const emptyState =
     emptyStateRaw === 'no-training' && loadingFeedbacks ? 'normal' : emptyStateRaw
@@ -538,11 +549,16 @@ function JobCard({ job, feedback, onClick, dimmed }) {
       ? '#E9C46A'
       : '#ef4444'
 
+  // feedback.date can be undefined while a serverTimestamp is still resolving
+  // → guard against "Invalid Date" / "Betyg undefined/10".
+  const trainingDate =
+    feedback?.date instanceof Date && !isNaN(feedback.date) ? feedback.date : null
   const lastTraining = feedback
-    ? `Senaste träning: ${new Date(feedback.date).toLocaleDateString('sv-SE', {
-        month: 'short',
-        day: 'numeric',
-      })} · Betyg ${feedback.score}/10`
+    ? 'Senaste träning' +
+      (trainingDate
+        ? `: ${trainingDate.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })}`
+        : ' genomförd') +
+      (feedback.score != null ? ` · Betyg ${feedback.score}/10` : '')
     : null
 
   return (

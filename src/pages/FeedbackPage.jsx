@@ -113,7 +113,7 @@ export default function FeedbackPage() {
       ? '#E9C46A'
       : '#ef4444'
 
-  const formattedDate = feedback.createdAt
+  const formattedDate = feedback.createdAt?.toDate
     ? new Date(feedback.createdAt.toDate()).toLocaleDateString('sv-SE', {
         year: 'numeric',
         month: 'long',
