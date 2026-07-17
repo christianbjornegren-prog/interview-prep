@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { db, auth, collection, addDoc, getDocs, serverTimestamp, doc, getDoc, updateDoc, arrayUnion } from '../lib/firebase'
+import { db, auth, collection, addDoc, getDocs, serverTimestamp, Timestamp, doc, getDoc, updateDoc, arrayUnion } from '../lib/firebase'
 import { analyzeJobPosting } from '../lib/claude'
 import StepIndicator, { percentToStep } from '../components/StepIndicator'
 
@@ -53,23 +53,6 @@ export default function JobCreate() {
 
       const result = await analyzeJobPosting(jobText, companyInfo, competencies, onProgress)
 
-      // ── Flow 2 audit ──────────────────────────────────────────────────────
-      console.group('[Flow 2] analyzeJobPosting → Firestore audit')
-      ;['jobTitle', 'company', 'summary', 'quickFacts', 'sections', 'questions', 'requirements'].forEach((f) => {
-        const returned = f in result
-        console.log(`  ${f}: returnerades av Claude ${returned ? '✓' : '✗'} / sparas i Firestore ${returned ? '✓' : '✗'}`)
-      })
-      const requirements = Array.isArray(result.requirements) ? result.requirements : []
-      console.log(`  requirements (${requirements.length} st):`)
-      requirements.slice(0, 5).forEach((item, i) => {
-        console.log(
-          `    [${i}] requirement ${item.requirement ? '✓' : '✗'} | importance "${item.importance ?? '—'}" | match "${item.match ?? '—'}" | howToAddress ${item.howToAddress ? '✓' : '✗'}`
-        )
-      })
-      console.log('  Extra fält (app-tillagda): id ✓ | rawJobText ✓ | companyInfo ✓ | competencySnapshot ✓ | createdAt ✓')
-      console.groupEnd()
-      // ─────────────────────────────────────────────────────────────────────
-
       const jobData = {
         id: `job_${Date.now()}`,
         jobTitle: result.jobTitle ?? '',
@@ -86,8 +69,11 @@ export default function JobCreate() {
 
       let navigateTo
       if (pendingEmail) {
+        // serverTimestamp() is a sentinel that can't live inside an array, so
+        // stamp pending jobs with a concrete Timestamp for consistent sorting.
+        // (Migration to users/{uid}/jobs re-stamps createdAt server-side.)
         await updateDoc(doc(db, 'pendingProfiles', pendingEmail), {
-          jobs: arrayUnion(jobData),
+          jobs: arrayUnion({ ...jobData, createdAt: Timestamp.now() }),
         })
         navigateTo = `/konsulter/pending/${encodeURIComponent(pendingEmail)}`
       } else {

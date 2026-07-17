@@ -16,28 +16,41 @@ export default function SäljarePage() {
   const [konsulter, setKonsulter] = useState([])
   const [pending, setPending] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [showModal, setShowModal] = useState(false)
 
   async function load() {
-    const [usersSnap, pendingSnap] = await Promise.all([
-      getDocs(query(collection(db, 'users'), where('role', '==', 'konsult'))),
-      getDocs(collection(db, 'pendingProfiles')),
-    ])
+    setLoadError('')
+    try {
+      const [usersSnap, pendingSnap] = await Promise.all([
+        getDocs(query(collection(db, 'users'), where('role', '==', 'konsult'))),
+        getDocs(collection(db, 'pendingProfiles')),
+      ])
 
-    const withCounts = await Promise.all(
-      usersSnap.docs.map(async (d) => {
-        const u = { uid: d.id, ...d.data() }
-        const [compSnap, jobsSnap] = await Promise.all([
-          getDocs(collection(db, 'users', u.uid, 'competencies')),
-          getDocs(collection(db, 'users', u.uid, 'jobs')),
-        ])
-        return { ...u, competencyCount: compSnap.size, jobCount: jobsSnap.size }
-      })
-    )
+      const withCounts = await Promise.all(
+        usersSnap.docs.map(async (d) => {
+          const u = { uid: d.id, ...d.data() }
+          // One consultant's counts failing must not sink the whole list.
+          try {
+            const [compSnap, jobsSnap] = await Promise.all([
+              getDocs(collection(db, 'users', u.uid, 'competencies')),
+              getDocs(collection(db, 'users', u.uid, 'jobs')),
+            ])
+            return { ...u, competencyCount: compSnap.size, jobCount: jobsSnap.size }
+          } catch {
+            return { ...u, competencyCount: null, jobCount: null }
+          }
+        })
+      )
 
-    setKonsulter(withCounts)
-    setPending(pendingSnap.docs.map((d) => ({ email: d.id, ...d.data() })))
-    setLoading(false)
+      setKonsulter(withCounts)
+      setPending(pendingSnap.docs.map((d) => ({ email: d.id, ...d.data() })))
+    } catch (err) {
+      console.error('Kunde inte ladda konsulter:', err)
+      setLoadError(err.message ?? 'Kunde inte ladda konsulter.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [])
@@ -59,6 +72,8 @@ export default function SäljarePage() {
 
       {loading ? (
         <p className="text-sm py-8" style={{ color: '#6b7280' }}>Laddar konsulter...</p>
+      ) : loadError ? (
+        <p className="text-sm py-8" style={{ color: '#f87171' }}>Kunde inte ladda konsulter: {loadError}</p>
       ) : (
         <>
           {/* Active consultants */}
@@ -172,7 +187,7 @@ function KonsultCard({ name, email, competencyCount, jobCount, pending, onClick 
 function Stat({ label, value }) {
   return (
     <div>
-      <p className="text-xl font-bold text-white">{value}</p>
+      <p className="text-xl font-bold text-white">{value == null ? '–' : value}</p>
       <p className="text-xs" style={{ color: '#6b7280' }}>{label}</p>
     </div>
   )

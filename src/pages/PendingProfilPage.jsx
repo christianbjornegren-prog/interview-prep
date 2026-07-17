@@ -7,7 +7,7 @@ import {
   updateDoc,
   arrayUnion,
 } from '../lib/firebase'
-import { extractCompetencies, recategorizeCompetencies, CATEGORY_ENUM } from '../lib/claude'
+import { extractCompetencies, recategorizeCompetencies } from '../lib/claude'
 import { coverageFromJob } from '../lib/gapAnalysis'
 import StepIndicator, { percentToStep } from '../components/StepIndicator'
 
@@ -75,6 +75,7 @@ export default function PendingProfilPage() {
 
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [activeTab, setActiveTab] = useState('kompetensbank')
   const [openCats, setOpenCats] = useState(new Set())
   const [showAddModal, setShowAddModal] = useState(false)
@@ -85,9 +86,16 @@ export default function PendingProfilPage() {
   const [recategorizeMsg, setRecategorizeMsg] = useState('')
 
   async function loadProfile() {
-    const snap = await getDoc(doc(db, 'pendingProfiles', email))
-    if (snap.exists()) setProfile({ email, ...snap.data() })
-    setLoading(false)
+    setLoadError('')
+    try {
+      const snap = await getDoc(doc(db, 'pendingProfiles', email))
+      if (snap.exists()) setProfile({ email, ...snap.data() })
+    } catch (err) {
+      console.error('Kunde inte ladda profilen:', err)
+      setLoadError(err.message ?? 'Kunde inte ladda profilen.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleRecategorize() {
@@ -142,6 +150,9 @@ export default function PendingProfilPage() {
 
   if (loading) {
     return <p className="text-sm py-8" style={{ color: '#6b7280' }}>Laddar profil...</p>
+  }
+  if (loadError) {
+    return <p className="text-sm py-8" style={{ color: '#f87171' }}>Kunde inte ladda profilen: {loadError}</p>
   }
   if (!profile) {
     return <p className="text-sm py-8" style={{ color: '#f87171' }}>Profilen hittades inte.</p>
@@ -348,7 +359,9 @@ export default function PendingProfilPage() {
                   key={job.id ?? i}
                   job={job}
                   onClick={() =>
-                    navigate(`/jobb/${job.id}`, { state: { pendingEmail: email } })
+                    job.id
+                      ? navigate(`/jobb/${job.id}`, { state: { pendingEmail: email } })
+                      : undefined
                   }
                 />
               ))}
@@ -421,30 +434,6 @@ function PendingFileUpload({ email, existingCompetencies, onSuccess }) {
 
     try {
       const competencies = await extractCompetencies(selectedFile, fileType, onProgress)
-
-      // ── Flow 1 audit (pending) ────────────────────────────────────────────
-      console.group('[Flow 1 – pending] extractCompetencies → Firestore audit')
-      const VALID_CATEGORIES = new Set(CATEGORY_ENUM)
-      const VALID_STRENGTHS = new Set(['Hög', 'Medel', 'Låg'])
-      let issues = 0
-      competencies.forEach((c, i) => {
-        const problems = []
-        if (!c.title)                                         problems.push('title saknas')
-        if (!c.description)                                   problems.push('description saknas')
-        if (!VALID_CATEGORIES.has(c.category))                problems.push(`category ogiltigt: "${c.category}"`)
-        if (!Array.isArray(c.tags) || c.tags.length < 1)     problems.push(`tags: ${JSON.stringify(c.tags)}`)
-        if (!VALID_STRENGTHS.has(c.strength))                 problems.push(`strength ogiltigt: "${c.strength}"`)
-        if (!c.context)                                       problems.push('context saknas')
-        if (problems.length > 0) {
-          console.warn(`  [${i}] "${c.title}" – PROBLEM: ${problems.join(' | ')}`)
-          issues++
-        } else {
-          console.log(`  [${i}] "${c.title}" ✓ category="${c.category}" strength="${c.strength}" tags=${c.tags.length}st`)
-        }
-      })
-      console.log(`Totalt: ${competencies.length} kompetenser, ${issues} med problem`)
-      console.groupEnd()
-      // ─────────────────────────────────────────────────────────────────────
 
       const existingTitles = new Set(
         existingCompetencies.map((c) => (c.title ?? '').toLowerCase())

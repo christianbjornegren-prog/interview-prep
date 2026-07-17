@@ -5,7 +5,6 @@ import Home from './pages/Home'
 import CompetencyBank from './pages/CompetencyBank'
 import JobCreate from './pages/JobCreate'
 import JobPage from './pages/JobPage'
-import InterviewSimulator from './pages/InterviewSimulator'
 import InterviewSimulatorTTS from './pages/InterviewSimulatorTTS'
 import FeedbackPage from './pages/FeedbackPage'
 import AdminPage from './pages/AdminPage'
@@ -52,9 +51,12 @@ export default function App() {
               path="/jobb/:jobId"
               element={<RequireAuth><JobPage /></RequireAuth>}
             />
+            {/* Legacy WebRTC route kept working by pointing at the active
+                TTS flow (the old flow saved to the wrong path and navigated
+                to a broken URL). Nothing links here; only old bookmarks. */}
             <Route
               path="/intervju/:jobId"
-              element={<RequireAuth><InterviewSimulator /></RequireAuth>}
+              element={<RequireAuth><InterviewSimulatorTTS /></RequireAuth>}
             />
             <Route
               path="/intervju-tts/:jobId"

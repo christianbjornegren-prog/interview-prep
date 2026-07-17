@@ -59,6 +59,14 @@ service cloud.firestore {
     match /pendingProfiles/{email} {
       allow read, write: if request.auth != null &&
         (isAdmin() || isSaljare())
+      // A konsult must be able to read + delete THEIR OWN pending profile
+      // (doc id == their email) during first-login migration in AuthGate.
+      // Without this the säljare-prepared competencies/jobs are never copied
+      // over and the konsult lands on an empty account. Self-cleanup only:
+      // no create/update, so a konsult can never seed or alter pending data.
+      allow get, delete: if request.auth != null &&
+        request.auth.token.email != null &&
+        request.auth.token.email.lower() == email.lower()
     }
   }
 }

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
-import { extractCompetencies, CATEGORY_ENUM } from '../lib/claude'
+import { extractCompetencies } from '../lib/claude'
 import StepIndicator, { percentToStep } from './StepIndicator'
 
 const CV_STEPS = [
@@ -13,13 +13,17 @@ const CV_STEPS = [
 ]
 
 const ACCEPTED_TYPES = '.pdf,.docx'
+const MAX_FILE_MB = 20
 
 function getFileType(file) {
-  if (file.type === 'application/pdf') return 'pdf'
+  const name = (file.name ?? '').toLowerCase()
+  // Some browsers report an empty/incorrect MIME for drag-dropped files, so
+  // fall back to the filename extension for BOTH formats.
+  if (file.type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf'
   if (
     file.type ===
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    file.name.endsWith('.docx')
+    name.endsWith('.docx')
   )
     return 'docx'
   return null
@@ -47,6 +51,12 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
       setSelectedFile(null)
       return
     }
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      setStatus('error')
+      setMessage(`Filen är för stor (max ${MAX_FILE_MB} MB). Komprimera eller dela upp den.`)
+      setSelectedFile(null)
+      return
+    }
     setSelectedFile(file)
     setStatus('idle')
     setMessage('')
@@ -62,30 +72,6 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
 
     try {
       const competencies = await extractCompetencies(selectedFile, fileType, onProgress)
-
-      // ── Flow 1 audit ──────────────────────────────────────────────────────
-      console.group('[Flow 1] extractCompetencies → Firestore audit')
-      const VALID_CATEGORIES = new Set(CATEGORY_ENUM)
-      const VALID_STRENGTHS = new Set(['Hög', 'Medel', 'Låg'])
-      let issues = 0
-      competencies.forEach((c, i) => {
-        const problems = []
-        if (!c.title)                                         problems.push('title saknas')
-        if (!c.description)                                   problems.push('description saknas')
-        if (!VALID_CATEGORIES.has(c.category))                problems.push(`category ogiltigt: "${c.category}"`)
-        if (!Array.isArray(c.tags) || c.tags.length < 1)     problems.push(`tags: ${JSON.stringify(c.tags)}`)
-        if (!VALID_STRENGTHS.has(c.strength))                 problems.push(`strength ogiltigt: "${c.strength}"`)
-        if (!c.context)                                       problems.push('context saknas')
-        if (problems.length > 0) {
-          console.warn(`  [${i}] "${c.title}" – PROBLEM: ${problems.join(' | ')}`)
-          issues++
-        } else {
-          console.log(`  [${i}] "${c.title}" ✓ category="${c.category}" strength="${c.strength}" tags=${c.tags.length}st`)
-        }
-      })
-      console.log(`Totalt: ${competencies.length} kompetenser, ${issues} med problem`)
-      console.groupEnd()
-      // ─────────────────────────────────────────────────────────────────────
 
       // Duplicate check against existing Firestore titles
       const uid = targetUid ?? auth.currentUser.uid

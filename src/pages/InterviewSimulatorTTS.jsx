@@ -78,6 +78,7 @@ export default function InterviewSimulatorTTS() {
   const [showConfirmAbort, setShowConfirmAbort] = useState(false)
 
   const audioRef = useRef(null)
+  const audioUrlRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const streamRef = useRef(null)
   const audioChunksRef = useRef([])
@@ -85,6 +86,7 @@ export default function InterviewSimulatorTTS() {
   const currentQuestionIndexRef = useRef(0)
   const activeQuestionsRef = useRef([])
   const recordingStartRef = useRef(null)
+  const abortedRef = useRef(false)
 
   useEffect(() => {
     transcriptRef.current = transcript
@@ -149,11 +151,16 @@ export default function InterviewSimulatorTTS() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      abortedRef.current = true
       const audio = audioRef.current
       if (audio) {
         audio.pause()
         audio.src = ''
         audioRef.current = null
+      }
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current)
+        audioUrlRef.current = null
       }
       const recorder = mediaRecorderRef.current
       if (recorder && recorder.state !== 'inactive') {
@@ -178,9 +185,14 @@ export default function InterviewSimulatorTTS() {
 
   // speakText: fetches TTS, signals AI_SPEAKING when audio starts, resolves when done
   async function speakText(text) {
+    // Stop and fully release any audio still around from a previous utterance.
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current = null
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current)
+      audioUrlRef.current = null
     }
 
     const r = await fetch(VERCEL_TTS, {
@@ -195,11 +207,12 @@ export default function InterviewSimulatorTTS() {
 
     const blob = new Blob([await r.arrayBuffer()], { type: 'audio/mpeg' })
     const url = URL.createObjectURL(blob)
+    audioUrlRef.current = url
     const audio = new Audio()
     audio.src = url
     audioRef.current = audio
 
-    // Signal AI_SPEAKING the moment playback actually starts
+    // Signal AI_SPEAKING the moment playback actually starts.
     await new Promise((resolve, reject) => {
       audio.oncanplaythrough = () => {
         audio.play()
@@ -209,13 +222,33 @@ export default function InterviewSimulatorTTS() {
           })
           .catch(reject)
       }
-      audio.onerror = (e) => reject(new Error('Audio error: ' + e.type))
+      audio.onerror = () => reject(new Error('Ljudet kunde inte spelas upp.'))
       audio.load()
     })
 
-    await new Promise((resolve) => { audio.onended = resolve })
-    URL.revokeObjectURL(url)
-    audioRef.current = null
+    // Wait for playback to finish, but NEVER hang forever: resolve on ended,
+    // on a mid-playback error, or after a duration-based safety timeout.
+    await new Promise((resolve) => {
+      let settled = false
+      const finish = () => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        audio.onended = null
+        audio.onerror = null
+        resolve()
+      }
+      audio.onended = finish
+      audio.onerror = finish
+      const durationMs = Number.isFinite(audio.duration) ? audio.duration * 1000 : 0
+      const timer = setTimeout(finish, durationMs + 8000)
+    })
+
+    if (audioUrlRef.current === url) {
+      URL.revokeObjectURL(url)
+      audioUrlRef.current = null
+    }
+    if (audioRef.current === audio) audioRef.current = null
   }
 
   async function startInterview() {
@@ -279,6 +312,8 @@ export default function InterviewSimulatorTTS() {
         if (e.data.size > 0) audioChunksRef.current.push(e.data)
       }
       recorder.onstop = async () => {
+        // If the interview was aborted/unmounted, don't process a stray answer.
+        if (abortedRef.current) return
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
         await processAnswer(audioBlob)
       }
@@ -301,6 +336,8 @@ export default function InterviewSimulatorTTS() {
 
   async function processAnswer(audioBlob) {
     let step = 'whisper'
+    const prevIndex = currentQuestionIndexRef.current
+    let advanced = false
     try {
       const whisperRes = await fetch(VERCEL_WHISPER, {
         method: 'POST',
@@ -313,7 +350,7 @@ export default function InterviewSimulatorTTS() {
       addToTranscript('candidate', userText)
 
       const activeQuestions = activeQuestionsRef.current
-      const nextIndex = currentQuestionIndexRef.current + 1
+      const nextIndex = prevIndex + 1
       let aiText
       let finishing = false
 
@@ -323,6 +360,7 @@ export default function InterviewSimulatorTTS() {
           activeQuestions[nextIndex].question
         setCurrentQuestionIndex(nextIndex)
         currentQuestionIndexRef.current = nextIndex
+        advanced = true
       } else {
         aiText =
           'Tack så mycket, det var alla mina frågor. ' +
@@ -342,6 +380,12 @@ export default function InterviewSimulatorTTS() {
         setInterviewState(STATES.WAITING_FOR_USER)
       }
     } catch (error) {
+      // If we advanced the question but never got it spoken, roll the index
+      // back so the user re-answers the correct (current) question.
+      if (advanced) {
+        setCurrentQuestionIndex(prevIndex)
+        currentQuestionIndexRef.current = prevIndex
+      }
       console.error(error)
       logSystemEvent({ type: 'pipeline_error', severity: 'error', step, message: error.message })
       setErrorMsg(error.message)
@@ -381,22 +425,6 @@ export default function InterviewSimulatorTTS() {
         logSystemEvent({ type: 'pipeline_error', severity: 'error', step: 'claude', message: err.message })
         throw err
       }
-
-      // ── Flow 3 audit ──────────────────────────────────────────────────────
-      console.group('[Flow 3] analyzeInterviewFeedback → Firestore audit')
-      ;['overallScore', 'summary', 'strengths', 'improvements', 'competencyGaps', 'questionFeedback'].forEach((f) => {
-        const returned = f in feedback
-        console.log(`  ${f}: returnerades av Claude ${returned ? '✓' : '✗'} / sparas i Firestore ${returned ? '✓' : '✗'}`)
-      })
-      if (Array.isArray(feedback.questionFeedback) && feedback.questionFeedback.length > 0) {
-        const qf = feedback.questionFeedback[0]
-        console.log(
-          `  questionFeedback[0]: question ${('question' in qf) ? '✓' : '✗'} | score ${('score' in qf) ? '✓' : '✗'} | comment ${('comment' in qf) ? '✓' : '✗'}`
-        )
-      }
-      console.log('  Extra fält (app-tillagda): jobTitle ✓ | company ✓ | interviewer ✓ | transcript ✓ | createdAt ✓')
-      console.groupEnd()
-      // ─────────────────────────────────────────────────────────────────────
 
       let feedbackRef
       try {
@@ -440,11 +468,16 @@ export default function InterviewSimulatorTTS() {
   }
 
   function endInterview() {
+    abortedRef.current = true
     const audio = audioRef.current
     if (audio) {
       audio.pause()
       audio.src = ''
       audioRef.current = null
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current)
+      audioUrlRef.current = null
     }
     const recorder = mediaRecorderRef.current
     if (recorder && recorder.state !== 'inactive') {
@@ -452,6 +485,13 @@ export default function InterviewSimulatorTTS() {
     }
     streamRef.current?.getTracks().forEach((t) => t.stop())
     navigate(-1)
+  }
+
+  // Retry saving after a failed feedback save (Claude/Firestore hiccup) so the
+  // user is never stranded on the finished screen with their session lost.
+  async function retrySaveSession() {
+    setErrorMsg('')
+    await saveSession()
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -632,8 +672,39 @@ export default function InterviewSimulatorTTS() {
         </div>
       )}
 
-      {/* Finished screen */}
-      {interviewState === STATES.FINISHED && <FinishedScreen />}
+      {/* Finished screen (hidden once a save error needs the user's attention) */}
+      {interviewState === STATES.FINISHED && !errorMsg && <FinishedScreen />}
+
+      {/* Recovery when the final save failed – never strand the user here */}
+      {interviewState === STATES.FINISHED && errorMsg && (
+        <div
+          className="rounded-xl border p-5 space-y-3"
+          style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+        >
+          <p className="text-sm font-semibold text-white">
+            Kunde inte spara din feedback
+          </p>
+          <p className="text-sm" style={{ color: '#f87171' }}>
+            {errorMsg}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={retrySaveSession}
+              className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors"
+              style={{ backgroundColor: '#8064ad' }}
+            >
+              Försök igen
+            </button>
+            <button
+              onClick={() => navigate(`/jobb/${jobId}`)}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              style={{ backgroundColor: '#404040', color: '#d1d5db' }}
+            >
+              Tillbaka till uppdraget
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Action button */}
       {btnState.label && (
@@ -656,8 +727,8 @@ export default function InterviewSimulatorTTS() {
         </div>
       )}
 
-      {/* Error */}
-      {errorMsg && (
+      {/* Error (the FINISHED state has its own recovery card above) */}
+      {errorMsg && interviewState !== STATES.FINISHED && (
         <p className="text-sm text-center" style={{ color: '#f87171' }}>
           {errorMsg}
           {(interviewState === STATES.WAITING_FOR_USER) && (

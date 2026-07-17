@@ -61,11 +61,25 @@ beforeEach(async () => {
       type: 'session_completed', severity: 'info', step: 'complete',
       message: '5 frågor', uid: KONSULT, createdAt: new Date(),
     })
+
+    // Pending profiles keyed by email (as SäljarePage stores them, lowercased)
+    await setDoc(doc(db, 'pendingProfiles', 'k@boulder.se'), {
+      name: 'K', email: 'k@boulder.se', competencies: [], jobs: [],
+    })
+    await setDoc(doc(db, 'pendingProfiles', 'other@boulder.se'), {
+      name: 'Other', email: 'other@boulder.se', competencies: [], jobs: [],
+    })
   })
 })
 
 function ctxFor(uid) {
   return testEnv.authenticatedContext(uid).firestore()
+}
+
+// Authenticated context that also carries an email token claim, matching how
+// Firebase Auth populates request.auth.token.email for Google sign-in.
+function ctxForEmail(uid, email) {
+  return testEnv.authenticatedContext(uid, { email }).firestore()
 }
 
 describe('feedback consent gating', () => {
@@ -164,5 +178,47 @@ describe('systemEvents technical log', () => {
   it('systemEvents are immutable (no update, no delete)', async () => {
     await assertFails(updateDoc(doc(ctxFor(ADMIN), 'systemEvents', 'ev1'), { message: 'tampered' }))
     await assertFails(deleteDoc(doc(ctxFor(ADMIN), 'systemEvents', 'ev1')))
+  })
+})
+
+describe('pendingProfiles migration (first-login self-cleanup)', () => {
+  it('konsult CAN read its OWN pending profile (doc id == token email)', async () => {
+    await assertSucceeds(
+      getDoc(doc(ctxForEmail(KONSULT, 'k@boulder.se'), 'pendingProfiles', 'k@boulder.se'))
+    )
+  })
+
+  it('konsult CAN delete its OWN pending profile (migration cleanup)', async () => {
+    await assertSucceeds(
+      deleteDoc(doc(ctxForEmail(KONSULT, 'k@boulder.se'), 'pendingProfiles', 'k@boulder.se'))
+    )
+  })
+
+  it('konsult CANNOT read SOMEONE ELSE\'s pending profile', async () => {
+    await assertFails(
+      getDoc(doc(ctxForEmail(KONSULT, 'k@boulder.se'), 'pendingProfiles', 'other@boulder.se'))
+    )
+  })
+
+  it('konsult CANNOT create or update a pending profile', async () => {
+    await assertFails(
+      setDoc(doc(ctxForEmail(KONSULT, 'new@boulder.se'), 'pendingProfiles', 'new@boulder.se'), {
+        name: 'X', email: 'new@boulder.se', competencies: [], jobs: [],
+      })
+    )
+    await assertFails(
+      updateDoc(doc(ctxForEmail(KONSULT, 'k@boulder.se'), 'pendingProfiles', 'k@boulder.se'), {
+        competencies: [{ title: 'injected' }],
+      })
+    )
+  })
+
+  it('säljare CAN read and write pending profiles', async () => {
+    await assertSucceeds(getDoc(doc(ctxFor(SALJARE), 'pendingProfiles', 'k@boulder.se')))
+    await assertSucceeds(
+      setDoc(doc(ctxFor(SALJARE), 'pendingProfiles', 'fresh@boulder.se'), {
+        name: 'Fresh', email: 'fresh@boulder.se', competencies: [], jobs: [],
+      })
+    )
   })
 })
