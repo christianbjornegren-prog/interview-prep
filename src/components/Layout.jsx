@@ -56,6 +56,9 @@ export default function Layout({ children }) {
                 <NavLink to="/om" active={location.pathname === '/om'}>
                   Om
                 </NavLink>
+                <NavLink to="/installningar" active={location.pathname === '/installningar'}>
+                  Inställningar
+                </NavLink>
 
                 {/* Divider */}
                 <span
