@@ -27,7 +27,9 @@ i mörkt läge MÅSTE använda ljusa semantiska vars/#8064ad – aldrig mörka r
 ## Arkitektur
 - Vercel används ENBART som proxy för OpenAI-anrop (api/whisper.js, api/tts.js)
 - Firebase hanterar all data och auth
-- WebRTC-versionen är övergiven – använd ENBART TTS-versionen (InterviewSimulatorTTS.jsx)
+- WebRTC-versionen är övergiven – använd ENBART TTS-versionen (InterviewSimulatorTTS.jsx).
+  Routen /intervju/:jobId pekar numera på InterviewSimulatorTTS (gamla WebRTC-komponenten
+  borttagen); /intervju-tts/:jobId är den kanoniska routen.
 
 ## Datamodell
 users/{uid}/competencies/{docId}
@@ -171,7 +173,11 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
   `requirements` [{ requirement, importance:'hög'|'medel'|'låg', match:'stark'|'delvis'|'svag', note, howToAddress }].
   - KALIBRERING (rotorsaksfix mot inflation): match bedöms ÄRLIGT. stark = direkt påvisbar erfarenhet,
     delvis = angränsande/partiell, svag = lite/ingen. Brett senior-CV gör INTE allt 'stark'.
-    howToAddress sätts för svag/delvis, skrivet som en erfaren kollega. max_tokens = 6000.
+    howToAddress sätts för svag/delvis, skrivet som en erfaren kollega. max_tokens = 8000
+    (höjt från 6000 för att minska JSON-trunkering på långa annonser). JSON extraheras via
+    extractJsonObject() som kastar ett tydligt fel vid avklippt svar istället för rå JSON.parse-krasch.
+  - analyzeInterviewFeedback normaliseras ALLTID via normalizeInterviewFeedback() innan retur:
+    alla fält får säkra defaults (aldrig undefined) så Firestore-skrivningen inte kan kastas.
 - lib/gapAnalysis.js (rena, enhetstestade):
   - `deriveGapBuckets(requirements)` → { styrkor(stark), förbered(delvis | svag&låg),
     prioritera(svag & hög|medel), coverage(=antal stark/antal krav), total }.
@@ -308,7 +314,11 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
   — den specifika path-regeln räcker, queryn MÅSTE filtrera på sharedWithSeller==true.
 - systemEvents: create om inloggad och request.resource.data.uid == auth.uid;
   read endast admin; update/delete alltid false (oföränderlig logg).
-- pendingProfiles: enbart admin + säljare (ej owner/konsult)
+- pendingProfiles: admin + säljare har full åtkomst. DESSUTOM får en konsult `get`+`delete`
+  på SIN EGEN pending-profil (doc-id == request.auth.token.email.lower()) — krävs för
+  förstagångs-migreringen i AuthGate (annars nekas läsningen och säljar-förberedda
+  kompetenser/uppdrag migreras ALDRIG → tomt konto). Ingen create/update för konsult (self-cleanup only).
+  Bevisat i test/rules (konsult self-read/delete OK, cross-read nekas, create/update nekas).
 - firebase.json pekar på firestore.rules; emulators.firestore satt (port 8080) för regeltester
 - VIKTIGT: regeländringar måste DEPLOYAS separat – `firebase deploy --only firestore:rules
   --project interview-prep-81cb6`. En odeployad regel ger "Missing or insufficient
@@ -344,10 +354,13 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 ### Tester
 - Vitest enhetstester (test/unit/, körs utan emulator): `npm test`
   - sharing.test.js + systemEvents.test.js + onboarding.test.js + gapAnalysis.test.js
-    + jobBriefing.test.js (deriveGapBuckets/resolveRequirements/coverageFromJob/parseJobDescription).
-    68 tester.
+    + jobBriefing.test.js + claude.test.js (extractJsonObject/normalizeInterviewFeedback/
+    sanitizeCompetencies) + userData.test.js (rensning, mockad Firestore) + interviewPhase.test.js.
+    135 tester. (vite.config.js sätter dummy VITE_FIREBASE_*-env för test så moduler som
+    initierar Firebase-SDK:t vid import laddar utan .env – rör INTE `vite build`.)
 - Firestore-regeltester (@firebase/rules-unit-testing mot emulatorn): `npm run test:rules`
-  - test/rules/firestore.rules.test.js bevisar samtyckesgrindning + systemEvents-åtkomst.
+  - test/rules/firestore.rules.test.js bevisar samtyckesgrindning + systemEvents-åtkomst
+    + pendingProfiles-migreringsåtkomst (konsult self-read/delete). 23 tester.
   - Kräver Java/Firestore-emulatorn; körs via `firebase emulators:exec --only firestore`.
 - Manuella röktest-checklistor (det som ej kan automatiseras):
   - docs/SMOKE_TEST.md (delning/drift, ljudkedjan)
