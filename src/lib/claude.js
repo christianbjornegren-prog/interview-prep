@@ -21,6 +21,34 @@ const NO_ID_INSTRUCTION =
   'Referera ALDRIG till kompetenser med ID, nummer eller tekniska koder som comp_014 eller komp_15. ' +
   'Använd ALLTID kompetensens faktiska namn.'
 
+/**
+ * Extract the first top-level JSON object from a Claude text response.
+ * Throws a clear, actionable error if none is found or if it is malformed
+ * (e.g. the response was truncated at max_tokens mid-JSON).
+ */
+export function extractJsonObject(rawText) {
+  if (typeof rawText !== 'string' || !rawText.trim()) {
+    throw new Error('Tomt svar från Claude – försök igen.')
+  }
+  const match = rawText.match(/\{[\s\S]*\}/)
+  if (!match) throw new Error('Ingen JSON hittades i svaret')
+  try {
+    return JSON.parse(match[0])
+  } catch {
+    throw new Error(
+      'Svaret från Claude var ofullständigt (kunde inte tolkas som JSON). ' +
+      'Detta beror oftast på ett för långt svar – försök igen.'
+    )
+  }
+}
+
+/** Read the first text block from a Claude Messages response, guarded. */
+function firstTextBlock(data) {
+  const text = data?.content?.find?.((b) => b.type === 'text')?.text
+  if (typeof text !== 'string') throw new Error('Inget textinnehåll i svaret')
+  return text
+}
+
 // ── Competency extraction ─────────────────────────────────────────────────
 
 export const CATEGORY_ENUM = [
@@ -172,9 +200,15 @@ export async function extractCompetencies(file, fileType, onProgress = () => {})
 
   onProgress('Analyserar kompetenser...', 60)
   const data = await response.json()
-  const toolBlock = data.content.find((b) => b.type === 'tool_use')
+  const toolBlock = data?.content?.find?.((b) => b.type === 'tool_use')
   if (!toolBlock) throw new Error('Inget tool_use-block i svaret')
-  return toolBlock.input.competencies
+  const competencies = toolBlock.input?.competencies
+  if (!Array.isArray(competencies) || competencies.length === 0) {
+    throw new Error(
+      'Kunde inte läsa ut kompetenser ur svaret (möjligen avklippt) – försök igen.'
+    )
+  }
+  return competencies
 }
 
 // ── Competency recategorization ───────────────────────────────────────────
@@ -228,9 +262,15 @@ export async function recategorizeCompetencies(competencies) {
   }
 
   const data = await response.json()
-  const toolBlock = data.content.find((b) => b.type === 'tool_use')
+  const toolBlock = data?.content?.find?.((b) => b.type === 'tool_use')
   if (!toolBlock) throw new Error('Inget tool_use-block i svaret')
-  return toolBlock.input.competencies
+  const recategorized = toolBlock.input?.competencies
+  if (!Array.isArray(recategorized) || recategorized.length === 0) {
+    throw new Error(
+      'Kunde inte läsa ut omkategoriserade kompetenser ur svaret – försök igen.'
+    )
+  }
+  return recategorized
 }
 
 // ── Job posting analysis ─────────────────────────────────────────────────
@@ -318,7 +358,7 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
 
   const requestBody = {
     model: MODEL,
-    max_tokens: 6000,
+    max_tokens: 8000,
     system: JOB_ANALYSIS_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   }
@@ -341,14 +381,10 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
 
   onProgress('Genererar intervjufrågor...', 65)
   const data = await response.json()
-  const rawText = data.content[0].text
-
-  const jsonMatch = rawText.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
+  const rawText = firstTextBlock(data)
 
   onProgress('Skapar gap-analys...', 90)
-  const parsed = JSON.parse(jsonMatch[0])
-  return parsed
+  return extractJsonObject(rawText)
 }
 
 // ── Interview feedback analysis ───────────────────────────────────────────
@@ -438,13 +474,43 @@ export async function analyzeInterviewFeedback(transcript, jobTitle, company, co
   }
 
   const data = await response.json()
-  const rawText = data.content[0].text
+  const rawText = firstTextBlock(data)
+  return normalizeInterviewFeedback(extractJsonObject(rawText))
+}
 
-  const jsonMatch = rawText.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('Ingen JSON hittades i svaret')
+/**
+ * Coerce a parsed feedback object into a shape that is always safe to write to
+ * Firestore. Firestore rejects `undefined` field values, so every field must
+ * be present with a sensible default even if Claude omits it or truncates.
+ */
+export function normalizeInterviewFeedback(parsed) {
+  const obj = parsed && typeof parsed === 'object' ? parsed : {}
+  const toArray = (v) => (Array.isArray(v) ? v : [])
+  // Only treat actual numbers / non-empty numeric strings as a score.
+  // Number(null) === 0 and Number('') === 0, which would fake a real score.
+  const toScore = (v) => {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null
+    if (typeof v === 'string' && v.trim() !== '') {
+      const n = Number(v)
+      return Number.isFinite(n) ? n : null
+    }
+    return null
+  }
 
-  const parsed = JSON.parse(jsonMatch[0])
-  return parsed
+  const questionFeedback = toArray(obj.questionFeedback).map((q) => ({
+    question: typeof q?.question === 'string' ? q.question : '',
+    score: toScore(q?.score),
+    comment: typeof q?.comment === 'string' ? q.comment : '',
+  }))
+
+  return {
+    overallScore: toScore(obj.overallScore),
+    summary: typeof obj.summary === 'string' ? obj.summary : '',
+    strengths: toArray(obj.strengths),
+    improvements: toArray(obj.improvements),
+    competencyGaps: toArray(obj.competencyGaps),
+    questionFeedback,
+  }
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────
