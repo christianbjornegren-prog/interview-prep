@@ -14,6 +14,7 @@ import SäljarePage from './pages/SäljarePage'
 import KonsultProfilPage from './pages/KonsultProfilPage'
 import PendingProfilPage from './pages/PendingProfilPage'
 import OmPage from './pages/OmPage'
+import Settings from './pages/Settings'
 
 function RequireAdmin({ children }) {
   const { role } = useUser()
@@ -35,6 +36,10 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/om" element={<RequireAuth><OmPage /></RequireAuth>} />
+            <Route
+              path="/installningar"
+              element={<RequireAuth><Settings /></RequireAuth>}
+            />
             <Route
               path="/kompetensbank"
               element={<RequireAuth><CompetencyBank /></RequireAuth>}
