@@ -82,6 +82,17 @@ export default function AuthGate({ children }) {
         return
       }
 
+      // A disallowed account can briefly reach here after the popup resolves,
+      // before signInWithGoogle's signOut lands. Do NOT create a phantom
+      // users/{uid} doc or render the app for it. (The access-denied MESSAGE
+      // still lives only in signInWithGoogle, per convention.)
+      if (!isAllowed(u.email)) {
+        setUser(null)
+        setRole(null)
+        setIsInitializing(false)
+        return
+      }
+
       // Fetch or create user profile; default to 'konsult' on any error
       try {
         const email   = normalizeEmail(u.email)
@@ -142,13 +153,15 @@ export default function AuthGate({ children }) {
             }
           } catch (migErr) {
             console.error('[Migration] Misslyckades:', migErr)
-            // Log to systemEvents so it surfaces in Driftöversikten
+            // Log to systemEvents with the canonical shape so it is COUNTED as
+            // a technical error and its message is shown in Driftöversikten.
             try {
               await addDoc(collection(db, 'systemEvents'), {
+                type:      'pipeline_error',
+                severity:  'error',
                 step:      'pending_migration',
+                message:   (migErr.message ?? String(migErr)).slice(0, 500),
                 uid:       u.uid,
-                email,
-                error:     migErr.message ?? String(migErr),
                 createdAt: serverTimestamp(),
               })
             } catch (_) { /* ignore logging failure */ }
