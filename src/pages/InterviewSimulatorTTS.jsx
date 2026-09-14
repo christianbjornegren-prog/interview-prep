@@ -533,7 +533,9 @@ export default function InterviewSimulatorTTS() {
             improvements: feedback.improvements,
             competencyGaps: feedback.competencyGaps ?? [],
             questionFeedback: feedback.questionFeedback,
-            jobTitle: job?.jobTitle ?? '',
+            // Rolltiteln på sessionens språk – feedbacksidan visar den rakt av,
+            // och "Interim IT-chef" i en engelsk rubrik ser ofärdigt ut.
+            jobTitle: (isEnglish(language) && job?.jobTitleEn) || job?.jobTitle || '',
             company: job?.company ?? '',
             interviewer: interviewerName,
             // Språket sparas så historiken och säljarens vy kan märka upp

@@ -58,8 +58,11 @@ språkstödet inte rubbade det befintliga flödet. Hoppa aldrig över den.
 - [ ] Dela den engelska feedbacken (toggeln på feedbacksidan).
 - [ ] Logga in som säljare → /konsulter → konsulten → "Delad feedback".
 - [ ] Sessionen har en "EN"-markering så säljaren vet vad hen möter.
-- [ ] Feedbacktexten öppnas och är på engelska, medan sidans ram är svensk.
-      Detta är förväntat – se "Utanför scope" i docs/PLAN_INTERVJUSPRAK.md.
+- [ ] Feedbacksidan öppnas HELT på engelska: rubriker (Summary, Strengths,
+      Areas to improve), delningskortet, datumformatet och rolltiteln
+      ("Interim Head of IT", inte "Interim IT-chef").
+- [ ] Ingen svensk text någonstans på den engelska feedbacksidan.
+- [ ] Öppna en SVENSK session: den är oförändrat svensk, inklusive datum.
 
 ## 5. Kravanalysen är orörd
 

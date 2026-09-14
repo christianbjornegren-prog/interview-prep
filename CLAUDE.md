@@ -185,13 +185,23 @@ kompetensbanken och filtren är helt orörda av språkstödet.
 
 ### Vad som byter språk
 Intervjufrågorna, intervjuarens repliker och namn, HELA intervjuskärmen
-(InterviewSimulatorTTS) och feedbacktexten.
+(InterviewSimulatorTTS) och HELA feedbacksidan (FeedbackPage) – rubriker,
+delningskortet, datumformat och rolltitel, inte bara AI-texten.
+
+REGEL: en session som hölls på engelska presenteras på engelska, hela vägen.
+Halvöversatt är inte bättre än oöversatt – svenska rubriker över engelsk text
+ser bara ofärdigt ut. Feedbacksidan läser `feedback.language`; saknat fält
+(äldre feedback) = svenska. Texten ligger i `lib/feedbackCopy.js` och
+delningsstatusen i `lib/sharing.js` (`describeShareStatus(feedback, language)` –
+utan argument blir det svenska, så befintliga anrop är oförändrade).
+Rolltiteln sparas på feedback-dokumentet på sessionens språk.
 
 ### Vad som INTE byter språk
-Dashboard, uppdragsvyn (JobPage/Förberedelse), feedbacksidans ram,
-kompetensbanken, datumformat (åtta hårdkodade 'sv-SE'). Funktionen heter
-intervjuspråk, inte appspråk. En engelsk feedbacktext visas alltså i en svensk
-sidram – medvetet, se docs/PLAN_INTERVJUSPRAK.md "Utanför scope".
+Dashboard, uppdragsvyn (JobPage/Förberedelse), kompetensbanken, säljarvyerna.
+Funktionen heter intervjuspråk, inte appspråk.
+Sidor som listar sessioner på BÅDA språken – uppdragets Historik och säljarens
+"Delad feedback" – förblir svenska och märker engelska sessioner med "EN".
+Det är medvetet: en blandad lista kan inte ha ett språk.
 
 ### Prompter (claude.js)
 - `buildFeedbackSystemPrompt(language)` / `buildFeedbackConfigNote(config)` –
@@ -429,8 +439,9 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
   - sharing.test.js + systemEvents.test.js + onboarding.test.js + gapAnalysis.test.js
     + jobBriefing.test.js + claude.test.js (extractJsonObject/normalizeInterviewFeedback/
     sanitizeCompetencies) + userData.test.js (rensning, mockad Firestore) + interviewPhase.test.js
-    + language.test.js + interviewScript.test.js + claudePrompts.test.js + gapAnalysisGuard.test.js.
-    276 tester i 12 filer. (vite.config.js sätter dummy VITE_FIREBASE_*-env för test så moduler som
+    + language.test.js + interviewScript.test.js + claudePrompts.test.js + gapAnalysisGuard.test.js
+    + feedbackCopy.test.js.
+    296 tester i 13 filer. (vite.config.js sätter dummy VITE_FIREBASE_*-env för test så moduler som
     initierar Firebase-SDK:t vid import laddar utan .env – rör INTE `vite build`.)
   - VIKTIGT: testmiljön har INGEN DOM-rigg (ingen jsdom, inga setupFiles). Alla
     tester måste vara rena Node-tester – inget får bero på React-rendering.

@@ -357,7 +357,13 @@ datamodellsändring) och `docs/SMOKE_TEST.md` avsnitt 5 med nytt testantal.
 ## Utanför scope — medvetet
 
 - **Full tvåspråkig UI** (~300 svenska strängar, ingen i18n-hantering finns).
-  Funktionen heter "intervjuspråk", inte "appspråk".
+  Funktionen heter "intervjuspråk", inte "appspråk". Dashboard, uppdragsvyn och
+  kompetensbanken förblir svenska.
+  > RÄTTELSE efter röktest: feedbacksidan skulle enligt planen behålla svensk
+  > ram. Det höll inte i praktiken – svenska rubriker över engelsk AI-text ser
+  > ofärdigt ut. Hela feedbacksidan följer nu sessionens språk. Listvyer som
+  > blandar båda språken (Historik, Delad feedback) förblir svenska med
+  > EN-märkning.
 - **Datumformat** — åtta hårdkodade `sv-SE` behålls.
 - **Modellbyte** — se anti-patterns i Fas 0. Eget beslut, egen omkalibrering.
 - **Säkerhetsfixen** (API-nyckel i klienten, öppna proxyer) — egen plan, men

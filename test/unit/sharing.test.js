@@ -46,6 +46,28 @@ describe('describeShareStatus', () => {
   })
 })
 
+describe('describeShareStatus – språk', () => {
+  it('okänt språk ger svenska (oförändrat beteende)', () => {
+    expect(describeShareStatus({}, 'de').label).toBe('Privat – syns bara för dig')
+  })
+
+  it('engelsk session ger engelsk status', () => {
+    expect(describeShareStatus({}, 'en').label).toBe('Private – only visible to you')
+  })
+
+  it('engelsk delad status utan datum', () => {
+    const s = describeShareStatus({ sharedWithSeller: true }, 'en')
+    expect(s.label).toBe('Shared with your salesperson')
+  })
+
+  it('engelsk delad status med datum', () => {
+    const sharedAt = { toDate: () => new Date('2026-06-13T10:00:00Z') }
+    const s = describeShareStatus({ sharedWithSeller: true, sharedAt }, 'en')
+    expect(s.label).toMatch(/^Shared with your salesperson since /)
+    expect(s.label).not.toMatch(/[åäöÅÄÖ]/)
+  })
+})
+
 describe('buildShareUpdate', () => {
   it('turning ON sets sharedWithSeller=true and leaves sharedAt to caller', () => {
     const u = buildShareUpdate(true)

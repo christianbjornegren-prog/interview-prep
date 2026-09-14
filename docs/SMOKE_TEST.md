@@ -46,7 +46,7 @@ efter ändringar i delnings-, drift- eller intervjuflödet.
 - [ ] 🔄 Uppdatera laddar om datan.
 
 ## 5. Automatiska tester (kör före push)
-- [ ] `npm test` → enhetstester gröna (276).
+- [ ] `npm test` → enhetstester gröna (296).
 - [ ] `npm run test:rules` → regeltester gröna (kräver Java/Firestore-emulatorn).
 - [ ] `npm run build` → kompilerar utan fel.
 

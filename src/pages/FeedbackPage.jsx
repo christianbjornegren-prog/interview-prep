@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { auth, db, doc, getDoc, updateDoc, serverTimestamp } from '../lib/firebase'
 import { describeShareStatus } from '../lib/sharing'
+import { feedbackCopy } from '../lib/feedbackCopy'
 
 export default function FeedbackPage() {
   const { jobId, feedbackId } = useParams()
@@ -19,6 +20,11 @@ export default function FeedbackPage() {
   const isOwner = !targetUid
   const uid = targetUid ?? auth.currentUser.uid
 
+  // Sidan följer SESSIONENS språk. Innan dokumentet laddats (och för äldre
+  // feedback utan fältet) blir det svenska.
+  const language = feedback?.language
+  const copy = feedbackCopy(language)
+
   useEffect(() => {
     let cancelled = false
 
@@ -31,13 +37,13 @@ export default function FeedbackPage() {
         if (cancelled) return
 
         if (!feedbackSnap.exists()) {
-          setError('Feedback hittades inte.')
+          setError(copy.notFound)
         } else {
           setFeedback({ id: feedbackSnap.id, ...feedbackSnap.data() })
         }
       } catch (err) {
         console.error('Kunde inte hämta feedback:', err)
-        if (!cancelled) setError(err.message ?? 'Kunde inte hämta feedback.')
+        if (!cancelled) setError(err.message ?? copy.loadFailed)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -70,7 +76,7 @@ export default function FeedbackPage() {
       }))
     } catch (err) {
       console.error('Kunde inte uppdatera delning:', err)
-      setShareError('Kunde inte uppdatera delningen. Försök igen.')
+      setShareError(copy.shareFailed)
     } finally {
       setSavingShare(false)
     }
@@ -81,7 +87,7 @@ export default function FeedbackPage() {
       <div className="flex items-center justify-center py-16">
         <div className="flex items-center gap-3" style={{ color: '#6b7280' }}>
           <Spinner />
-          <span className="text-sm">Laddar feedback...</span>
+          <span className="text-sm">{copy.loading}</span>
         </div>
       </div>
     )
@@ -97,10 +103,10 @@ export default function FeedbackPage() {
           onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
           onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
         >
-          ← Tillbaka till uppdraget
+          {copy.backToJob}
         </button>
         <p className="text-sm" style={{ color: '#f87171' }}>
-          {error || 'Feedback hittades inte.'}
+          {error || copy.notFound}
         </p>
       </div>
     )
@@ -114,15 +120,15 @@ export default function FeedbackPage() {
       : '#ef4444'
 
   const formattedDate = feedback.createdAt?.toDate
-    ? new Date(feedback.createdAt.toDate()).toLocaleDateString('sv-SE', {
+    ? new Date(feedback.createdAt.toDate()).toLocaleDateString(copy.locale, {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
       })
-    : '—'
+    : copy.unknownDate
 
   const backPath = targetUid ? `/konsulter/${targetUid}` : `/jobb/${jobId}`
-  const backLabel = targetUid ? '← Tillbaka till konsultprofil' : '← Tillbaka till uppdraget'
+  const backLabel = targetUid ? copy.backToConsultant : copy.backToJob
 
   return (
     <div className="space-y-8">
@@ -140,7 +146,7 @@ export default function FeedbackPage() {
 
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">
-            Intervjufeedback – {feedback.jobTitle}
+            {copy.title(feedback.jobTitle)}
           </h1>
           <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
             {feedback.company && `${feedback.company} · `}
@@ -151,10 +157,11 @@ export default function FeedbackPage() {
 
       {/* Delning / integritet – visas bara för ägaren (konsulten) */}
       {isOwner && <ShareCard
-        status={describeShareStatus(feedback)}
+        status={describeShareStatus(feedback, language)}
         saving={savingShare}
         error={shareError}
         onToggle={handleToggleShare}
+        copy={copy}
       />}
 
       {/* Overall Score */}
@@ -176,7 +183,7 @@ export default function FeedbackPage() {
           </span>
         </div>
         <p className="text-sm font-semibold" style={{ color: '#9ca3af' }}>
-          Övergripande betyg
+          {copy.overallScore}
         </p>
       </div>
 
@@ -190,7 +197,7 @@ export default function FeedbackPage() {
             className="text-xs font-semibold uppercase tracking-widest mb-3"
             style={{ color: '#8064ad' }}
           >
-            Sammanfattning
+            {copy.summary}
           </h2>
           <p className="text-sm leading-relaxed text-white">
             {feedback.summary}
@@ -211,7 +218,7 @@ export default function FeedbackPage() {
               style={{ color: '#22c55e' }}
             >
               <CheckIcon />
-              Styrkor
+              {copy.strengths}
             </h2>
             <ul className="space-y-2">
               {feedback.strengths.map((strength, i) => (
@@ -238,7 +245,7 @@ export default function FeedbackPage() {
               style={{ color: '#fb923c' }}
             >
               <LightbulbIcon />
-              Förbättringsområden
+              {copy.improvements}
             </h2>
             <ul className="space-y-2">
               {feedback.improvements.map((improvement, i) => (
@@ -266,7 +273,7 @@ export default function FeedbackPage() {
             style={{ color: '#60a5fa' }}
           >
             <LinkIcon />
-            Koppling till din kompetensbank
+            {copy.competencyLink}
           </h2>
           <ul className="space-y-2">
             {feedback.competencyGaps.map((gap, i) => (
@@ -289,11 +296,11 @@ export default function FeedbackPage() {
             className="text-xs font-semibold uppercase tracking-widest"
             style={{ color: '#8064ad' }}
           >
-            Feedback per fråga
+            {copy.perQuestion}
           </h2>
           <div className="space-y-3">
             {feedback.questionFeedback.map((qf, i) => (
-              <QuestionFeedbackCard key={i} feedback={qf} index={i} />
+              <QuestionFeedbackCard key={i} feedback={qf} index={i} copy={copy} />
             ))}
           </div>
         </div>
@@ -304,7 +311,7 @@ export default function FeedbackPage() {
 
 // ── Share card ────────────────────────────────────────────────────────────
 
-function ShareCard({ status, saving, error, onToggle }) {
+function ShareCard({ status, saving, error, onToggle, copy }) {
   const on = status.shared
   return (
     <div
@@ -312,14 +319,13 @@ function ShareCard({ status, saving, error, onToggle }) {
       style={{ backgroundColor: '#1d1d1d', borderColor: on ? '#2a9d8f' : '#404040' }}
     >
       <p className="text-sm leading-relaxed" style={{ color: '#9ca3af' }}>
-        Din träning är privat. Den delas med din säljare endast om du själv
-        väljer det – och du kan ta tillbaka det när som helst.
+        {copy.privacyNote}
       </p>
 
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-medium text-white">
-            Dela denna feedback med din säljare
+            {copy.shareToggle}
           </p>
           <p
             className="text-xs mt-0.5"
@@ -334,7 +340,7 @@ function ShareCard({ status, saving, error, onToggle }) {
           disabled={saving}
           role="switch"
           aria-checked={on}
-          aria-label="Dela denna feedback med din säljare"
+          aria-label={copy.shareToggle}
           className="relative shrink-0 rounded-full transition-colors disabled:opacity-50"
           style={{
             width: 48,
@@ -362,7 +368,7 @@ function ShareCard({ status, saving, error, onToggle }) {
   )
 }
 
-function QuestionFeedbackCard({ feedback, index }) {
+function QuestionFeedbackCard({ feedback, index, copy }) {
   const [expanded, setExpanded] = useState(false)
 
   const scoreColor =
@@ -381,7 +387,7 @@ function QuestionFeedbackCard({ feedback, index }) {
       <div className="flex items-start justify-between gap-4 p-4">
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold mb-1" style={{ color: '#9ca3af' }}>
-            Fråga {index + 1}
+            {copy.question(index + 1)}
           </p>
           <p className="text-sm text-white leading-relaxed">
             {feedback.question}
