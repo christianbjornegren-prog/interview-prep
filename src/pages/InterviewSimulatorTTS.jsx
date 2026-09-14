@@ -632,11 +632,12 @@ export default function InterviewSimulatorTTS() {
   const btnState = buttonStateForPhase(interviewState, { interviewerName, language })
 
   // Build button label: append live timer when recording
+  // Ingen emoji-prefix: läget bärs redan av knappens färg (grön/röd), av
+  // pulsanimationen och av texten själv. Emoji renderas dessutom olika per
+  // plattform och bryter appens streckade ikonspråk.
   const buttonLabel = btnState.recording
-    ? `⏹ ${buildRecordingLabel(recordingSeconds, language)}`
+    ? buildRecordingLabel(recordingSeconds, language)
     : btnState.label
-      ? `🎙 ${btnState.label}`
-      : ''
 
   return (
     <div className="space-y-10">

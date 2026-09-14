@@ -17,5 +17,5 @@ export const BRAND_PURPLE_HOVER = '#9781be'
  * det till flera konkurrerar de och ingen framhävs – därför är sekundära
  * åtgärder (t.ex. "Lägg till nytt uppdrag") nedtonade till kontur i stället.
  */
-export const PRIMARY_GLOW = '0 6px 24px -8px rgba(128, 100, 173, 0.85)'
-export const PRIMARY_GLOW_HOVER = '0 10px 32px -8px rgba(151, 129, 190, 0.95)'
+export const PRIMARY_GLOW = '0 4px 18px -6px rgba(128, 100, 173, 0.7)'
+export const PRIMARY_GLOW_HOVER = '0 8px 26px -6px rgba(151, 129, 190, 0.9)'

@@ -12,7 +12,7 @@ import { useAuth, useUser, signInWithGoogle } from '../components/AuthGate'
 import { db, auth } from '../lib/firebase'
 import { computeChecklist, resolvePrimaryCta, resolveEmptyState } from '../lib/onboarding'
 import { coverageFromJob } from '../lib/gapAnalysis'
-import { PRIMARY_GLOW, PRIMARY_GLOW_HOVER } from '../lib/theme'
+import StartInterviewButton from '../components/StartInterviewButton'
 
 export default function Home() {
   const user = useAuth()
@@ -434,23 +434,7 @@ function ChecklistBox({ done }) {
 // ── Primary CTA + empty-state guiding cards ───────────────────────────────
 
 function StartTrainingButton({ onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-2 px-6 py-3.5 rounded-lg text-white text-base font-semibold transition-all"
-      style={{ backgroundColor: '#8064ad', boxShadow: PRIMARY_GLOW }}
-      onMouseOver={(e) => {
-        e.currentTarget.style.backgroundColor = '#9781be'
-        e.currentTarget.style.boxShadow = PRIMARY_GLOW_HOVER
-      }}
-      onMouseOut={(e) => {
-        e.currentTarget.style.backgroundColor = '#8064ad'
-        e.currentTarget.style.boxShadow = PRIMARY_GLOW
-      }}
-    >
-      🎙 Starta intervjuträning
-    </button>
-  )
+  return <StartInterviewButton onClick={onClick} />
 }
 
 function NoJobsCard({ onAdd }) {
@@ -469,7 +453,7 @@ function NoJobsCard({ onAdd }) {
         onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
         onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
       >
-        Lägg till uppdrag →
+        Lägg till uppdrag
       </button>
     </div>
   )
@@ -487,15 +471,7 @@ function ReadyToTrainCard({ onStart }) {
           Dina uppdrag är på plats. Kör en AI-intervju för att se hur du står dig.
         </p>
       </div>
-      <button
-        onClick={onStart}
-        className="shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-lg text-white text-sm font-semibold transition-colors"
-        style={{ backgroundColor: '#8064ad' }}
-        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
-        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
-      >
-        Starta intervjuträning →
-      </button>
+      <StartInterviewButton onClick={onStart} />
     </div>
   )
 }

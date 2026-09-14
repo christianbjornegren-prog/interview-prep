@@ -99,14 +99,31 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
     spärren visas två startknappar och två back-länkar samtidigt.
 
 ### Visuell hierarki – primär åtgärd
-- `lib/theme.js` håller `PRIMARY_GLOW` / `PRIMARY_GLOW_HOVER` (brand-purple glöd)
-  och brand-färgerna, delat mellan Home och JobPage så uttrycket inte glider isär.
-- REGEL: bara EN knapp per vy bär glöden – "Starta intervjuträning". Ger man den
-  till flera konkurrerar de och ingen framhävs.
-- Därför är sekundära åtgärder nedtonade: "+ Lägg till nytt uppdrag" på Home är
-  KONTUR (transparent bakgrund, #404040 border, grå text), inte fylld lila.
-  Den delade tidigare exakt samma lila yta som den primära åtgärden.
-- Primärknappen är också större än sekundära: px-6 py-3.5 + text-base.
+- `components/StartInterviewButton.jsx` är appens ENDA primära CTA. Används på
+  Home (primär + ReadyToTrainCard), JobPage (header + Historik-tomtillstånd) och
+  konfigurationsskärmen (`fullWidth`, med `loading`/`loadingLabel` för
+  frågegenereringen). Fanns tidigare i fyra varianter med olika storlek och
+  blandat emoji/pil – appens viktigaste knapp såg olika ut beroende på var man stod.
+- `lib/theme.js` håller `PRIMARY_GLOW` / `PRIMARY_GLOW_HOVER` och brand-färgerna,
+  så uttrycket inte glider isär mellan sidorna.
+- REGEL: bara EN fylld knapp per vy. Tydlighet kommer från kontrast och
+  isolering – INTE från storlek. Knappen är medvetet återhållen (px-5 py-3,
+  text-sm); ett tidigare försök att förstora den (px-6 py-3.5, text-base) gjorde
+  den bara trubbig.
+- Sekundära åtgärder är nedtonade till KONTUR: "+ Lägg till nytt uppdrag" på Home
+  (transparent bakgrund, #404040 border, grå text). Den delade tidigare exakt
+  samma fyllda lila yta som den primära åtgärden – då framhävdes ingen av dem.
+
+### Ikonspråk
+- Streckade SVG:er som ärver `currentColor` (`stroke-width: 2`, 16px i knappar).
+  Samma språk som JobPage-vyns Ti*-ikoner.
+- INGA emoji och inga dekorativa pilar i KNAPPETIKETTER. Emoji renderas olika per
+  plattform, sitter på fel baslinje och har egen färg som bryter designen.
+  Gäller även inspelningsknappen i intervjun – dess läge bärs av färg, puls och text.
+- Regeln gäller knappar, INTE inline-textlänkar. Pil på en textlänk
+  ("Ladda upp →" i Home:s tomma-bank-banner) är en vedertagen navigationssignal
+  och ska vara kvar. Samma sak för pilar som bär BETYDELSE, t.ex. DriftPage:s
+  "Whisper → Claude → TTS".
 - Förberedelse-tab = FULLBREDD, ingen högerräls. Uppifrån och ned:
   1. AI-summering (job.summary) + "🔄 Uppdatera analys" (höger)
   2. Quick facts som rad av pills (Kund/Roll/Miljö/Fokus, från resolveQuickFacts)

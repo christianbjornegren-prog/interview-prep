@@ -29,7 +29,7 @@ import {
   isEnglish,
   normalizeLanguage,
 } from '../lib/language'
-import { PRIMARY_GLOW, PRIMARY_GLOW_HOVER } from '../lib/theme'
+import StartInterviewButton from '../components/StartInterviewButton'
 
 const TABS = [
   { key: 'preparation', label: 'Förberedelse' },
@@ -295,23 +295,10 @@ export default function JobPage() {
         </div>
 
         {!isReadOnly && !inConfig && (
-          <button
+          <StartInterviewButton
             onClick={startInterview}
             disabled={questions.length === 0}
-            className="shrink-0 flex items-center gap-2 px-6 py-3.5 rounded-lg text-white text-base font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none"
-            style={{ backgroundColor: '#8064ad', boxShadow: PRIMARY_GLOW }}
-            onMouseOver={(e) => {
-              if (questions.length === 0) return
-              e.currentTarget.style.backgroundColor = '#9781be'
-              e.currentTarget.style.boxShadow = PRIMARY_GLOW_HOVER
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = '#8064ad'
-              e.currentTarget.style.boxShadow = PRIMARY_GLOW
-            }}
-          >
-            🎙 Starta intervjuträning
-          </button>
+          />
         )}
       </div>
 
@@ -820,18 +807,9 @@ function HistoryTab({ feedbacks, loading, hasQuestions, onNavigate, onStartInter
         <p className="text-sm" style={{ color: '#6b7280' }}>
           Du har inte tränat på detta uppdrag ännu. Starta din första intervju!
         </p>
-        <button
-          onClick={onStartInterview}
-          disabled={!hasQuestions}
-          className="flex items-center gap-2 mx-auto px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60"
-          style={{ backgroundColor: '#8064ad' }}
-          onMouseOver={(e) => {
-            if (hasQuestions) e.currentTarget.style.backgroundColor = '#9781be'
-          }}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
-        >
-          🎙 Starta intervjuträning
-        </button>
+        <div className="flex justify-center">
+          <StartInterviewButton onClick={onStartInterview} disabled={!hasQuestions} />
+        </div>
       </div>
     )
   }
@@ -1018,25 +996,14 @@ function InterviewConfigScreen({
               {prepareError}
             </p>
           )}
-          <button
+          <StartInterviewButton
             onClick={onStart}
-            disabled={previewQuestions.length === 0 || preparing}
-            className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{ backgroundColor: '#8064ad' }}
-            onMouseOver={(e) => {
-              if (previewQuestions.length > 0) e.currentTarget.style.backgroundColor = '#9781be'
-            }}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
-          >
-            {preparing ? (
-              <span className="flex items-center justify-center gap-2">
-                <Spinner />
-                Skapar engelska frågor...
-              </span>
-            ) : (
-              '🎙 Starta intervju'
-            )}
-          </button>
+            label="Starta intervju"
+            disabled={previewQuestions.length === 0}
+            loading={preparing}
+            loadingLabel="Skapar engelska frågor..."
+            fullWidth
+          />
         </div>
 
         {/* Right – question preview */}
