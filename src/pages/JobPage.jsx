@@ -11,9 +11,24 @@ import {
 } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 import { useUser } from '../components/AuthGate'
-import { analyzeJobPosting, sanitizeCompetencies } from '../lib/claude'
-import { resolveRequirements, deriveGapBuckets } from '../lib/gapAnalysis'
+import {
+  analyzeJobPosting,
+  generateInterviewQuestions,
+  sanitizeCompetencies,
+} from '../lib/claude'
+import {
+  resolveRequirements,
+  deriveGapBuckets,
+  findInvalidRequirementValues,
+} from '../lib/gapAnalysis'
 import { parseJobDescription, resolveQuickFacts } from '../lib/jobDescription'
+import {
+  DEFAULT_LANGUAGE,
+  LANGUAGE_LABEL,
+  SUPPORTED_LANGUAGES,
+  isEnglish,
+  normalizeLanguage,
+} from '../lib/language'
 
 const TABS = [
   { key: 'preparation', label: 'Förberedelse' },
@@ -49,7 +64,14 @@ export default function JobPage() {
   const [refreshingGap, setRefreshingGap] = useState(false)
   const [refreshError, setRefreshError] = useState('')
   const [showConfig, setShowConfig] = useState(false)
-  const [config, setConfig] = useState({ numQuestions: 5, focus: 'Mix', difficulty: 'Standard' })
+  const [config, setConfig] = useState({
+    numQuestions: 5,
+    focus: 'Mix',
+    difficulty: 'Standard',
+    language: DEFAULT_LANGUAGE,
+  })
+  const [preparing, setPreparing] = useState(false)
+  const [prepareError, setPrepareError] = useState('')
 
   useEffect(() => {
     if (pendingEmail) {
@@ -134,15 +156,52 @@ export default function JobPage() {
     setShowConfig(true)
   }
 
-  function launchInterview() {
+  async function launchInterview() {
+    const language = normalizeLanguage(config.language)
+    setPrepareError('')
+
+    // Svenska frågor finns sedan uppdraget skapades. Engelska genereras först
+    // när någon faktiskt väljer engelska, och sparas sedan bredvid de svenska
+    // (questionsEn) – de svenska rörs aldrig, så äldre uppdrag är oförändrade.
+    let sourceQuestions = questions
+    if (isEnglish(language)) {
+      const existing = Array.isArray(job.questionsEn) ? job.questionsEn : []
+      if (existing.length > 0) {
+        sourceQuestions = existing
+      } else {
+        setPreparing(true)
+        try {
+          const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
+          const generated = await generateInterviewQuestions(
+            job.rawJobText ?? job.summary ?? '',
+            job.companyInfo ?? '',
+            sanitizeCompetencies(compSnap.docs.map((d) => d.data())),
+            language
+          )
+          await updateDoc(doc(db, 'users', uid, 'jobs', jobId), {
+            questionsEn: generated,
+          })
+          sourceQuestions = generated
+        } catch (err) {
+          console.error('Kunde inte generera engelska frågor:', err)
+          setPrepareError(
+            err.message ?? 'Kunde inte generera engelska frågor. Försök igen.'
+          )
+          setPreparing(false)
+          return
+        }
+        setPreparing(false)
+      }
+    }
+
     const categoryKey = FOCUS_TO_CATEGORY[config.focus]
     const filtered = categoryKey
-      ? questions.filter((q) => q.category === categoryKey)
-      : questions
-    const pool = filtered.length > 0 ? filtered : questions
+      ? sourceQuestions.filter((q) => q.category === categoryKey)
+      : sourceQuestions
+    const pool = filtered.length > 0 ? filtered : sourceQuestions
     const selectedQuestions = pool.slice(0, config.numQuestions)
     navigate(`/intervju-tts/${jobId}`, {
-      state: { ...config, selectedQuestions },
+      state: { ...config, language, selectedQuestions },
     })
   }
 
@@ -230,6 +289,8 @@ export default function JobPage() {
           questions={questions}
           onStart={launchInterview}
           onBack={() => setShowConfig(false)}
+          preparing={preparing}
+          prepareError={prepareError}
         />
       ) : (
         <>
@@ -385,6 +446,10 @@ function DescriptionView({ blocks }) {
 function PrepTab({ job, onRefreshGap, refreshingGap, refreshError }) {
   const requirements = resolveRequirements(job)
   const buckets = deriveGapBuckets(requirements)
+  // Skydd mot TYST degradering: värden utanför den svenska värdemängden
+  // normaliseras bort av deriveGapBuckets och skulle annars visa en helt
+  // normal men felaktig sida (0 % täckning, tomma styrkor).
+  const invalidValues = findInvalidRequirementValues(requirements)
   const hasReqs = buckets.total > 0
   const metrics = {
     coveragePct: Math.round(buckets.coverage * 100),
@@ -427,6 +492,22 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError }) {
         <p className="text-xs" style={{ color: '#f87171' }}>
           {refreshError}
         </p>
+      )}
+
+      {invalidValues.length > 0 && !refreshingGap && (
+        <div
+          className="rounded-xl border p-4"
+          style={{ backgroundColor: '#2b1a0d', borderColor: '#7c5a1a' }}
+        >
+          <p className="text-sm font-semibold" style={{ color: 'var(--color-text-warning)' }}>
+            Analysen kunde inte tolkas korrekt
+          </p>
+          <p className="text-sm mt-1" style={{ color: '#d1d5db' }}>
+            {invalidValues.length} värde{invalidValues.length === 1 ? '' : 'n'} i
+            kravanalysen känns inte igen, vilket gör siffrorna nedan
+            missvisande. Kör “🔄 Uppdatera analys” för att generera om den.
+          </p>
+        </div>
       )}
 
       {refreshingGap && (
@@ -758,6 +839,15 @@ function HistoryTab({ feedbacks, loading, hasQuestions, onNavigate, onStartInter
                       Delad
                     </span>
                   )}
+                  {isEnglish(feedback.language) && (
+                    <span
+                      className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
+                      style={{ backgroundColor: '#8064ad20', color: '#b9a5d6', border: '1px solid #8064ad40' }}
+                      title="Intervjun hölls på engelska"
+                    >
+                      EN
+                    </span>
+                  )}
                 </div>
                 {feedback.interviewer && (
                   <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>
@@ -804,7 +894,7 @@ const DIFFICULTY_COLOR = {
   Hård:       '#ef4444',
 }
 
-function OptionGroup({ label, options, value, onChange }) {
+function OptionGroup({ label, options, value, onChange, renderLabel = (o) => o }) {
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
@@ -822,7 +912,7 @@ function OptionGroup({ label, options, value, onChange }) {
                 : { backgroundColor: '#323232', color: '#9ca3af' }
             }
           >
-            {opt}
+            {renderLabel(opt)}
           </button>
         ))}
       </div>
@@ -830,7 +920,7 @@ function OptionGroup({ label, options, value, onChange }) {
   )
 }
 
-function InterviewConfigScreen({ config, onChange, questions, onStart, onBack }) {
+function InterviewConfigScreen({ config, onChange, questions, onStart, onBack, preparing, prepareError }) {
   const categoryKey = FOCUS_TO_CATEGORY[config.focus]
   const filtered = categoryKey
     ? questions.filter((q) => q.category === categoryKey)
@@ -875,9 +965,21 @@ function InterviewConfigScreen({ config, onChange, questions, onStart, onBack })
             value={config.difficulty}
             onChange={(v) => onChange((c) => ({ ...c, difficulty: v }))}
           />
+          <OptionGroup
+            label="Språk"
+            options={SUPPORTED_LANGUAGES}
+            value={config.language}
+            onChange={(v) => onChange((c) => ({ ...c, language: v }))}
+            renderLabel={(o) => LANGUAGE_LABEL[o]}
+          />
+          {prepareError && (
+            <p className="text-xs" style={{ color: '#f87171' }}>
+              {prepareError}
+            </p>
+          )}
           <button
             onClick={onStart}
-            disabled={previewQuestions.length === 0}
+            disabled={previewQuestions.length === 0 || preparing}
             className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#8064ad' }}
             onMouseOver={(e) => {
@@ -885,7 +987,7 @@ function InterviewConfigScreen({ config, onChange, questions, onStart, onBack })
             }}
             onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
           >
-            🎙 Starta intervju
+            {preparing ? 'Förbereder engelska frågor...' : '🎙 Starta intervju'}
           </button>
         </div>
 
@@ -894,6 +996,12 @@ function InterviewConfigScreen({ config, onChange, questions, onStart, onBack })
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
             Frågor som ingår ({previewQuestions.length})
           </p>
+          {isEnglish(config.language) && (
+            <p className="text-xs" style={{ color: '#6b7280' }}>
+              Förhandsvisningen visar de svenska källfrågorna. De engelska
+              versionerna skapas när du startar intervjun.
+            </p>
+          )}
           {previewQuestions.length === 0 ? (
             <p className="text-sm" style={{ color: '#6b7280' }}>
               Inga frågor matchar valt fokus.

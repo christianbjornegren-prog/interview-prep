@@ -16,6 +16,7 @@ import {
 import FileUpload from '../components/FileUpload'
 import { recategorizeCompetencies } from '../lib/claude'
 import { coverageFromJob } from '../lib/gapAnalysis'
+import { isEnglish } from '../lib/language'
 
 // ── Category definitions (names must match CATEGORY_ENUM in claude.js) ────
 
@@ -630,7 +631,18 @@ function SharedFeedbackItem({ feedback, onClick }) {
             {feedback.jobTitle}
             {feedback.company && <span style={{ color: '#6b7280' }}> · {feedback.company}</span>}
           </p>
-          <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>{dateStr}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-xs" style={{ color: '#9ca3af' }}>{dateStr}</p>
+            {isEnglish(feedback.language) && (
+              <span
+                className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
+                style={{ backgroundColor: '#8064ad20', color: '#b9a5d6', border: '1px solid #8064ad40' }}
+                title="Intervjun hölls på engelska"
+              >
+                EN
+              </span>
+            )}
+          </div>
         </div>
         <div
           className="flex items-center justify-center rounded-full shrink-0"

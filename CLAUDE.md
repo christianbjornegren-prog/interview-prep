@@ -34,14 +34,20 @@ i mörkt läge MÅSTE använda ljusa semantiska vars/#8064ad – aldrig mörka r
 ## Datamodell
 users/{uid}/competencies/{docId}
 users/{uid}/jobs/{jobId}
-  → bl.a. jobTitle, company, summary, rawJobText, questions[],
+  → bl.a. jobTitle, company, summary, rawJobText, questions[], questionsEn[],
     requirements [{ requirement, importance:'hög'|'medel'|'låg', match:'stark'|'delvis'|'svag', note, howToAddress }],
     quickFacts { kund, roll, miljö, fokus } och sections [{ heading, points[] }]
     (äldre jobb har gapAnalysis {covered,gaps} ELLER {criticalGaps,...} istället för
      requirements; resolveRequirements() mappar dem framåt → vyn kraschar aldrig)
+  → questions[] är ALLTID svenska (skapas av analyzeJobPosting vid uppdragsskapandet).
+    questionsEn[] skapas LAT – först när någon väljer engelska – av
+    generateInterviewQuestions() och sparas bredvid. De svenska rörs aldrig,
+    så äldre uppdrag är oförändrade och ingen migrering behövs.
 users/{uid}/jobs/{jobId}/feedback/{feedbackId}
   → inkluderar sharedWithSeller (boolean, default false) + sharedAt (timestamp|null)
     Saknat sharedWithSeller behandlas överallt som false.
+  → language ('sv'|'en') = språket intervjun hölls på. Saknat fält behandlas
+    överallt som 'sv'. Styr EN-märkningen i Historik och säljarens delade vy.
 pendingProfiles/{email} → { name, email, createdAt, competencies: [...], jobs: [...] }
 systemEvents/{eventId} → { type, severity: 'info'|'error', step, message, uid, createdAt }
   → TEKNISK driftlogg (Whisper→Claude→TTS→Firestore). ALDRIG betyg/feedbackinnehåll.
@@ -153,6 +159,73 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
 - Antal frågor: 5 (alternativ: 3, 5, 8)
 - Fokus: Mix (alternativ: Erfarenhet, Kompetens, Situation)
 - Svårighetsgrad: Standard (alternativ: Avslappnad, Standard, Hård)
+- Språk: Svenska (alternativ: Svenska, English) – per SESSION, inte per uppdrag
+
+## Intervjuspråk (svenska/engelska)
+
+### KÄRNPRINCIP – datakontraktet är svenskt
+Språkvalet styr PROSA och TAL. Det styr ALDRIG datavärden.
+`match` (stark/delvis/svag), `importance` (hög/medel/låg), `strength`
+(Hög/Medel/Låg), frågornas `category` (erfarenhet/kompetens/situation/motivation)
+och CATEGORY_ENUM är NYCKLAR som koden jämför med `===` – de översätts aldrig,
+oavsett intervjuspråk. Det är den principen som gör att gapAnalysis,
+kompetensbanken och filtren är helt orörda av språkstödet.
+
+### Moduler
+- `lib/language.js` – enda sanningskällan. `normalizeLanguage()` faller ALLTID
+  tillbaka på 'sv' (tål null, regionkoder, versaler, skräp). `isEnglish()`,
+  `LANGUAGE_LABEL`, `SUPPORTED_LANGUAGES`.
+- `lib/interviewScript.js` – intervjuarens repliker (`buildGreeting`,
+  `buildBridge`, `buildClosing`), röst-/namnval (`pickVoiceAndName(language, rng)`
+  – rng injicerbar för test) och intervjuskärmens text (`screenCopy`).
+  `capForSpeech()` skyddar mot TTS-takets 4096 tecken.
+  De svenska replikerna är ORDAGRANT oförändrade och låsta av tester.
+- `lib/interviewPhase.js` – `buttonStateForPhase(phase, { interviewerName, language })`
+  och `buildRecordingLabel(seconds, language)`. Utan `language` = svenska.
+
+### Vad som byter språk
+Intervjufrågorna, intervjuarens repliker och namn, HELA intervjuskärmen
+(InterviewSimulatorTTS) och feedbacktexten.
+
+### Vad som INTE byter språk
+Dashboard, uppdragsvyn (JobPage/Förberedelse), feedbacksidans ram,
+kompetensbanken, datumformat (åtta hårdkodade 'sv-SE'). Funktionen heter
+intervjuspråk, inte appspråk. En engelsk feedbacktext visas alltså i en svensk
+sidram – medvetet, se docs/PLAN_INTERVJUSPRAK.md "Utanför scope".
+
+### Prompter (claude.js)
+- `buildFeedbackSystemPrompt(language)` / `buildFeedbackConfigNote(config)` –
+  POÄNGSKALAN 1–10 är MEDVETET kvar på svenska i båda språklägena. Den är en
+  instruktion till modellen och skalan är finkalibrerad mot formuleringen;
+  språkvalet ska styra prosan, inte hur strängt det bedöms.
+- `buildQuestionsSystemPrompt(language)` – innehåller i BÅDA språklägena den
+  uttryckliga instruktionen att `category` måste förbli exakt de svenska
+  strängarna. Det är där datakontraktet upprätthålls i praktiken.
+- `analyzeJobPosting()` har MEDVETET inget språkval. Kravbilden på uppdragssidan
+  förblir svensk – det håller enum-risken borta från kravanalysen helt.
+
+### Transkribering (api/whisper.js)
+Språket läses från query (`?language=sv|en`), valideras mot en vitlista och
+faller tillbaka på 'sv'. Kroppen är rå ljuddata, därför query och inte JSON.
+Att ANGE språk är dokumenterat bättre än automatisk detektering (träffsäkerhet
+OCH svarstid). TTS behöver ingen språkparameter – språket följer texten.
+
+⏳ `whisper-1` avvecklas 2027-02-26. Efterträdaren `gpt-transcribe` byter
+`language` mot `languages` (array). Egen migrering, eget röktest.
+
+### Skydd mot tyst degradering
+`findInvalidRequirementValues()` i gapAnalysis.js flaggar enum-värden utanför
+den svenska värdemängden. `deriveGapBuckets` är MEDVETET oförändrad och
+fortsätter normalisera tyst (bakåtkompatibilitet) – skyddet ligger BREDVID.
+JobPage visar en varningsruta i stället för att rendera en helt normal men
+felaktig sida med 0 % kravtäckning.
+
+### Deploy
+Vercel är kopplat till GitHub-repot och deployar `api/` vid push till main,
+samtidigt som GitHub Actions deployar frontend till Pages – utan garanterad
+ordning. Dela därför upp i TVÅ pushar: proxyn först (bakåtkompatibel), vänta på
+grön Vercel-deploy, sedan frontend. Varje push till main går direkt till
+produktion; CI kör INGA tester.
 
 ## Kompetensextraktion (claude.js)
 - `CATEGORY_ENUM` (exporterad konstant) — 13 kategorier, enda sanningskällan:
@@ -355,9 +428,15 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 - Vitest enhetstester (test/unit/, körs utan emulator): `npm test`
   - sharing.test.js + systemEvents.test.js + onboarding.test.js + gapAnalysis.test.js
     + jobBriefing.test.js + claude.test.js (extractJsonObject/normalizeInterviewFeedback/
-    sanitizeCompetencies) + userData.test.js (rensning, mockad Firestore) + interviewPhase.test.js.
-    135 tester. (vite.config.js sätter dummy VITE_FIREBASE_*-env för test så moduler som
+    sanitizeCompetencies) + userData.test.js (rensning, mockad Firestore) + interviewPhase.test.js
+    + language.test.js + interviewScript.test.js + claudePrompts.test.js + gapAnalysisGuard.test.js.
+    276 tester i 12 filer. (vite.config.js sätter dummy VITE_FIREBASE_*-env för test så moduler som
     initierar Firebase-SDK:t vid import laddar utan .env – rör INTE `vite build`.)
+  - VIKTIGT: testmiljön har INGEN DOM-rigg (ingen jsdom, inga setupFiles). Alla
+    tester måste vara rena Node-tester – inget får bero på React-rendering.
+  - Språkstödets tester bevisar två saker särskilt: att de SVENSKA replikerna är
+    ordagrant oförändrade (regressionslås i interviewScript.test.js) och att
+    kategorivärdena förblir svenska i BÅDA språklägena (claudePrompts.test.js).
 - Firestore-regeltester (@firebase/rules-unit-testing mot emulatorn): `npm run test:rules`
   - test/rules/firestore.rules.test.js bevisar samtyckesgrindning + systemEvents-åtkomst
     + pendingProfiles-migreringsåtkomst (konsult self-read/delete). 23 tester.

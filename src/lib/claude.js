@@ -1,5 +1,7 @@
 // updated build - force redeploy
 
+import { LANGUAGES, normalizeLanguage } from './language.js'
+
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
 const MODEL = 'claude-sonnet-4-5'
 
@@ -387,40 +389,201 @@ export async function analyzeJobPosting(jobText, companyInfo, competencies, onPr
   return extractJsonObject(rawText)
 }
 
+// ── Interview questions in a chosen language ──────────────────────────────
+
+/**
+ * Frågornas kategori är ett DATAKONTRAKT, inte text. Koden filtrerar på exakt
+ * dessa svenska strängar (JobPage FOCUS_TO_CATEGORY, CAT_META, simulatorns
+ * urval) – de får ALDRIG översättas, oavsett vilket språk frågorna skrivs på.
+ */
+const QUESTION_CATEGORIES = ['erfarenhet', 'kompetens', 'situation', 'motivation']
+
+/**
+ * Systemprompt för frågegenerering, språkstyrd.
+ *
+ * Prosan (`question`, `rationale`) följer språkvalet. `category` gör det INTE –
+ * den instruktionen finns i BÅDA språklägena och är det som håller
+ * datakontraktet intakt när intervjun körs på engelska.
+ *
+ * @param {unknown} [language]
+ * @returns {string}
+ */
+export function buildQuestionsSystemPrompt(language) {
+  const en = normalizeLanguage(language) === LANGUAGES.EN
+
+  const proseRule = en
+    ? 'Skriv "question" och "rationale" på ENGELSKA – intervjun kommer att hållas på engelska.\n'
+    : 'Skriv "question" och "rationale" på SVENSKA.\n'
+
+  return (
+    'Du är konsultens förberedelsepartner inför en intervju – INTE ett bedömningssystem.\n' +
+    'Generera intervjufrågor utifrån jobbannonsen och konsultens kompetensbank.\n' +
+    'Returnera ENDAST giltig JSON utan markdown eller backticks.\n' +
+    'Schema:\n' +
+    '{\n' +
+    '  "questions": [\n' +
+    '    {\n' +
+    '      "id": "string (kort unikt id, t.ex. q1, q2)",\n' +
+    '      "question": "string (intervjufrågan)",\n' +
+    '      "category": "erfarenhet|kompetens|situation|motivation",\n' +
+    '      "rationale": "string (varför denna fråga ställs i sammanhanget)"\n' +
+    '    }\n' +
+    '  ]\n' +
+    '}\n' +
+    'Generera 8-12 frågor fördelade mellan kategorierna erfarenhet, kompetens, situation och motivation.\n' +
+    proseRule +
+    'KRITISKT – "category" är ett maskinläsbart fältvärde, inte text som visas för användaren.\n' +
+    `Det MÅSTE vara exakt en av dessa svenska strängar: ${QUESTION_CATEGORIES.join(', ')}.\n` +
+    'Översätt ALDRIG kategorivärdet, inte ens när frågorna skrivs på engelska.\n' +
+    NO_ID_INSTRUCTION
+  )
+}
+
+/**
+ * Genererar intervjufrågor på valt språk.
+ *
+ * Används för att skapa den ENGELSKA frågeuppsättningen för ett uppdrag – de
+ * svenska frågorna kommer från analyzeJobPosting vid uppdragsskapandet och
+ * rörs aldrig av den här funktionen.
+ *
+ * @param {string} jobText
+ * @param {string} companyInfo
+ * @param {Array} competencies
+ * @param {unknown} language
+ * @returns {Promise<Array>} questions[]
+ */
+export async function generateInterviewQuestions(jobText, companyInfo, competencies, language) {
+  const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
+  if (!apiKey) {
+    throw new Error('Claude API-nyckel saknas. Kontrollera VITE_CLAUDE_API_KEY i .env.local.')
+  }
+
+  const parts = [
+    'Generera intervjufrågor för följande uppdrag:',
+    '',
+    '## Jobbannons',
+    (jobText ?? '').trim(),
+  ]
+  if (companyInfo && companyInfo.trim()) {
+    parts.push('', '## Om företaget', companyInfo.trim())
+  }
+  parts.push('', '## Kandidatens kompetensbank', JSON.stringify(sanitizeCompetencies(competencies), null, 2))
+
+  const response = await fetch(CLAUDE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 4000,
+      system: buildQuestionsSystemPrompt(language),
+      messages: [{ role: 'user', content: parts.join('\n') }],
+    }),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    throw new Error(`Claude API-fel (${response.status}): ${errorBody}`)
+  }
+
+  const data = await response.json()
+  const parsed = extractJsonObject(firstTextBlock(data))
+  const questions = parsed?.questions
+  if (!Array.isArray(questions) || questions.length === 0) {
+    throw new Error('Kunde inte läsa ut frågor ur svaret – försök igen.')
+  }
+  return questions
+}
+
 // ── Interview feedback analysis ───────────────────────────────────────────
 
-const FEEDBACK_SYSTEM_PROMPT =
-  'Du är en uppmuntrande intervjucoach som hjälper konsulter att utvecklas.\n' +
-  'Detta är ett träningsverktyg – inte en verklig anställningsintervju. Kalibrera poängen därefter.\n' +
-  '\n' +
-  'POÄNGSKALA 1–10 (följ denna kalibrering strikt):\n' +
-  '  9–10 Exceptionellt svar – strukturerat, konkret, övertygande med tydliga resultat\n' +
-  '   7–8 Bra svar – relevant, tydligt och visar erfarenhet (NORMALLÄGE för en välförberedd konsult)\n' +
-  '   5–6 Godkänt svar – relevant men ytligt, saknar konkreta exempel eller struktur\n' +
-  '   3–4 Svagt svar – vagt, delvis irrelevant eller mycket kortfattat\n' +
-  '   1–2 Reserveras för svar som är helt irrelevanta, obegripliga eller uteblivna\n' +
-  '\n' +
-  'En konsult som svarar relevant och strukturerat SKA lämna sessionen med en känsla av att ha lyckats.\n' +
-  'Var generös – lyft fram det som fungerade bra innan du nämner förbättringsområden.\n' +
-  '\n' +
-  'Returnera ENDAST giltig JSON utan markdown eller backticks.\n' +
-  'Schema:\n' +
-  '{\n' +
-  '  "overallScore": number (1-10),\n' +
-  '  "summary": "string (övergripande sammanfattning på svenska, 2-3 meningar, positiv ton)",\n' +
-  '  "strengths": ["styrka 1", "styrka 2", "styrka 3"],\n' +
-  '  "improvements": ["konkret tips 1", "konkret tips 2", "konkret tips 3"],\n' +
-  '  "competencyGaps": ["Baserat på din kompetens inom X kan du stärka svaret med Y"],\n' +
-  '  "questionFeedback": [\n' +
-  '    {\n' +
-  '      "question": "string (frågan)",\n' +
-  '      "score": number (1-10),\n' +
-  '      "comment": "string (specifik feedback på svenska, börja med vad som var bra)"\n' +
-  '    }\n' +
-  '  ]\n' +
-  '}\n' +
-  'Tala ALLTID på svenska.\n' +
-  NO_ID_INSTRUCTION
+/**
+ * Systemprompt för feedback, språkstyrd.
+ *
+ * OBS: kalibreringsrubriken (POÄNGSKALA 1–10) är MEDVETET kvar på svenska i
+ * båda språklägena. Den är en instruktion till modellen, inte text användaren
+ * ser, och betygsskalan är finkalibrerad mot den formuleringen. Att översätta
+ * den skulle riskera att betygsättningen glider – språkvalet ska styra prosan,
+ * inte hur strängt det bedöms.
+ *
+ * @param {unknown} [language]
+ * @returns {string}
+ */
+export function buildFeedbackSystemPrompt(language) {
+  const en = normalizeLanguage(language) === LANGUAGES.EN
+
+  const summaryField = en
+    ? '  "summary": "string (overall summary in English, 2-3 sentences, positive tone)",\n'
+    : '  "summary": "string (övergripande sammanfattning på svenska, 2-3 meningar, positiv ton)",\n'
+
+  const commentField = en
+    ? '      "comment": "string (specific feedback in English, start with what worked well)"\n'
+    : '      "comment": "string (specifik feedback på svenska, börja med vad som var bra)"\n'
+
+  const languageRule = en
+    ? 'Intervjun hölls på ENGELSKA. Skriv ALLA fritextfält – summary, strengths, ' +
+      'improvements, competencyGaps och comment – på ENGELSKA. Poängskalan och ' +
+      'JSON-strukturen är oförändrade.\n'
+    : 'Tala ALLTID på svenska.\n'
+
+  return (
+    'Du är en uppmuntrande intervjucoach som hjälper konsulter att utvecklas.\n' +
+    'Detta är ett träningsverktyg – inte en verklig anställningsintervju. Kalibrera poängen därefter.\n' +
+    '\n' +
+    'POÄNGSKALA 1–10 (följ denna kalibrering strikt):\n' +
+    '  9–10 Exceptionellt svar – strukturerat, konkret, övertygande med tydliga resultat\n' +
+    '   7–8 Bra svar – relevant, tydligt och visar erfarenhet (NORMALLÄGE för en välförberedd konsult)\n' +
+    '   5–6 Godkänt svar – relevant men ytligt, saknar konkreta exempel eller struktur\n' +
+    '   3–4 Svagt svar – vagt, delvis irrelevant eller mycket kortfattat\n' +
+    '   1–2 Reserveras för svar som är helt irrelevanta, obegripliga eller uteblivna\n' +
+    '\n' +
+    'En konsult som svarar relevant och strukturerat SKA lämna sessionen med en känsla av att ha lyckats.\n' +
+    'Var generös – lyft fram det som fungerade bra innan du nämner förbättringsområden.\n' +
+    '\n' +
+    'Returnera ENDAST giltig JSON utan markdown eller backticks.\n' +
+    'Schema:\n' +
+    '{\n' +
+    '  "overallScore": number (1-10),\n' +
+    summaryField +
+    '  "strengths": ["styrka 1", "styrka 2", "styrka 3"],\n' +
+    '  "improvements": ["konkret tips 1", "konkret tips 2", "konkret tips 3"],\n' +
+    '  "competencyGaps": ["Baserat på din kompetens inom X kan du stärka svaret med Y"],\n' +
+    '  "questionFeedback": [\n' +
+    '    {\n' +
+    '      "question": "string (frågan)",\n' +
+    '      "score": number (1-10),\n' +
+    commentField +
+    '    }\n' +
+    '  ]\n' +
+    '}\n' +
+    languageRule +
+    NO_ID_INSTRUCTION
+  )
+}
+
+/**
+ * Konfigurationsnoten som läggs först i användarmeddelandet vid feedback.
+ * Ren funktion så språkregeln går att testa utan API-anrop.
+ *
+ * @param {{ focus?: string, difficulty?: string, language?: unknown }} [config]
+ * @returns {string}
+ */
+export function buildFeedbackConfigNote(config = {}) {
+  const en = normalizeLanguage(config.language) === LANGUAGES.EN
+  const languageRule = en
+    ? 'Intervjun hölls på ENGELSKA – skriv all fritext på ENGELSKA.'
+    : 'Tala ALLTID på svenska.'
+  return (
+    `Anpassa feedback efter intervjukonfiguration: ` +
+    `Fokus: ${config.focus ?? 'Mix'}, ` +
+    `Svårighetsgrad: ${config.difficulty ?? 'Standard'}. ` +
+    `${languageRule}\n\n`
+  )
+}
 
 /**
  * Analyze interview transcript and generate feedback.
@@ -437,11 +600,7 @@ export async function analyzeInterviewFeedback(transcript, jobTitle, company, co
     throw new Error('Claude API-nyckel saknas. Kontrollera VITE_CLAUDE_API_KEY i .env.local.')
   }
 
-  const configNote =
-    `Anpassa feedback efter intervjukonfiguration: ` +
-    `Fokus: ${interviewConfig.focus ?? 'Mix'}, ` +
-    `Svårighetsgrad: ${interviewConfig.difficulty ?? 'Standard'}. ` +
-    `Tala ALLTID på svenska.\n\n`
+  const configNote = buildFeedbackConfigNote(interviewConfig)
 
   const sanitized = sanitizeCompetencies(competencies)
 
@@ -463,7 +622,7 @@ export async function analyzeInterviewFeedback(transcript, jobTitle, company, co
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 3000,
-      system: FEEDBACK_SYSTEM_PROMPT,
+      system: buildFeedbackSystemPrompt(interviewConfig.language),
       messages: [{ role: 'user', content: userMessage }],
     }),
   })

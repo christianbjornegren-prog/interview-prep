@@ -134,6 +134,40 @@ export function deriveGapBuckets(requirements = []) {
 }
 
 /**
+ * Hittar krav vars `match`/`importance` ligger UTANFÖR den svenska
+ * värdemängden – alltså värden som `deriveGapBuckets` skulle normalisera bort
+ * i tysthet.
+ *
+ * VARFÖR: enum-värdena är ett DATAKONTRAKT och ska alltid vara svenska, även
+ * när intervjun körs på engelska. Skulle modellen ändå svara 'strong'/'high'
+ * blir varje krav tyst omtolkat till 'delvis'/'medel' – kravtäckningen faller
+ * till 0 %, "Dina styrkor" töms och sidan ser helt normal ut fast den är fel.
+ * Den här funktionen gör det felet synligt i stället för tyst.
+ *
+ * `deriveGapBuckets` är MEDVETET oförändrad och fortsätter normalisera – det
+ * är rätt beteende för bakåtkompatibilitet med äldre jobb. Skyddet ligger
+ * bredvid, inte i stället.
+ *
+ * @param {Array} requirements
+ * @returns {Array<{ index: number, field: 'match'|'importance', value: unknown }>}
+ *   Tom lista = allt är giltigt.
+ */
+export function findInvalidRequirementValues(requirements = []) {
+  const list = Array.isArray(requirements) ? requirements : []
+  const found = []
+  list.forEach((r, index) => {
+    const req = r && typeof r === 'object' ? r : {}
+    if (!MATCH.includes(req.match)) {
+      found.push({ index, field: 'match', value: req.match })
+    }
+    if (!IMPORTANCE.includes(req.importance)) {
+      found.push({ index, field: 'importance', value: req.importance })
+    }
+  })
+  return found
+}
+
+/**
  * Täckning för uppdragskortens "Matchning"-badge (Home/Konsult/Pending).
  * Hanterar både nya (requirements) och gamla (gapAnalysis) jobb.
  * covered = antal starkt matchade krav, total = antal krav.

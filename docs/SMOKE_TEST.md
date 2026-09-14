@@ -46,6 +46,11 @@ efter ändringar i delnings-, drift- eller intervjuflödet.
 - [ ] 🔄 Uppdatera laddar om datan.
 
 ## 5. Automatiska tester (kör före push)
-- [ ] `npm test` → enhetstester gröna (18).
+- [ ] `npm test` → enhetstester gröna (276).
 - [ ] `npm run test:rules` → regeltester gröna (kräver Java/Firestore-emulatorn).
 - [ ] `npm run build` → kompilerar utan fel.
+
+## 6. Intervjuspråk
+- [ ] Har du rört intervju-, prompt- eller proxylagret? Kör då även
+      `docs/SMOKE_TEST_LANGUAGE.md` – BÅDA körningarna, svenska och engelska.
+      Den svenska är regressionsbeviset.

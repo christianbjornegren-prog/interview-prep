@@ -15,26 +15,21 @@ import { logSystemEvent } from '../lib/systemEvents'
 import {
   buttonStateForPhase,
   shouldShowIntroHint,
-  formatRecordingTime,
+  buildRecordingLabel,
   PHASE_STATES as STATES,
 } from '../lib/interviewPhase'
+import { DEFAULT_LANGUAGE, normalizeLanguage } from '../lib/language'
+import {
+  buildGreeting,
+  buildBridge,
+  buildClosing,
+  pickVoiceAndName,
+  screenCopy,
+} from '../lib/interviewScript'
 
 const VERCEL_WHISPER =
   'https://interview-prep-liard-three.vercel.app/api/whisper'
 const VERCEL_TTS = 'https://interview-prep-liard-three.vercel.app/api/tts'
-
-const FEMALE_VOICES = ['shimmer', 'nova', 'alloy']
-const MALE_VOICES = ['onyx', 'echo', 'fable']
-const FEMALE_NAMES = ['Maria Lindström', 'Anna Karlsson', 'Sara Bergström']
-const MALE_NAMES = ['Erik Svensson', 'Johan Andersen', 'Anders Nilsson']
-
-function pickVoiceAndName() {
-  const useFemale = Math.random() < 0.5
-  const voices = useFemale ? FEMALE_VOICES : MALE_VOICES
-  const names = useFemale ? FEMALE_NAMES : MALE_NAMES
-  const idx = Math.floor(Math.random() * voices.length)
-  return { voice: voices[idx], name: names[idx] }
-}
 
 const FOCUS_TO_CATEGORY = {
   Erfarenhet: 'erfarenhet',
@@ -47,6 +42,7 @@ const DEFAULT_CONFIG = {
   numQuestions: 5,
   focus: 'Mix',
   difficulty: 'Standard',
+  language: DEFAULT_LANGUAGE,
   selectedQuestions: null,
 }
 
@@ -58,7 +54,15 @@ export default function InterviewSimulatorTTS() {
   const { jobId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const interviewConfig = { ...DEFAULT_CONFIG, ...(location.state ?? {}) }
+  const rawConfig = { ...DEFAULT_CONFIG, ...(location.state ?? {}) }
+  // Språket normaliseras EN gång här och används sedan genomgående – ett
+  // trasigt värde i navigationsstaten ska aldrig kunna välta intervjun.
+  const interviewConfig = {
+    ...rawConfig,
+    language: normalizeLanguage(rawConfig.language),
+  }
+  const language = interviewConfig.language
+  const copy = screenCopy(language)
 
   const [job, setJob] = useState(null)
   const [loadingJob, setLoadingJob] = useState(true)
@@ -72,8 +76,8 @@ export default function InterviewSimulatorTTS() {
   const [showIntroHint, setShowIntroHint] = useState(false)
 
   const { voice: interviewerVoice, name: interviewerName } = useMemo(
-    () => pickVoiceAndName(),
-    []
+    () => pickVoiceAndName(language),
+    [language]
   )
   const [showConfirmAbort, setShowConfirmAbort] = useState(false)
 
@@ -270,11 +274,14 @@ export default function InterviewSimulatorTTS() {
     activeQuestionsRef.current = activeQuestions
     setInterviewState(STATES.CONNECTING)
 
-    const greeting =
-      `Hej, jag heter ${interviewerName}. Välkommen till intervjun ` +
-      `för rollen ${job.jobTitle} hos ${job.company}. ` +
-      `Vi har ${activeQuestions.length} frågor. ` +
-      `Fråga 1 av ${activeQuestions.length}: ${activeQuestions[0].question}`
+    const greeting = buildGreeting({
+      interviewerName,
+      jobTitle: job.jobTitle,
+      company: job.company,
+      total: activeQuestions.length,
+      firstQuestion: activeQuestions[0].question,
+      language,
+    })
 
     try {
       await speakText(greeting)
@@ -339,11 +346,16 @@ export default function InterviewSimulatorTTS() {
     const prevIndex = currentQuestionIndexRef.current
     let advanced = false
     try {
-      const whisperRes = await fetch(VERCEL_WHISPER, {
-        method: 'POST',
-        headers: { 'Content-Type': 'audio/webm' },
-        body: audioBlob,
-      })
+      // Språket skickas som query eftersom kroppen är rå ljuddata. Proxyn
+      // validerar mot en vitlista och faller tillbaka på svenska.
+      const whisperRes = await fetch(
+        `${VERCEL_WHISPER}?language=${encodeURIComponent(language)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'audio/webm' },
+          body: audioBlob,
+        }
+      )
       if (!whisperRes.ok) throw new Error(`Whisper HTTP ${whisperRes.status}`)
       const { text: userText } = await whisperRes.json()
       if (!userText) throw new Error('Inget tal detekterat')
@@ -355,16 +367,17 @@ export default function InterviewSimulatorTTS() {
       let finishing = false
 
       if (nextIndex < activeQuestions.length) {
-        aiText =
-          `Tack. Fråga ${nextIndex + 1} av ${activeQuestions.length}: ` +
-          activeQuestions[nextIndex].question
+        aiText = buildBridge({
+          number: nextIndex + 1,
+          total: activeQuestions.length,
+          question: activeQuestions[nextIndex].question,
+          language,
+        })
         setCurrentQuestionIndex(nextIndex)
         currentQuestionIndexRef.current = nextIndex
         advanced = true
       } else {
-        aiText =
-          'Tack så mycket, det var alla mina frågor. ' +
-          'Du har genomfört intervjun. Bra jobbat!'
+        aiText = buildClosing({ language })
         finishing = true
       }
 
@@ -419,7 +432,11 @@ export default function InterviewSimulatorTTS() {
           job?.jobTitle ?? '',
           job?.company ?? '',
           sanitizeCompetencies(rawCompetencies),
-          { focus: interviewConfig.focus, difficulty: interviewConfig.difficulty }
+          {
+            focus: interviewConfig.focus,
+            difficulty: interviewConfig.difficulty,
+            language,
+          }
         )
       } catch (err) {
         logSystemEvent({ type: 'pipeline_error', severity: 'error', step: 'claude', message: err.message })
@@ -441,6 +458,10 @@ export default function InterviewSimulatorTTS() {
             jobTitle: job?.jobTitle ?? '',
             company: job?.company ?? '',
             interviewer: interviewerName,
+            // Språket sparas så historiken och säljarens vy kan märka upp
+            // engelska sessioner. Äldre feedback saknar fältet och behandlas
+            // överallt som svensk.
+            language,
             transcript: transcriptForAnalysis,
             // Delning är opt-in: ny feedback är privat tills konsulten själv delar.
             sharedWithSeller: false,
@@ -499,7 +520,7 @@ export default function InterviewSimulatorTTS() {
   if (loadingJob) {
     return (
       <p className="text-sm py-8" style={{ color: '#6b7280' }}>
-        Laddar jobbannons...
+        {copy.loadingJob}
       </p>
     )
   }
@@ -514,10 +535,10 @@ export default function InterviewSimulatorTTS() {
           onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
           onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
         >
-          ← Tillbaka
+          {copy.back}
         </button>
         <p className="text-sm" style={{ color: '#f87171' }}>
-          {loadError || 'Hittade ingen jobbannons.'}
+          {loadError || copy.notFound}
         </p>
       </div>
     )
@@ -536,11 +557,11 @@ export default function InterviewSimulatorTTS() {
 
   const showProgress = interviewState !== STATES.CONNECTING && totalQuestions > 0
 
-  const btnState = buttonStateForPhase(interviewState, { interviewerName })
+  const btnState = buttonStateForPhase(interviewState, { interviewerName, language })
 
   // Build button label: append live timer when recording
   const buttonLabel = btnState.recording
-    ? `⏹ ${formatRecordingTime(recordingSeconds)} — tryck när du är klar`
+    ? `⏹ ${buildRecordingLabel(recordingSeconds, language)}`
     : btnState.label
       ? `🎙 ${btnState.label}`
       : ''
@@ -551,7 +572,7 @@ export default function InterviewSimulatorTTS() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">
-            Intervju med {interviewerName}
+            {copy.title(interviewerName)}
           </h1>
           <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
             {job.jobTitle}
@@ -564,7 +585,7 @@ export default function InterviewSimulatorTTS() {
             {showConfirmAbort ? (
               <div className="text-right space-y-2">
                 <p className="text-xs" style={{ color: '#9ca3af' }}>
-                  Avsluta intervjun? Ditt svar sparas inte.
+                  {copy.confirmAbort}
                 </p>
                 <div className="flex items-center gap-2 justify-end">
                   <button
@@ -574,14 +595,14 @@ export default function InterviewSimulatorTTS() {
                     onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
                     onMouseOut={(e) => (e.currentTarget.style.color = '#9ca3af')}
                   >
-                    Fortsätt intervjun
+                    {copy.continueInterview}
                   </button>
                   <button
                     onClick={endInterview}
                     className="text-xs px-3 py-1.5 rounded-md font-semibold"
                     style={{ backgroundColor: '#7f1d1d', color: '#f87171' }}
                   >
-                    Ja, avsluta
+                    {copy.confirmEnd}
                   </button>
                 </div>
               </div>
@@ -593,7 +614,7 @@ export default function InterviewSimulatorTTS() {
                 onMouseOver={(e) => (e.currentTarget.style.color = '#fca5a5')}
                 onMouseOut={(e) => (e.currentTarget.style.color = '#ef4444')}
               >
-                ✕ Avsluta intervju
+                {copy.endInterview}
               </button>
             )}
           </div>
@@ -605,6 +626,7 @@ export default function InterviewSimulatorTTS() {
         <ProgressBar
           current={currentQuestionIndex + 1}
           total={totalQuestions}
+          copy={copy}
         />
       )}
 
@@ -637,13 +659,12 @@ export default function InterviewSimulatorTTS() {
           style={{ backgroundColor: '#141414', borderColor: '#323232' }}
         >
           <p className="flex-1 text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
-            <span className="font-semibold text-white">Så här fungerar det: </span>
-            lyssna på frågan, tryck sedan på knappen för att svara, och tryck
-            igen när du är klar. Ta den tid du behöver.
+            <span className="font-semibold text-white">{copy.introLead}</span>
+            {copy.introBody}
           </p>
           <button
             onClick={dismissIntroHint}
-            aria-label="Stäng tips"
+            aria-label={copy.closeHint}
             className="shrink-0 mt-0.5 text-xs transition-colors"
             style={{ color: '#6b7280' }}
             onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
@@ -664,7 +685,7 @@ export default function InterviewSimulatorTTS() {
             className="text-xs font-semibold uppercase tracking-widest"
             style={{ color: '#8064ad' }}
           >
-            Fråga {currentQuestionIndex + 1} av {totalQuestions}
+            {copy.questionCounter(currentQuestionIndex + 1, totalQuestions)}
           </p>
           <p className="text-sm leading-relaxed text-white">
             {currentQuestion.question}
@@ -673,7 +694,7 @@ export default function InterviewSimulatorTTS() {
       )}
 
       {/* Finished screen (hidden once a save error needs the user's attention) */}
-      {interviewState === STATES.FINISHED && !errorMsg && <FinishedScreen />}
+      {interviewState === STATES.FINISHED && !errorMsg && <FinishedScreen copy={copy} />}
 
       {/* Recovery when the final save failed – never strand the user here */}
       {interviewState === STATES.FINISHED && errorMsg && (
@@ -682,7 +703,7 @@ export default function InterviewSimulatorTTS() {
           style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
         >
           <p className="text-sm font-semibold text-white">
-            Kunde inte spara din feedback
+            {copy.saveFailed}
           </p>
           <p className="text-sm" style={{ color: '#f87171' }}>
             {errorMsg}
@@ -693,14 +714,14 @@ export default function InterviewSimulatorTTS() {
               className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors"
               style={{ backgroundColor: '#8064ad' }}
             >
-              Försök igen
+              {copy.retry}
             </button>
             <button
               onClick={() => navigate(`/jobb/${jobId}`)}
               className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               style={{ backgroundColor: '#404040', color: '#d1d5db' }}
             >
-              Tillbaka till uppdraget
+              {copy.backToJob}
             </button>
           </div>
         </div>
@@ -736,7 +757,7 @@ export default function InterviewSimulatorTTS() {
               onClick={() => setErrorMsg('')}
               className="ml-2 underline"
             >
-              Stäng
+              {copy.dismiss}
             </button>
           )}
         </p>
@@ -747,28 +768,22 @@ export default function InterviewSimulatorTTS() {
 
 // ── FinishedScreen ────────────────────────────────────────────────────────
 
-const FINISHED_STEPS = [
-  'Intervju genomförd',
-  'Svar transkriberade',
-  'Analyserar mot kompetensbank',
-  'Genererar feedback...',
-]
-
-function FinishedScreen() {
+function FinishedScreen({ copy }) {
   const [visibleCount, setVisibleCount] = useState(0)
+  const steps = copy.finishedSteps
 
   useEffect(() => {
-    if (visibleCount >= FINISHED_STEPS.length) return
+    if (visibleCount >= steps.length) return
     const timer = setTimeout(() => setVisibleCount((v) => v + 1), 800)
     return () => clearTimeout(timer)
-  }, [visibleCount])
+  }, [visibleCount, steps.length])
 
-  const allVisible = visibleCount >= FINISHED_STEPS.length
+  const allVisible = visibleCount >= steps.length
 
   return (
     <div className="flex flex-col items-center gap-8 py-4">
       <ul className="space-y-4 w-full max-w-xs">
-        {FINISHED_STEPS.map((step, i) => (
+        {steps.map((step, i) => (
           <li
             key={i}
             className="flex items-center gap-3"
@@ -813,7 +828,7 @@ function FinishedScreen() {
             }}
           />
           <span className="text-sm font-semibold text-white">
-            Skapar din feedbackrapport...
+            {copy.creatingReport}
           </span>
         </div>
       )}
@@ -900,13 +915,13 @@ function StatusCircle({ state }) {
 
 // ── ProgressBar ───────────────────────────────────────────────────────────
 
-function ProgressBar({ current, total }) {
+function ProgressBar({ current, total, copy }) {
   const pct = total > 0 ? Math.round((current / total) * 100) : 0
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
-          Fråga {current} av {total}
+          {copy.questionCounter(current, total)}
         </p>
         <p className="text-xs" style={{ color: '#6b7280' }}>
           {pct}%
