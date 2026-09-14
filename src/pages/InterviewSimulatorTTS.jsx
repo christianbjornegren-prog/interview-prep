@@ -181,6 +181,14 @@ export default function InterviewSimulatorTTS() {
 
   // Cleanup on unmount
   useEffect(() => {
+    // MÅSTE nollställas vid montering. Städfunktionen nedan sätter flaggan till
+    // true, och StrictMode kör medvetet setup → cleanup → setup i
+    // utvecklingsläge. Utan den här raden blir flaggan kvar som true på en
+    // levande komponent, och då tystnar allt: speakText avbryter direkt efter
+    // hämtningen (ingen röst) och recorder.onstop hoppar över processAnswer
+    // (svaret behandlas aldrig – vyn står kvar i PROCESSING).
+    abortedRef.current = false
+
     return () => {
       abortedRef.current = true
       // Avbryt en pågående TTS-hämtning INNAN ljudet hinner skapas.
