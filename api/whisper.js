@@ -1,3 +1,20 @@
+// Transkriberingsspråk som proxyn accepterar. Allt annat – saknat, okänt eller
+// riggat – faller tillbaka på svenska, så en trasig förfrågan aldrig kan ge en
+// tyst felaktig transkribering. Att ANGE språk (i stället för att låta modellen
+// gissa) är dokumenterat bättre för både träffsäkerhet och svarstid.
+const SUPPORTED_LANGUAGES = new Set(['sv', 'en'])
+const DEFAULT_LANGUAGE = 'sv'
+
+function resolveLanguage(req) {
+  try {
+    const url = new URL(req.url, `http://${req.headers?.host || 'localhost'}`)
+    const requested = url.searchParams.get('language')
+    return SUPPORTED_LANGUAGES.has(requested) ? requested : DEFAULT_LANGUAGE
+  } catch {
+    return DEFAULT_LANGUAGE
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -5,7 +22,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
 
   const startTime = Date.now()
-  console.log('[OPENAI][DEBUG] Whisper request received')
+  const language = resolveLanguage(req)
+  console.log('[OPENAI][DEBUG] Whisper request received', { language })
 
   try {
     const chunks = []
@@ -21,7 +39,7 @@ export default async function handler(req, res) {
       'audio.webm'
     )
     formData.append('model', 'whisper-1')
-    formData.append('language', 'sv')
+    formData.append('language', language)
 
     const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
