@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   addDoc,
@@ -80,9 +80,12 @@ export default function InterviewSimulatorTTS() {
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [showIntroHint, setShowIntroHint] = useState(false)
 
-  const { voice: interviewerVoice, name: interviewerName } = useMemo(
-    () => pickVoiceAndName(language),
-    [language]
+  // Röst och namn väljs EN gång per session. useState med lazy initializer,
+  // inte useMemo: useMemo är en prestandaoptimering utan semantisk garanti –
+  // React får slänga cachen och räkna om, vilket skulle byta intervjuarens
+  // röst och namn mitt i en pågående intervju.
+  const [{ voice: interviewerVoice, name: interviewerName }] = useState(() =>
+    pickVoiceAndName(language)
   )
   const [showConfirmAbort, setShowConfirmAbort] = useState(false)
 
@@ -96,6 +99,8 @@ export default function InterviewSimulatorTTS() {
   const activeQuestionsRef = useRef([])
   const recordingStartRef = useRef(null)
   const abortedRef = useRef(false)
+  const ttsAbortRef = useRef(null)
+  const startedRef = useRef(false)
 
   useEffect(() => {
     transcriptRef.current = transcript
@@ -164,9 +169,13 @@ export default function InterviewSimulatorTTS() {
     return () => { cancelled = true }
   }, [jobId])
 
-  // Auto-start interview when job loads
+  // Auto-start interview when job loads.
+  // startedRef spärrar mot DUBBELSTART. StrictMode kör medvetet effekter två
+  // gånger i utvecklingsläge, och utan spärren startas intervjun två gånger –
+  // två hälsningar spelas upp ovanpå varandra.
   useEffect(() => {
-    if (!job) return
+    if (!job || startedRef.current) return
+    startedRef.current = true
     startInterview() // eslint-disable-line react-hooks/exhaustive-deps
   }, [job]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -174,6 +183,8 @@ export default function InterviewSimulatorTTS() {
   useEffect(() => {
     return () => {
       abortedRef.current = true
+      // Avbryt en pågående TTS-hämtning INNAN ljudet hinner skapas.
+      ttsAbortRef.current?.abort()
       const audio = audioRef.current
       if (audio) {
         audio.pause()
@@ -205,29 +216,49 @@ export default function InterviewSimulatorTTS() {
     } catch { /* non-critical */ }
   }
 
-  // speakText: fetches TTS, signals AI_SPEAKING when audio starts, resolves when done
-  async function speakText(text) {
-    // Stop and fully release any audio still around from a previous utterance.
+  /** Stoppar och frigör ljud som eventuellt fortfarande hänger kvar. */
+  function stopCurrentAudio() {
     if (audioRef.current) {
       audioRef.current.pause()
+      audioRef.current.src = ''
       audioRef.current = null
     }
     if (audioUrlRef.current) {
       URL.revokeObjectURL(audioUrlRef.current)
       audioUrlRef.current = null
     }
+  }
+
+  // speakText: fetches TTS, signals AI_SPEAKING when audio starts, resolves when done
+  async function speakText(text) {
+    stopCurrentAudio()
+
+    // TTS-hämtningen måste gå att avbryta. Utan detta kan komponenten hinna
+    // avmonteras (Vite HMR, navigering, StrictMode) medan hämtningen pågår –
+    // och eftersom audioRef sätts FÖRST efteråt hittar städningen ingenting
+    // att stoppa. Ljudet börjar då spela i en komponent som inte längre finns
+    // och kan aldrig tystas. Det var så två röster kunde prata samtidigt.
+    ttsAbortRef.current?.abort()
+    const controller = new AbortController()
+    ttsAbortRef.current = controller
 
     const r = await fetch(VERCEL_TTS, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, voice: interviewerVoice }),
+      signal: controller.signal,
     })
+    if (abortedRef.current || controller.signal.aborted) return
     if (!r.ok) {
       const errText = await r.text()
       throw new Error('TTS fel: ' + errText)
     }
 
-    const blob = new Blob([await r.arrayBuffer()], { type: 'audio/mpeg' })
+    const audioData = await r.arrayBuffer()
+    // Sista kontrollen innan vi skapar något som kan låta.
+    if (abortedRef.current || controller.signal.aborted) return
+
+    const blob = new Blob([audioData], { type: 'audio/mpeg' })
     const url = URL.createObjectURL(blob)
     audioUrlRef.current = url
     const audio = new Audio()
@@ -529,16 +560,8 @@ export default function InterviewSimulatorTTS() {
 
   function endInterview() {
     abortedRef.current = true
-    const audio = audioRef.current
-    if (audio) {
-      audio.pause()
-      audio.src = ''
-      audioRef.current = null
-    }
-    if (audioUrlRef.current) {
-      URL.revokeObjectURL(audioUrlRef.current)
-      audioUrlRef.current = null
-    }
+    ttsAbortRef.current?.abort()
+    stopCurrentAudio()
     const recorder = mediaRecorderRef.current
     if (recorder && recorder.state !== 'inactive') {
       recorder.stop()
