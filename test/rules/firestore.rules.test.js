@@ -222,3 +222,135 @@ describe('pendingProfiles migration (first-login self-cleanup)', () => {
     )
   })
 })
+
+// Reproduktion av säljarens FAKTISKA sekvens, operation för operation, så som
+// SäljarePage och NewKonsultModal kör den. Anledningen: testet ovan bevisar
+// bara `get` på ETT dokument, men sidan gör `getDocs` på hela kollektionen –
+// en LIST-operation, som är en annan rättighet. Nekas listningen laddar sidan
+// aldrig och säljaren når aldrig dialogen för att lägga till en konsult.
+describe('säljarvyn – reproduktion av "lägg till konsult"', () => {
+  // SäljarePage.load() rad 25-28
+  it('steg 1: säljare CAN lista users filtrerat på role==konsult', async () => {
+    const q = query(collection(ctxFor(SALJARE), 'users'), where('role', '==', 'konsult'))
+    await assertSucceeds(getDocs(q))
+  })
+
+  it('steg 2: säljare CAN lista hela pendingProfiles-kollektionen', async () => {
+    await assertSucceeds(getDocs(collection(ctxFor(SALJARE), 'pendingProfiles')))
+  })
+
+  // SäljarePage.load() rad 36-37 – räknare per konsult
+  it('steg 3: säljare CAN lista en konsults kompetenser och uppdrag', async () => {
+    await assertSucceeds(getDocs(collection(ctxFor(SALJARE), 'users', KONSULT, 'competencies')))
+    await assertSucceeds(getDocs(collection(ctxFor(SALJARE), 'users', KONSULT, 'jobs')))
+  })
+
+  // NewKonsultModal.handleSubmit() rad 217
+  it('steg 4: säljare CAN skapa en HELT NY pending-profil', async () => {
+    await assertSucceeds(
+      setDoc(doc(ctxFor(SALJARE), 'pendingProfiles', 'nykonsult@boulder.se'), {
+        name: 'Ny Konsult', email: 'nykonsult@boulder.se',
+        competencies: [], jobs: [],
+      })
+    )
+  })
+
+  // PendingProfilPage rad 91 – dit man navigeras direkt efter skapandet
+  it('steg 5: säljare CAN läsa tillbaka profilen på sidan man landar på', async () => {
+    await assertSucceeds(getDoc(doc(ctxFor(SALJARE), 'pendingProfiles', 'k@boulder.se')))
+  })
+
+  // PendingProfilPage – säljaren fyller på med kompetenser/uppdrag
+  it('steg 6: säljare CAN uppdatera en pending-profil', async () => {
+    await assertSucceeds(
+      updateDoc(doc(ctxFor(SALJARE), 'pendingProfiles', 'k@boulder.se'), {
+        competencies: [{ title: 'Azure' }],
+      })
+    )
+  })
+
+  // Negativ kontroll: rättigheten får inte läcka till konsulter.
+  it('negativ kontroll: konsult CANNOT lista pendingProfiles', async () => {
+    await assertFails(getDocs(collection(ctxForEmail(KONSULT, 'k@boulder.se'), 'pendingProfiles')))
+  })
+
+  // Negativ kontroll: en konsult får inte lista alla users.
+  it('negativ kontroll: konsult CANNOT lista users', async () => {
+    await assertFails(getDocs(collection(ctxFor(KONSULT), 'users')))
+  })
+})
+
+// HELA migreringen som AuthGate kör vid konsultens FÖRSTA inloggning.
+// Detta är buggen som gjorde att säljar-förberedd data aldrig nådde fram:
+// profilen skapades korrekt, men överlämningen nekades och pending-dokumentet
+// blev kvar – konsulten fick ett tomt konto och profilen låg kvar som
+// "väntande". Varje steg måste passera, annars löser inte regeldeployen något.
+describe('konsultens första inloggning – hela migreringen (AuthGate)', () => {
+  const EMAIL = 'k@boulder.se'
+  const asKonsult = () => ctxForEmail(KONSULT, EMAIL)
+
+  // AuthGate rad 121
+  it('steg 1: läser sin EGEN pending-profil', async () => {
+    await assertSucceeds(getDoc(doc(asKonsult(), 'pendingProfiles', EMAIL)))
+  })
+
+  // AuthGate rad 134-139 – kompetenserna kopieras till eget träd
+  it('steg 2: skriver kompetenser under sitt EGET träd', async () => {
+    await assertSucceeds(
+      setDoc(doc(asKonsult(), 'users', KONSULT, 'competencies', 'c1'), {
+        title: 'Azure', description: 'D', tags: ['azure'], category: 'Övrigt',
+      })
+    )
+  })
+
+  // AuthGate rad 140-145 – uppdragen kopieras till eget träd
+  it('steg 3: skriver uppdrag under sitt EGET träd', async () => {
+    await assertSucceeds(
+      setDoc(doc(asKonsult(), 'users', KONSULT, 'jobs', 'j1'), {
+        jobTitle: 'Interim IT-chef', company: 'Boulder', questions: [],
+      })
+    )
+  })
+
+  // AuthGate rad 150 – städar bort pending-dokumentet
+  it('steg 4: raderar sin egen pending-profil (det som aldrig hann ske)', async () => {
+    await assertSucceeds(deleteDoc(doc(asKonsult(), 'pendingProfiles', EMAIL)))
+  })
+
+  // Negativa kontroller: migreringsrätten får INTE läcka utanför eget träd.
+  it('negativ kontroll: kan inte skriva kompetenser i någon ANNANS träd', async () => {
+    await assertFails(
+      setDoc(doc(asKonsult(), 'users', SALJARE, 'competencies', 'evil'), { title: 'X' })
+    )
+  })
+
+  it('negativ kontroll: kan inte skriva uppdrag i någon ANNANS träd', async () => {
+    await assertFails(
+      setDoc(doc(asKonsult(), 'users', SALJARE, 'jobs', 'evil'), { jobTitle: 'X' })
+    )
+  })
+
+  it('negativ kontroll: kan inte radera någon ANNANS pending-profil', async () => {
+    await assertFails(
+      deleteDoc(doc(asKonsult(), 'pendingProfiles', 'other@boulder.se'))
+    )
+  })
+
+  // Konsult UTAN förberedd profil – det vanligaste fallet.
+  // Firestore svarar PERMISSION_DENIED utan att avslöja om dokumentet finns,
+  // så en nekad regel får AuthGate att kasta INNAN den hinner kolla exists().
+  // Följden före deployen: varje förstagångsinloggning loggade ett tekniskt
+  // fel även när ingen profil fanns – vilket blåser upp felfrekvensen i
+  // Driftöversikten. Med regeln på plats blir läsningen i stället en tom
+  // träff, och inget fel loggas.
+  it('konsult UTAN förberedd profil får en TOM träff, inte ett fel', async () => {
+    const solo = ctxForEmail('konsult2', 'solo@boulder.se')
+    await assertSucceeds(getDoc(doc(solo, 'pendingProfiles', 'solo@boulder.se')))
+  })
+
+  it('nekad läsning avslöjar inte om någon ANNANS profil existerar', async () => {
+    await assertFails(
+      getDoc(doc(asKonsult(), 'pendingProfiles', 'finns-inte@boulder.se'))
+    )
+  })
+})
