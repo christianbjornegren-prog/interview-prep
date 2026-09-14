@@ -7,9 +7,14 @@ import {
 } from 'firebase/auth'
 import {
   auth, db, doc, collection,
-  getDoc, getDocs, setDoc, addDoc, deleteDoc,
+  getDoc, getDocs, setDoc, addDoc,
   serverTimestamp, writeBatch,
 } from '../lib/firebase'
+import {
+  buildMigrationPlan,
+  fitsInOneBatch,
+  MAX_BATCH_OPERATIONS,
+} from '../lib/pendingMigration'
 
 // ── IAM config ────────────────────────────────────────────────────────────
 
@@ -114,61 +119,75 @@ export default function AuthGate({ children }) {
             createdAt: serverTimestamp(),
           })
 
-          // Migrate pending profile as best-effort – failure is logged to
-          // systemEvents but does NOT block login.
-          try {
-            const pendingRef  = doc(db, 'pendingProfiles', email)
-            const pendingSnap = await getDoc(pendingRef)
-
-            if (pendingSnap.exists()) {
-              const pending      = pendingSnap.data()
-              const competencies = pending.competencies ?? []
-              const jobs         = pending.jobs         ?? []
-
-              console.log(
-                `[Migration] Startar för ${email}: ` +
-                `${competencies.length} kompetenser, ${jobs.length} uppdrag`
-              )
-
-              const batch = writeBatch(db)
-              for (const { createdAt: _ct, ...comp } of competencies) {
-                batch.set(
-                  doc(collection(db, 'users', u.uid, 'competencies')),
-                  { ...comp, createdAt: serverTimestamp() }
-                )
-              }
-              for (const { createdAt: _ct, id: _id, ...job } of jobs) {
-                batch.set(
-                  doc(collection(db, 'users', u.uid, 'jobs')),
-                  { ...job, createdAt: serverTimestamp() }
-                )
-              }
-
-              await batch.commit()
-              console.log('[Migration] Batch commit lyckades')
-
-              await deleteDoc(pendingRef)
-              setProfileActivated(true)
-              console.log('[Migration] Klar – pending-profil raderad')
-            }
-          } catch (migErr) {
-            console.error('[Migration] Misslyckades:', migErr)
-            // Log to systemEvents with the canonical shape so it is COUNTED as
-            // a technical error and its message is shown in Driftöversikten.
-            try {
-              await addDoc(collection(db, 'systemEvents'), {
-                type:      'pipeline_error',
-                severity:  'error',
-                step:      'pending_migration',
-                message:   (migErr.message ?? String(migErr)).slice(0, 500),
-                uid:       u.uid,
-                createdAt: serverTimestamp(),
-              })
-            } catch (_) { /* ignore logging failure */ }
-          }
         } else {
           userRole = snap.data().role ?? 'konsult'
         }
+
+        // Överlämning av en säljar-förberedd profil.
+        //
+        // Körs vid VARJE inloggning, inte bara den första. Två skäl:
+        //  1. SJÄLVLÄKNING. Misslyckas överlämningen en gång – som när
+        //     regeländringen låg odeployad – strandades konsulten tidigare för
+        //     alltid: kontot fanns, så migreringen kördes aldrig igen. Nu görs
+        //     ett nytt försök vid nästa inloggning.
+        //  2. En säljare kan förbereda en profil åt någon som REDAN har konto.
+        //     Den datan nådde tidigare aldrig fram över huvud taget.
+        //
+        // Ofarlig att köra om: en lyckad körning raderar sitt eget underlag,
+        // så det finns inget kvar att kopiera en andra gång.
+        // Best-effort – ett fel loggas men blockerar aldrig inloggningen.
+        try {
+          const pendingRef  = doc(db, 'pendingProfiles', email)
+          const pendingSnap = await getDoc(pendingRef)
+
+          if (pendingSnap.exists()) {
+            const plan = buildMigrationPlan(pendingSnap.data())
+
+            if (!fitsInOneBatch(plan)) {
+              throw new Error(
+                `Profilen rymms inte i en atomär överlämning: ${plan.total} ` +
+                `poster, max ${MAX_BATCH_OPERATIONS - 1}.`
+              )
+            }
+
+            // ATOMÄRT: skrivningarna OCH raderingen i SAMMA batch. Antingen
+            // landar allt, eller ingenting. Tidigare var commit och delete två
+            // skilda operationer – gick den ena igenom men inte den andra blev
+            // konsulten kvar som både aktiv OCH väntande, med data på vift.
+            const batch = writeBatch(db)
+            for (const comp of plan.competencies) {
+              batch.set(
+                doc(collection(db, 'users', u.uid, 'competencies')),
+                { ...comp, createdAt: serverTimestamp() }
+              )
+            }
+            for (const job of plan.jobs) {
+              batch.set(
+                doc(collection(db, 'users', u.uid, 'jobs')),
+                { ...job, createdAt: serverTimestamp() }
+              )
+            }
+            batch.delete(pendingRef)
+
+            await batch.commit()
+            setProfileActivated(true)
+          }
+        } catch (migErr) {
+          console.error('[Migration] Misslyckades:', migErr)
+          // Log to systemEvents with the canonical shape so it is COUNTED as
+          // a technical error and its message is shown in Driftöversikten.
+          try {
+            await addDoc(collection(db, 'systemEvents'), {
+              type:      'pipeline_error',
+              severity:  'error',
+              step:      'pending_migration',
+              message:   (migErr.message ?? String(migErr)).slice(0, 500),
+              uid:       u.uid,
+              createdAt: serverTimestamp(),
+            })
+          } catch (_) { /* ignore logging failure */ }
+        }
+
         setRole(userRole)
       } catch (err) {
         console.error('Kunde inte hämta användarroll:', err)

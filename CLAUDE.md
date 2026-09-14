@@ -409,7 +409,37 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
   - Hämtar kompetenser från pendingProfiles/{email}.competencies istället för users-subcollection
   - Sparar jobb via arrayUnion till pendingProfiles/{email}.jobs (med genererat id-fält)
   - Navigerar till /konsulter/pending/:email efter save
-- AuthGate: vid första login, kopierar pendingProfiles/{email} → users/{uid}/competencies + jobs → raderar pending-doc → sätter profileActivated=true
+- AuthGate: kopierar pendingProfiles/{email} → users/{uid}/competencies + jobs →
+  raderar pending-doc → sätter profileActivated=true
+
+### Överlämning av förberedd profil (pendingMigration)
+- `lib/pendingMigration.js` (ren, enhetstestad): `buildMigrationPlan()` strippar
+  createdAt från kompetenser och createdAt+id från uppdrag; `fitsInOneBatch()`
+  vaktar Firestores tak på 500 operationer; `filterAwaitingLogin()` används av
+  säljarvyn; `normalizeEmail()` för jämförelser.
+- ATOMÄRT: skrivningarna OCH raderingen av pending-dokumentet ligger i SAMMA
+  writeBatch. Antingen landar allt eller ingenting. Tidigare var `batch.commit()`
+  och `deleteDoc()` två skilda operationer – gick den ena igenom men inte den
+  andra blev konsulten kvar som BÅDE aktiv och väntande, med data på vift.
+- KÖRS VID VARJE INLOGGNING, inte bara den första. Två skäl:
+  1. Självläkning. Misslyckas överlämningen en gång (t.ex. odeployad regel)
+     strandades konsulten tidigare för alltid, eftersom migreringen var inlåst
+     bakom `if (!snap.exists())`.
+  2. En säljare kan förbereda en profil åt någon som REDAN har konto. Den datan
+     nådde tidigare aldrig fram.
+  Ofarlig att köra om: en lyckad körning raderar sitt eget underlag.
+- FÖLJD ATT KÄNNA TILL: ligger ett pending-dokument kvar för någon som redan har
+  konto kommer datan att slås ihop med det hen redan byggt vid nästa inloggning.
+  Ska det inte ske måste dokumentet raderas först.
+- SäljarePage filtrerar bort profiler vars e-post matchar ett befintligt
+  konsultkonto – listan heter "inväntar inloggning", och den som har konto
+  inväntar inte inloggning. Utan filtret kan samma person synas i båda listorna.
+- VIKTIGT: regeln som tillåter konsulten att läsa+radera sin EGEN pending-profil
+  deployades först 2026-09-14. Den låg odeployad från juli, vilket gjorde att
+  varje förstagångsinloggning fick PERMISSION_DENIED. Firestore avslöjar inte om
+  dokumentet finns vid nekad läsning, så AuthGate kastade före `exists()` – även
+  för konsulter helt utan förberedd profil. Det blåste upp felfrekvensen i
+  Driftöversikten med falska `pending_migration`-fel.
 - Home.jsx Dashboard: visar onboarding-checklista om profileActivated=true (se Dashboard
   onboarding ovan) – ersätter den tidigare gröna engångsbannern
 

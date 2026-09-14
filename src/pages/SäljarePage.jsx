@@ -10,6 +10,7 @@ import {
   query,
   where,
 } from '../lib/firebase'
+import { filterAwaitingLogin } from '../lib/pendingMigration'
 
 export default function SäljarePage() {
   const navigate = useNavigate()
@@ -43,8 +44,13 @@ export default function SäljarePage() {
         })
       )
 
+      const allPending = pendingSnap.docs.map((d) => ({ email: d.id, ...d.data() }))
+
       setKonsulter(withCounts)
-      setPending(pendingSnap.docs.map((d) => ({ email: d.id, ...d.data() })))
+      // Någon som redan har konto "inväntar inte inloggning". Utan den här
+      // filtreringen kan samma person synas som BÅDE aktiv konsult och
+      // väntande profil – ett tillstånd som inte ska kunna uppstå.
+      setPending(filterAwaitingLogin(allPending, withCounts))
     } catch (err) {
       console.error('Kunde inte ladda konsulter:', err)
       setLoadError(err.message ?? 'Kunde inte ladda konsulter.')
