@@ -94,6 +94,19 @@ VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
   (gäller ENBART uppdragsvyn; Layout/övriga vyer orörda). Stackar till en kolumn under lg.
 - JobPage header: titel + kund till vänster, "🎙 Starta intervjuträning" (brand-purple) till höger
   på samma rad. Flikar under headern.
+  - Header-knappen och sidans back-länk DÖLJS i konfigurationsläget (`inConfig`).
+    Konfigurationsskärmen har en egen back-länk och en egen startknapp – utan
+    spärren visas två startknappar och två back-länkar samtidigt.
+
+### Visuell hierarki – primär åtgärd
+- `lib/theme.js` håller `PRIMARY_GLOW` / `PRIMARY_GLOW_HOVER` (brand-purple glöd)
+  och brand-färgerna, delat mellan Home och JobPage så uttrycket inte glider isär.
+- REGEL: bara EN knapp per vy bär glöden – "Starta intervjuträning". Ger man den
+  till flera konkurrerar de och ingen framhävs.
+- Därför är sekundära åtgärder nedtonade: "+ Lägg till nytt uppdrag" på Home är
+  KONTUR (transparent bakgrund, #404040 border, grå text), inte fylld lila.
+  Den delade tidigare exakt samma lila yta som den primära åtgärden.
+- Primärknappen är också större än sekundära: px-6 py-3.5 + text-base.
 - Förberedelse-tab = FULLBREDD, ingen högerräls. Uppifrån och ned:
   1. AI-summering (job.summary) + "🔄 Uppdatera analys" (höger)
   2. Quick facts som rad av pills (Kund/Roll/Miljö/Fokus, från resolveQuickFacts)

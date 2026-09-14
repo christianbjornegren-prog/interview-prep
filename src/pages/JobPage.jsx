@@ -29,6 +29,7 @@ import {
   isEnglish,
   normalizeLanguage,
 } from '../lib/language'
+import { PRIMARY_GLOW, PRIMARY_GLOW_HOVER } from '../lib/theme'
 
 const TABS = [
   { key: 'preparation', label: 'Förberedelse' },
@@ -258,20 +259,27 @@ export default function JobPage() {
     ? '← Tillbaka till väntande profil'
     : targetUid ? '← Tillbaka till konsultprofil' : '← Tillbaka till alla uppdrag'
 
+  // I konfigurationsläget har skärmen sin EGEN tillbaka-länk och sin egen
+  // startknapp. Sidans header-knapp och back-länk blir då dubbletter som bara
+  // konkurrerar med det man faktiskt ska göra – dölj dem.
+  const inConfig = !isReadOnly && showConfig
+
   return (
     // Desktop-first executive briefing: bryt ut ur appens smala max-w-5xl och
     // bli bredare (~1200px), centrerad. Gäller ENBART uppdragsvyn.
     <div className="relative left-1/2 -translate-x-1/2 w-[min(1200px,100vw-2rem)] space-y-6">
-      {/* Back */}
-      <button
-        onClick={() => navigate(backPath)}
-        className="text-sm transition-colors"
-        style={{ color: '#6b7280' }}
-        onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-        onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
-      >
-        {backLabel}
-      </button>
+      {/* Back – dold i konfigurationsläget, som har sin egen */}
+      {!inConfig && (
+        <button
+          onClick={() => navigate(backPath)}
+          className="text-sm transition-colors"
+          style={{ color: '#6b7280' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
+          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+        >
+          {backLabel}
+        </button>
+      )}
 
       {/* Header: titel + kund vänster, Starta höger */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -286,16 +294,21 @@ export default function JobPage() {
           )}
         </div>
 
-        {!isReadOnly && (
+        {!isReadOnly && !inConfig && (
           <button
             onClick={startInterview}
             disabled={questions.length === 0}
-            className="shrink-0 flex items-center gap-2 px-5 py-3 rounded-lg text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{ backgroundColor: '#8064ad' }}
+            className="shrink-0 flex items-center gap-2 px-6 py-3.5 rounded-lg text-white text-base font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none"
+            style={{ backgroundColor: '#8064ad', boxShadow: PRIMARY_GLOW }}
             onMouseOver={(e) => {
-              if (questions.length > 0) e.currentTarget.style.backgroundColor = '#9781be'
+              if (questions.length === 0) return
+              e.currentTarget.style.backgroundColor = '#9781be'
+              e.currentTarget.style.boxShadow = PRIMARY_GLOW_HOVER
             }}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = '#8064ad'
+              e.currentTarget.style.boxShadow = PRIMARY_GLOW
+            }}
           >
             🎙 Starta intervjuträning
           </button>

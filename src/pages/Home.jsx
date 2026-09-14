@@ -12,6 +12,7 @@ import { useAuth, useUser, signInWithGoogle } from '../components/AuthGate'
 import { db, auth } from '../lib/firebase'
 import { computeChecklist, resolvePrimaryCta, resolveEmptyState } from '../lib/onboarding'
 import { coverageFromJob } from '../lib/gapAnalysis'
+import { PRIMARY_GLOW, PRIMARY_GLOW_HOVER } from '../lib/theme'
 
 export default function Home() {
   const user = useAuth()
@@ -260,10 +261,19 @@ function Dashboard({ user }) {
         </h1>
         <button
           onClick={() => navigate('/jobb/ny')}
-          className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors"
-          style={{ backgroundColor: '#8064ad' }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors border"
+          // Nedtonad till kontur. Den delade tidigare lila yta med den primära
+          // åtgärden, och två lika starka knappar bredvid varandra betyder att
+          // ingen av dem framhävs.
+          style={{ backgroundColor: 'transparent', borderColor: '#404040', color: '#9ca3af' }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.borderColor = '#8064ad'
+            e.currentTarget.style.color = '#fff'
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.borderColor = '#404040'
+            e.currentTarget.style.color = '#9ca3af'
+          }}
         >
           + Lägg till nytt uppdrag
         </button>
@@ -427,10 +437,16 @@ function StartTrainingButton({ onClick }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2 px-5 py-3 rounded-lg text-white text-sm font-semibold transition-colors"
-      style={{ backgroundColor: '#8064ad' }}
-      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
-      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+      className="flex items-center gap-2 px-6 py-3.5 rounded-lg text-white text-base font-semibold transition-all"
+      style={{ backgroundColor: '#8064ad', boxShadow: PRIMARY_GLOW }}
+      onMouseOver={(e) => {
+        e.currentTarget.style.backgroundColor = '#9781be'
+        e.currentTarget.style.boxShadow = PRIMARY_GLOW_HOVER
+      }}
+      onMouseOut={(e) => {
+        e.currentTarget.style.backgroundColor = '#8064ad'
+        e.currentTarget.style.boxShadow = PRIMARY_GLOW
+      }}
     >
       🎙 Starta intervjuträning
     </button>
