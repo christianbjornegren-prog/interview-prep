@@ -151,6 +151,8 @@ const SCREEN = {
     retry:            'Försök igen',
     dismiss:          'Stäng',
     creatingReport:   'Skapar din feedbackrapport...',
+    transcriptionTimeout: 'Transkriberingen tog för lång tid. Försök svara igen.',
+    processingStalled:    'Ditt svar kunde inte behandlas. Tryck på knappen och svara igen.',
     finishedSteps: [
       'Intervju genomförd',
       'Svar transkriberade',
@@ -176,6 +178,8 @@ const SCREEN = {
     retry:            'Try again',
     dismiss:          'Dismiss',
     creatingReport:   'Creating your feedback report...',
+    transcriptionTimeout: 'Transcription took too long. Please try answering again.',
+    processingStalled:    'Your answer could not be processed. Press the button and answer again.',
     finishedSteps: [
       'Interview completed',
       'Answers transcribed',

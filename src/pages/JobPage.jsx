@@ -156,42 +156,62 @@ export default function JobPage() {
     setShowConfig(true)
   }
 
+  // Svenska frågor finns sedan uppdraget skapades. Engelska genereras först när
+  // någon faktiskt väljer engelska, och sparas bredvid de svenska (questionsEn)
+  // – de svenska rörs aldrig, så äldre uppdrag är oförändrade.
+  // Returnerar frågorna vid framgång, null vid fel. Returnerar dem direkt i
+  // stället för att läsa job.questionsEn efteråt, eftersom onSnapshot inte
+  // hunnit uppdatera `job` synkront efter skrivningen.
+  async function ensureEnglishQuestions() {
+    const existing = Array.isArray(job.questionsEn) ? job.questionsEn : []
+    // Kräver BÅDE frågor och engelsk rolltitel. Uppdrag som fick questionsEn
+    // innan jobTitleEn infördes genereras om en gång och fylls i – annars
+    // skulle den engelska rösten läsa den svenska titeln för evigt.
+    if (existing.length > 0 && job.jobTitleEn) return existing
+
+    setPreparing(true)
+    setPrepareError('')
+    try {
+      const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
+      const result = await generateInterviewQuestions(
+        job.rawJobText ?? job.summary ?? '',
+        job.companyInfo ?? '',
+        sanitizeCompetencies(compSnap.docs.map((d) => d.data())),
+        'en'
+      )
+      await updateDoc(doc(db, 'users', uid, 'jobs', jobId), {
+        questionsEn: result.questions,
+        // Rolltiteln på engelska – läses upp i hälsningen så den engelska
+        // rösten slipper uttala en svensk titel mitt i en engelsk mening.
+        jobTitleEn: result.jobTitle || job.jobTitle || '',
+      })
+      return result.questions
+    } catch (err) {
+      console.error('Kunde inte generera engelska frågor:', err)
+      setPrepareError(err.message ?? 'Kunde inte generera engelska frågor. Försök igen.')
+      return null
+    } finally {
+      setPreparing(false)
+    }
+  }
+
+  // Genereringen sker när språket VÄLJS, inte när intervjun startar. Då syns
+  // väntan på rätt ställe och förhandsvisningen kan visa de riktiga frågorna.
+  function handleLanguageChange(value) {
+    const lang = normalizeLanguage(value)
+    setConfig((c) => ({ ...c, language: lang }))
+    setPrepareError('')
+    if (isEnglish(lang)) ensureEnglishQuestions()
+  }
+
   async function launchInterview() {
     const language = normalizeLanguage(config.language)
-    setPrepareError('')
 
-    // Svenska frågor finns sedan uppdraget skapades. Engelska genereras först
-    // när någon faktiskt väljer engelska, och sparas sedan bredvid de svenska
-    // (questionsEn) – de svenska rörs aldrig, så äldre uppdrag är oförändrade.
     let sourceQuestions = questions
     if (isEnglish(language)) {
-      const existing = Array.isArray(job.questionsEn) ? job.questionsEn : []
-      if (existing.length > 0) {
-        sourceQuestions = existing
-      } else {
-        setPreparing(true)
-        try {
-          const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
-          const generated = await generateInterviewQuestions(
-            job.rawJobText ?? job.summary ?? '',
-            job.companyInfo ?? '',
-            sanitizeCompetencies(compSnap.docs.map((d) => d.data())),
-            language
-          )
-          await updateDoc(doc(db, 'users', uid, 'jobs', jobId), {
-            questionsEn: generated,
-          })
-          sourceQuestions = generated
-        } catch (err) {
-          console.error('Kunde inte generera engelska frågor:', err)
-          setPrepareError(
-            err.message ?? 'Kunde inte generera engelska frågor. Försök igen.'
-          )
-          setPreparing(false)
-          return
-        }
-        setPreparing(false)
-      }
+      const english = await ensureEnglishQuestions()
+      if (!english) return
+      sourceQuestions = english
     }
 
     const categoryKey = FOCUS_TO_CATEGORY[config.focus]
@@ -291,6 +311,8 @@ export default function JobPage() {
           onBack={() => setShowConfig(false)}
           preparing={preparing}
           prepareError={prepareError}
+          onLanguageChange={handleLanguageChange}
+          englishQuestions={Array.isArray(job.questionsEn) ? job.questionsEn : []}
         />
       ) : (
         <>
@@ -920,12 +942,18 @@ function OptionGroup({ label, options, value, onChange, renderLabel = (o) => o }
   )
 }
 
-function InterviewConfigScreen({ config, onChange, questions, onStart, onBack, preparing, prepareError }) {
+function InterviewConfigScreen({
+  config, onChange, questions, onStart, onBack,
+  preparing, prepareError, onLanguageChange, englishQuestions,
+}) {
+  // Förhandsvisningen visar de frågor som FAKTISKT kommer att ställas.
+  const english = isEnglish(config.language)
+  const sourceQuestions = english ? englishQuestions : questions
   const categoryKey = FOCUS_TO_CATEGORY[config.focus]
   const filtered = categoryKey
-    ? questions.filter((q) => q.category === categoryKey)
-    : questions
-  const pool = filtered.length > 0 ? filtered : questions
+    ? sourceQuestions.filter((q) => q.category === categoryKey)
+    : sourceQuestions
+  const pool = filtered.length > 0 ? filtered : sourceQuestions
   const previewQuestions = pool.slice(0, config.numQuestions)
   const diffColor = DIFFICULTY_COLOR[config.difficulty] ?? '#9ca3af'
 
@@ -969,7 +997,7 @@ function InterviewConfigScreen({ config, onChange, questions, onStart, onBack, p
             label="Språk"
             options={SUPPORTED_LANGUAGES}
             value={config.language}
-            onChange={(v) => onChange((c) => ({ ...c, language: v }))}
+            onChange={onLanguageChange}
             renderLabel={(o) => LANGUAGE_LABEL[o]}
           />
           {prepareError && (
@@ -987,7 +1015,14 @@ function InterviewConfigScreen({ config, onChange, questions, onStart, onBack, p
             }}
             onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
           >
-            {preparing ? 'Förbereder engelska frågor...' : '🎙 Starta intervju'}
+            {preparing ? (
+              <span className="flex items-center justify-center gap-2">
+                <Spinner />
+                Skapar engelska frågor...
+              </span>
+            ) : (
+              '🎙 Starta intervju'
+            )}
           </button>
         </div>
 
@@ -996,13 +1031,20 @@ function InterviewConfigScreen({ config, onChange, questions, onStart, onBack, p
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
             Frågor som ingår ({previewQuestions.length})
           </p>
-          {isEnglish(config.language) && (
-            <p className="text-xs" style={{ color: '#6b7280' }}>
-              Förhandsvisningen visar de svenska källfrågorna. De engelska
-              versionerna skapas när du startar intervjun.
-            </p>
-          )}
-          {previewQuestions.length === 0 ? (
+          {preparing ? (
+            <div
+              className="flex items-center gap-3 rounded-lg border p-4"
+              style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+            >
+              <Spinner />
+              <div>
+                <p className="text-sm text-white">Skapar engelska frågor...</p>
+                <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
+                  Det tar några sekunder. De sparas och återanvänds nästa gång.
+                </p>
+              </div>
+            </div>
+          ) : previewQuestions.length === 0 ? (
             <p className="text-sm" style={{ color: '#6b7280' }}>
               Inga frågor matchar valt fokus.
             </p>
@@ -1045,6 +1087,21 @@ function InterviewConfigScreen({ config, onChange, questions, onStart, onBack, p
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
+
+function Spinner() {
+  return (
+    <span
+      className="inline-block shrink-0 animate-spin rounded-full"
+      style={{
+        width: 16,
+        height: 16,
+        border: '2px solid currentColor',
+        borderTopColor: 'transparent',
+      }}
+      aria-hidden="true"
+    />
+  )
+}
 
 function SectionLabel({ children, noMargin }) {
   return (

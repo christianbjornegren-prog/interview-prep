@@ -421,6 +421,7 @@ export function buildQuestionsSystemPrompt(language) {
     'Returnera ENDAST giltig JSON utan markdown eller backticks.\n' +
     'Schema:\n' +
     '{\n' +
+    '  "jobTitle": "string (rollens titel, på frågornas språk)",\n' +
     '  "questions": [\n' +
     '    {\n' +
     '      "id": "string (kort unikt id, t.ex. q1, q2)",\n' +
@@ -430,6 +431,11 @@ export function buildQuestionsSystemPrompt(language) {
     '    }\n' +
     '  ]\n' +
     '}\n' +
+    (en
+      ? 'jobTitle: översätt rollens titel till ENGELSKA (t.ex. "Interim IT-chef" → ' +
+        '"Interim Head of IT"). Titeln läses upp av en engelsk röst, så en svensk ' +
+        'titel mitt i en engelsk mening låter fel. Översätt ALDRIG företagsnamn.\n'
+      : 'jobTitle: rollens titel som den står i annonsen.\n') +
     'Generera 8-12 frågor fördelade mellan kategorierna erfarenhet, kompetens, situation och motivation.\n' +
     proseRule +
     'KRITISKT – "category" är ett maskinläsbart fältvärde, inte text som visas för användaren.\n' +
@@ -450,7 +456,9 @@ export function buildQuestionsSystemPrompt(language) {
  * @param {string} companyInfo
  * @param {Array} competencies
  * @param {unknown} language
- * @returns {Promise<Array>} questions[]
+ * @returns {Promise<{ questions: Array, jobTitle: string }>}
+ *   jobTitle är rollens titel på målspråket – används i den upplästa
+ *   hälsningen så en engelsk röst slipper läsa en svensk titel.
  */
 export async function generateInterviewQuestions(jobText, companyInfo, competencies, language) {
   const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
@@ -496,7 +504,10 @@ export async function generateInterviewQuestions(jobText, companyInfo, competenc
   if (!Array.isArray(questions) || questions.length === 0) {
     throw new Error('Kunde inte läsa ut frågor ur svaret – försök igen.')
   }
-  return questions
+  return {
+    questions,
+    jobTitle: typeof parsed?.jobTitle === 'string' ? parsed.jobTitle.trim() : '',
+  }
 }
 
 // ── Interview feedback analysis ───────────────────────────────────────────

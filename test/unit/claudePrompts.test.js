@@ -137,3 +137,23 @@ describe('buildQuestionsSystemPrompt – prosans språk', () => {
     expect(buildQuestionsSystemPrompt('en')).toContain('8-12 frågor')
   })
 })
+
+describe('buildQuestionsSystemPrompt – rolltiteln', () => {
+  it('båda språken begär ett jobTitle-fält', () => {
+    expect(buildQuestionsSystemPrompt('sv')).toContain('"jobTitle"')
+    expect(buildQuestionsSystemPrompt('en')).toContain('"jobTitle"')
+  })
+
+  it('engelska ber om översatt titel', () => {
+    const p = buildQuestionsSystemPrompt('en')
+    expect(p).toContain('översätt rollens titel till ENGELSKA')
+  })
+
+  it('engelska förbjuder översättning av företagsnamn', () => {
+    expect(buildQuestionsSystemPrompt('en')).toContain('Översätt ALDRIG företagsnamn')
+  })
+
+  it('svenska ber INTE om översättning', () => {
+    expect(buildQuestionsSystemPrompt('sv')).not.toContain('översätt rollens titel')
+  })
+})

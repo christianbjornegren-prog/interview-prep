@@ -18,7 +18,7 @@ import {
   buildRecordingLabel,
   PHASE_STATES as STATES,
 } from '../lib/interviewPhase'
-import { DEFAULT_LANGUAGE, normalizeLanguage } from '../lib/language'
+import { DEFAULT_LANGUAGE, isEnglish, normalizeLanguage } from '../lib/language'
 import {
   buildGreeting,
   buildBridge,
@@ -30,6 +30,11 @@ import {
 const VERCEL_WHISPER =
   'https://interview-prep-liard-three.vercel.app/api/whisper'
 const VERCEL_TTS = 'https://interview-prep-liard-three.vercel.app/api/tts'
+
+/** Tak för ett enskilt transkriberingsanrop (normalt ~3 s). */
+const WHISPER_TIMEOUT_MS = 45000
+/** Yttersta skyddsnät: PROCESSING får aldrig bli permanent. */
+const PROCESSING_WATCHDOG_MS = 75000
 
 const FOCUS_TO_CATEGORY = {
   Erfarenhet: 'erfarenhet',
@@ -106,6 +111,19 @@ export default function InterviewSimulatorTTS() {
     const id = setInterval(() => setRecordingSeconds((s) => s + 1), 1000)
     return () => clearInterval(id)
   }, [interviewState])
+
+  // Skyddsnät: om PROCESSING aldrig tar slut – t.ex. för att MediaRecorder
+  // inte levererade sitt stop-event – släpper vi tillbaka användaren med ett
+  // felmeddelande i stället för att låta vyn hänga tyst. Användaren kan då
+  // svara om i stället för att tvingas starta hela intervjun på nytt.
+  useEffect(() => {
+    if (interviewState !== STATES.PROCESSING) return
+    const id = setTimeout(() => {
+      setErrorMsg(copy.processingStalled)
+      setInterviewState(STATES.WAITING_FOR_USER)
+    }, PROCESSING_WATCHDOG_MS)
+    return () => clearTimeout(id)
+  }, [interviewState, copy])
 
   // Load intro-hint flag once on mount
   useEffect(() => {
@@ -276,7 +294,9 @@ export default function InterviewSimulatorTTS() {
 
     const greeting = buildGreeting({
       interviewerName,
-      jobTitle: job.jobTitle,
+      // Engelsk rolltitel när den finns – annars läser den engelska rösten en
+      // svensk titel mitt i en engelsk mening, vilket låter fel.
+      jobTitle: (isEnglish(language) && job.jobTitleEn) || job.jobTitle,
       company: job.company,
       total: activeQuestions.length,
       firstQuestion: activeQuestions[0].question,
@@ -319,6 +339,8 @@ export default function InterviewSimulatorTTS() {
         if (e.data.size > 0) audioChunksRef.current.push(e.data)
       }
       recorder.onstop = async () => {
+        // Mikrofonen släpps FÖRST här – se kommentaren i stopRecording().
+        streamRef.current?.getTracks().forEach((t) => t.stop())
         // If the interview was aborted/unmounted, don't process a stray answer.
         if (abortedRef.current) return
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
@@ -336,8 +358,12 @@ export default function InterviewSimulatorTTS() {
   function stopRecording() {
     const recorder = mediaRecorderRef.current
     if (!recorder) return
+    // VIKTIGT: mikrofonspåren stoppas INTE här. MediaRecorder behöver källan
+    // levande tills den spolat ut sista ljudbiten. Dödas spåren direkt efter
+    // stop() kan 'stop'-eventet utebli helt – då anropas processAnswer aldrig
+    // och vyn fastnar i PROCESSING för alltid ("Analyserar ditt svar...").
+    // Spåren släpps i recorder.onstop i stället.
     recorder.stop()
-    streamRef.current?.getTracks().forEach((t) => t.stop())
     setInterviewState(STATES.PROCESSING)
   }
 
@@ -348,14 +374,27 @@ export default function InterviewSimulatorTTS() {
     try {
       // Språket skickas som query eftersom kroppen är rå ljuddata. Proxyn
       // validerar mot en vitlista och faller tillbaka på svenska.
-      const whisperRes = await fetch(
-        `${VERCEL_WHISPER}?language=${encodeURIComponent(language)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'audio/webm' },
-          body: audioBlob,
-        }
-      )
+      // Hårt tak på transkriberingen. Utan detta kan ett hängande nätverksanrop
+      // låsa vyn i PROCESSING utan att något felmeddelande någonsin visas.
+      const whisperAbort = new AbortController()
+      const whisperTimer = setTimeout(() => whisperAbort.abort(), WHISPER_TIMEOUT_MS)
+      let whisperRes
+      try {
+        whisperRes = await fetch(
+          `${VERCEL_WHISPER}?language=${encodeURIComponent(language)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'audio/webm' },
+            body: audioBlob,
+            signal: whisperAbort.signal,
+          }
+        )
+      } catch (err) {
+        if (err.name === 'AbortError') throw new Error(copy.transcriptionTimeout)
+        throw err
+      } finally {
+        clearTimeout(whisperTimer)
+      }
       if (!whisperRes.ok) throw new Error(`Whisper HTTP ${whisperRes.status}`)
       const { text: userText } = await whisperRes.json()
       if (!userText) throw new Error('Inget tal detekterat')
@@ -575,7 +614,7 @@ export default function InterviewSimulatorTTS() {
             {copy.title(interviewerName)}
           </h1>
           <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
-            {job.jobTitle}
+            {(isEnglish(language) && job.jobTitleEn) || job.jobTitle}
             {job.company ? ` · ${job.company}` : ''}
           </p>
         </div>
