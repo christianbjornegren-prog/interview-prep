@@ -27,9 +27,8 @@ const NAMES = {
 
 /**
  * Slumpar röst + intervjuarnamn för sessionen.
- * Rösterna är desamma i båda språken – bara namnet byts. Röstnamnen är
- * OpenAI:s historiska namn och fungerar numera som nycklar: api/tts.js
- * översätter dem till Googles Chirp 3 HD-röster för sessionens språk.
+ * Rösterna är desamma i båda språken (OpenAI:s röster är flerspråkiga och
+ * följer textens språk) – bara namnet byts.
  *
  * @param {unknown} language
  * @param {() => number} [rng] – injicerbar för deterministiska tester

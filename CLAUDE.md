@@ -20,12 +20,12 @@ i mörkt läge MÅSTE använda ljusa semantiska vars/#8064ad – aldrig mörka r
 - React + Vite, HashRouter, Tailwind CSS
 - Firebase (Firestore + Auth + Storage), Blaze-plan
 - Claude API (kompetensextraktion, jobbanalys, feedback)
-- OpenAI gpt-transcribe (STT) + Google Cloud TTS (Chirp 3 HD) via Vercel-proxy
+- OpenAI Whisper (STT) + TTS via Vercel-proxy
 - GitHub Pages via GitHub Actions CI/CD
 - Lokal dev: localhost:5173
 
 ## Arkitektur
-- Vercel används ENBART som proxy för ljud-API:erna (api/whisper.js → OpenAI, api/tts.js → Google)
+- Vercel används ENBART som proxy för OpenAI-anrop (api/whisper.js, api/tts.js)
 - Firebase hanterar all data och auth
 - WebRTC-versionen är övergiven – använd ENBART TTS-versionen (InterviewSimulatorTTS.jsx).
   Routen /intervju/:jobId pekar numera på InterviewSimulatorTTS (gamla WebRTC-komponenten
@@ -250,9 +250,11 @@ faller tillbaka på 'sv'. Kroppen är rå ljuddata, därför query och inte JSON
 Att ANGE språk är dokumenterat bättre än automatisk detektering (träffsäkerhet
 OCH svarstid). TTS behöver ingen språkparameter – språket följer texten.
 
-Modell: `gpt-transcribe` (ersatte `whisper-1`, som avvecklas 2027-02-26).
-Språket skickas som `languages[]` (array) – ALDRIG tillsammans med `language`.
-`response_format: json`; svaret har kvar top-level `text`.
+⏳ `whisper-1` avvecklas 2027-02-26. Efterträdaren `gpt-transcribe` byter
+`language` mot `languages` (array). Egen migrering, eget röktest.
+Försökt 2026-10-25 (återställt): med `languages[]=sv` blev engelska fackord
+försvenskade ("Azure DevOps" → "Asher Dovops"). Prova `languages` sv+en och/eller
+`keywords`/`prompt` – och testa med fackord innan det går ut.
 
 ### Skydd mot tyst degradering
 `findInvalidRequirementValues()` i gapAnalysis.js flaggar enum-värden utanför
@@ -339,19 +341,26 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 - streamRef används för korrekt cleanup av mikrofon-stream vid unmount och abort
 
 ## TTS / Röst
-- Google Cloud Text-to-Speech, Chirp 3 HD (api/tts.js). Ersatte OpenAI tts-1-hd,
-  som stängs av 2027-01-06 – OpenAI har ingen ren TTS-efterträdare (bara Realtime,
-  en samtalsmodell som inte garanterat läser ordagrant). Valt för 1:1-beteende.
-  Azure valdes bort: bara 3 svenska röster (2 kv, 1 m) – räcker inte för 3+3.
-- Nyckel: GOOGLE_TTS_API_KEY i Vercel (separat, API-begränsad nyckel i Firebase-
-  projektets GCP-projekt – INTE Firebase-webbnyckeln). Text-to-Speech API måste vara aktiverat.
-- Klientkontraktet är oförändrat: frontend skickar OpenAI:s röstnamn som NYCKLAR
-  + `language`; proxyn mappar till `{sv-SE|en-US}-Chirp3-HD-{röst}`. Saknat språk = sv-SE.
+- Model: tts-1-hd (uppgraderat från tts-1)
 - Röst väljs slumpmässigt vid sessionstart baserat på kön
-  - Kvinnliga: shimmer→Achernar, nova→Zephyr, alloy→Erinome → namn: Maria, Anna, Sara
-  - Manliga: onyx→Alnilam, echo→Achird, fable→Sadachbia → namn: Erik, Johan, Anders
-    (matchat på röstkaraktär: mjuk/ljus/neutral resp. djup/varm/uttrycksfull)
-- Googles gräns är 5000 BYTE per anrop (åäö = 2 byte); capForSpeech kapar på 4096 tecken.
+  - Kvinnliga röster: shimmer, nova, alloy → namn: Maria, Anna, Sara
+  - Manliga röster: onyx, echo, fable → namn: Erik, Johan, Anders
+- Frontend skickar `{ text, voice, language }` till api/tts.js. `language` ignoreras
+  av nuvarande proxy men behövs av alla ersättare med locale-bundna röster.
+
+### ⏳ AVVECKLING – måste lösas före 2027-01-06
+OpenAI stänger tts-1, tts-1-hd OCH gpt-4o-mini-tts 2027-01-06. Ingen ren
+TTS-efterträdare – bara Realtime (`gpt-realtime-2.1-mini`), en samtalsmodell
+som inte garanterat läser ordagrant. Krav från ägaren: 1:1-swap, ingen ny
+funktionalitet, minimal kod och testning.
+Försök 1 (2026-10-25, återställt samma dag): Google Cloud TTS Chirp 3 HD.
+Tekniskt OK (GOOGLE_TTS_API_KEY finns i Vercel, API-nyckel via `X-Goog-Api-Key`
+fungerar, alla röster finns i sv-SE + en-US), men i livetest:
+- svenska rösten upplevdes märkbart mer robotaktig än OpenAI
+- "24/7" lästes som bråk ("tjugofyra sjundedelar") – behöver textnormalisering
+- Azure valdes bort tidigare: bara 3 svenska röster (2 kv, 1 m), räcker ej för 3+3.
+Nästa steg: lyssningsjämförelse (fler Chirp-röster, Gemini-TTS – sv-SE i preview,
+ev. ElevenLabs) INNAN nästa byte. Lyssna först, byt sedan.
 
 ## IAM & Åtkomstkontroll
 
