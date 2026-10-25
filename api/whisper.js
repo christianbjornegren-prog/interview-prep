@@ -38,8 +38,11 @@ export default async function handler(req, res) {
       new Blob([audioBuffer], { type: 'audio/webm' }),
       'audio.webm'
     )
-    formData.append('model', 'whisper-1')
-    formData.append('language', language)
+    // gpt-transcribe ersätter whisper-1 (avvecklas 2027-02-26). Språket skickas
+    // som array (`languages[]`) i stället för `language` – skicka aldrig båda.
+    formData.append('model', 'gpt-transcribe')
+    formData.append('languages[]', language)
+    formData.append('response_format', 'json')
 
     const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',

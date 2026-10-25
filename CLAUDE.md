@@ -20,12 +20,12 @@ i mörkt läge MÅSTE använda ljusa semantiska vars/#8064ad – aldrig mörka r
 - React + Vite, HashRouter, Tailwind CSS
 - Firebase (Firestore + Auth + Storage), Blaze-plan
 - Claude API (kompetensextraktion, jobbanalys, feedback)
-- OpenAI Whisper (STT) + TTS via Vercel-proxy
+- OpenAI gpt-transcribe (STT) + Google Cloud TTS (Chirp 3 HD) via Vercel-proxy
 - GitHub Pages via GitHub Actions CI/CD
 - Lokal dev: localhost:5173
 
 ## Arkitektur
-- Vercel används ENBART som proxy för OpenAI-anrop (api/whisper.js, api/tts.js)
+- Vercel används ENBART som proxy för ljud-API:erna (api/whisper.js → OpenAI, api/tts.js → Google)
 - Firebase hanterar all data och auth
 - WebRTC-versionen är övergiven – använd ENBART TTS-versionen (InterviewSimulatorTTS.jsx).
   Routen /intervju/:jobId pekar numera på InterviewSimulatorTTS (gamla WebRTC-komponenten
@@ -250,8 +250,9 @@ faller tillbaka på 'sv'. Kroppen är rå ljuddata, därför query och inte JSON
 Att ANGE språk är dokumenterat bättre än automatisk detektering (träffsäkerhet
 OCH svarstid). TTS behöver ingen språkparameter – språket följer texten.
 
-⏳ `whisper-1` avvecklas 2027-02-26. Efterträdaren `gpt-transcribe` byter
-`language` mot `languages` (array). Egen migrering, eget röktest.
+Modell: `gpt-transcribe` (ersatte `whisper-1`, som avvecklas 2027-02-26).
+Språket skickas som `languages[]` (array) – ALDRIG tillsammans med `language`.
+`response_format: json`; svaret har kvar top-level `text`.
 
 ### Skydd mot tyst degradering
 `findInvalidRequirementValues()` i gapAnalysis.js flaggar enum-värden utanför
@@ -338,10 +339,19 @@ States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCES
 - streamRef används för korrekt cleanup av mikrofon-stream vid unmount och abort
 
 ## TTS / Röst
-- Model: tts-1-hd (uppgraderat från tts-1)
+- Google Cloud Text-to-Speech, Chirp 3 HD (api/tts.js). Ersatte OpenAI tts-1-hd,
+  som stängs av 2027-01-06 – OpenAI har ingen ren TTS-efterträdare (bara Realtime,
+  en samtalsmodell som inte garanterat läser ordagrant). Valt för 1:1-beteende.
+  Azure valdes bort: bara 3 svenska röster (2 kv, 1 m) – räcker inte för 3+3.
+- Nyckel: GOOGLE_TTS_API_KEY i Vercel (separat, API-begränsad nyckel i Firebase-
+  projektets GCP-projekt – INTE Firebase-webbnyckeln). Text-to-Speech API måste vara aktiverat.
+- Klientkontraktet är oförändrat: frontend skickar OpenAI:s röstnamn som NYCKLAR
+  + `language`; proxyn mappar till `{sv-SE|en-US}-Chirp3-HD-{röst}`. Saknat språk = sv-SE.
 - Röst väljs slumpmässigt vid sessionstart baserat på kön
-  - Kvinnliga röster: shimmer, nova, alloy → namn: Maria, Anna, Sara
-  - Manliga röster: onyx, echo, fable → namn: Erik, Johan, Anders
+  - Kvinnliga: shimmer→Achernar, nova→Zephyr, alloy→Erinome → namn: Maria, Anna, Sara
+  - Manliga: onyx→Alnilam, echo→Achird, fable→Sadachbia → namn: Erik, Johan, Anders
+    (matchat på röstkaraktär: mjuk/ljus/neutral resp. djup/varm/uttrycksfull)
+- Googles gräns är 5000 BYTE per anrop (åäö = 2 byte); capForSpeech kapar på 4096 tecken.
 
 ## IAM & Åtkomstkontroll
 
