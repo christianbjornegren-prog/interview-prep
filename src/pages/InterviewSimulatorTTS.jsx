@@ -253,7 +253,7 @@ export default function InterviewSimulatorTTS() {
     const r = await fetch(VERCEL_TTS, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, voice: interviewerVoice }),
+      body: JSON.stringify({ text, voice: interviewerVoice, language }),
       signal: controller.signal,
     })
     if (abortedRef.current || controller.signal.aborted) return
