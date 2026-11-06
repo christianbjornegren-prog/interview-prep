@@ -12,6 +12,8 @@ import { useAuth, useUser, signInWithGoogle } from '../components/AuthGate'
 import { db, auth } from '../lib/firebase'
 import { computeChecklist, resolvePrimaryCta, resolveEmptyState } from '../lib/onboarding'
 import { coverageFromJob } from '../lib/gapAnalysis'
+import { createUserCvStore } from '../lib/cvStore'
+import { resolveJobCv } from '../lib/cvs'
 import StartInterviewButton from '../components/StartInterviewButton'
 
 export default function Home() {
@@ -126,7 +128,9 @@ function Dashboard({ user }) {
   const { profileActivated, clearProfileActivated } = useUser()
   const [jobs, setJobs] = useState([])
   const [loadingJobs, setLoadingJobs] = useState(true)
-  const [competencyCount, setCompetencyCount] = useState(null)
+  // null = laddar. Listningen flyttar också eventuell äldre samlad
+  // kompetensbank till CV:n första gången konsulten loggar in efter bytet.
+  const [cvs, setCvs] = useState(null)
   const [jobFeedbacks, setJobFeedbacks] = useState({})
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(true)
   const [showArchived, setShowArchived] = useState(false)
@@ -153,9 +157,13 @@ function Dashboard({ user }) {
 
   useEffect(() => {
     const uid = auth.currentUser.uid
-    getDocs(collection(db, 'users', uid, 'competencies')).then((snap) => {
-      setCompetencyCount(snap.docs.length)
-    })
+    createUserCvStore(uid)
+      .list()
+      .then(setCvs)
+      .catch((err) => {
+        console.error('Kunde inte hämta CV:n:', err)
+        setCvs(null)
+      })
   }, [])
 
   useEffect(() => {
@@ -234,13 +242,13 @@ function Dashboard({ user }) {
       )}
 
       {/* Competency warning banner */}
-      {competencyCount === 0 && (
+      {cvs !== null && cvs.length === 0 && (
         <div
           className="rounded-xl border px-5 py-4 flex items-center justify-between gap-4"
           style={{ backgroundColor: '#2b2414', borderColor: '#4d3e1a' }}
         >
           <p className="text-sm" style={{ color: '#f0d48a' }}>
-            Din kompetensbank är tom – ladda upp ett CV för bättre matchning
+            Du har inga CV:n än – ladda upp ett CV och koppla det till dina uppdrag
           </p>
           <Link
             to="/kompetensbank"
@@ -300,6 +308,7 @@ function Dashboard({ user }) {
                 key={job.docId}
                 job={job}
                 feedback={jobFeedbacks[job.docId]}
+                cvs={cvs}
                 onClick={() => navigate(`/jobb/${job.docId}`)}
               />
             ))}
@@ -312,6 +321,7 @@ function Dashboard({ user }) {
               key={job.docId}
               job={job}
               feedback={jobFeedbacks[job.docId]}
+              cvs={cvs}
               onClick={() => navigate(`/jobb/${job.docId}`)}
             />
           ))}
@@ -338,6 +348,7 @@ function Dashboard({ user }) {
                   key={job.docId}
                   job={job}
                   feedback={jobFeedbacks[job.docId]}
+                  cvs={cvs}
                   onClick={() => navigate(`/jobb/${job.docId}`)}
                   dimmed
                 />
@@ -529,9 +540,12 @@ function JobPickerModal({ jobs, onPick, onClose }) {
 
 // ── Job card ──────────────────────────────────────────────────────────────
 
-function JobCard({ job, feedback, onClick, dimmed }) {
+function JobCard({ job, feedback, cvs, onClick, dimmed }) {
+  // cvs === null medan CV:n laddas – visa då varken matchning eller CV-status.
+  const cvStatus = cvs ? resolveJobCv(job, cvs).status : null
   const { covered, total } = coverageFromJob(job)
-  const scoreRatio = total > 0 ? covered / total : null
+  // Matchningen gäller ett specifikt CV; utan kopplat CV finns ingen.
+  const scoreRatio = cvStatus === 'linked' && total > 0 ? covered / total : null
   const matchColor =
     scoreRatio === null
       ? '#6b7280'
@@ -590,6 +604,17 @@ function JobCard({ job, feedback, onClick, dimmed }) {
               }}
             >
               Matchning: {covered} av {total} krav
+            </span>
+          </div>
+        )}
+
+        {cvStatus && cvStatus !== 'linked' && (
+          <div>
+            <span
+              className="text-xs font-medium px-2 py-1 rounded-full"
+              style={{ backgroundColor: '#8064ad20', color: '#b9a5d6', border: '1px solid #8064ad40' }}
+            >
+              {cvStatus === 'missing' ? 'Välj ett nytt CV' : 'Koppla CV för att träna'}
             </span>
           </div>
         )}

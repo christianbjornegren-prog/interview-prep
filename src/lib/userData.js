@@ -27,9 +27,20 @@ export async function clearCollection(collectionName) {
   return snap.docs.length
 }
 
-/** Clears the current user's competency bank. */
+/** Clears the current user's legacy competency bank (pre-CV data). */
 export function clearCompetencies() {
   return clearCollection('competencies')
+}
+
+/**
+ * Clears all of the current user's CV:n, plus any legacy competencies that
+ * have not yet been migrated into CV:n. Uppdrag keep their cvId and show up
+ * as "CV saknas" until a new CV is linked. Returns the number of CV:n removed.
+ */
+export async function clearCvs() {
+  const cvs = await clearCollection('cvs')
+  await clearCompetencies()
+  return cvs
 }
 
 /**
@@ -53,9 +64,9 @@ export async function clearJobs() {
   return jobsSnap.docs.length
 }
 
-/** Clears both the competency bank and all uppdrag for the current user. */
+/** Clears all CV:n and all uppdrag for the current user. */
 export async function clearAll() {
-  const competencies = await clearCompetencies()
+  const cvs = await clearCvs()
   const jobs = await clearJobs()
-  return { competencies, jobs }
+  return { cvs, jobs }
 }

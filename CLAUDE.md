@@ -32,8 +32,15 @@ i mörkt läge MÅSTE använda ljusa semantiska vars/#8064ad – aldrig mörka r
   borttagen); /intervju-tts/:jobId är den kanoniska routen.
 
 ## Datamodell
-users/{uid}/competencies/{docId}
+users/{uid}/cvs/{cvId} → { label, fileName, source:'upload'|'legacy', competencies:[...], competencyCount, createdAt }
+  → Ett CV bär SINA EGNA kompetenser (inbäddad array, ≤ ~25 st). Ingen samlad bank.
+users/{uid}/competencies/{docId}  → ÄLDRE (före CV-modellen). Läses ENBART av migreringen
+  (migrateLegacyCompetencies) som kopierar dem till cvs och MÄRKER originalen med
+  `migratedToCvId` – de RADERAS INTE (rollback-säkert: gamla appversionen ser samma bank).
+  Märkta originaler ignoreras av den nya appen. Städning = separat, senare beslut.
 users/{uid}/jobs/{jobId}
+  → cvId (string|null) + cvLabel = UPPDRAGET STYR: exakt ETT CV per uppdrag, ett CV kan ha
+    flera uppdrag. Saknat/null cvId = inget CV kopplat (äldre uppdrag) → träning SPÄRRAD.
   → bl.a. jobTitle, company, summary, rawJobText, questions[], questionsEn[],
     requirements [{ requirement, importance:'hög'|'medel'|'låg', match:'stark'|'delvis'|'svag', note, howToAddress }],
     quickFacts { kund, roll, miljö, fokus } och sections [{ heading, points[] }]
@@ -46,16 +53,22 @@ users/{uid}/jobs/{jobId}
 users/{uid}/jobs/{jobId}/feedback/{feedbackId}
   → inkluderar sharedWithSeller (boolean, default false) + sharedAt (timestamp|null)
     Saknat sharedWithSeller behandlas överallt som false.
+  → cvId + cvLabel = vilket CV sessionen bedömdes mot (snapshot, överlever CV-byte).
   → language ('sv'|'en') = språket intervjun hölls på. Saknat fält behandlas
     överallt som 'sv'. Styr EN-märkningen i Historik och säljarens delade vy.
-pendingProfiles/{email} → { name, email, createdAt, competencies: [...], jobs: [...] }
+pendingProfiles/{email} → { name, email, createdAt, cvs: [{ id, label, fileName, competencies, ... }], jobs: [{ id, cvId, ... }] }
+  → cvs[].id genereras klientsidigt (generateCvId) och BEHÅLLS som dokument-id vid
+    överlämningen, så jobs[].cvId fortsätter peka rätt. Äldre profiler med `competencies[]`
+    konverteras till cvs (convertLegacyPendingCompetencies) – vid visning OCH vid överlämning.
 systemEvents/{eventId} → { type, severity: 'info'|'error', step, message, uid, createdAt }
   → TEKNISK driftlogg (Whisper→Claude→TTS→Firestore). ALDRIG betyg/feedbackinnehåll.
     Oföränderlig: write-only för inloggad (egen uid), läs endast admin.
 
 ## Viktiga beslut
-- Kompetensbanken är kumulativ – byggs av flera CV-uppladdningar över tid
-- Matchning sker per jobbannons mot hela kompetensbanken
+- CV PER UPPDRAG (ersätter den kumulativa kompetensbanken, 2026-11-06): varje uppladdning blir
+  ett eget CV. Uppdraget pekar ut vilket CV som gäller (cvId). Analys (analyzeJobPosting),
+  engelska frågor och feedback bygger ENBART på det kopplade CV:ts kompetenser – aldrig på
+  alla. Både konsulten och säljaren kan koppla/byta CV. Utan kopplat CV kan träning INTE starta.
 - Feedback sparas med historik per jobbannons
 - Jobbannonser sorteras på senaste aktivitet, arkivering som opt-in
 - Betygsskala: 1–10 (overallScore + questionFeedback.score). Kalibreras i claude.js
@@ -310,15 +323,55 @@ produktion; CI kör INGA tester.
 - "🔄 Uppdatera analys" i JobPage kör analyzeJobPosting och skriver requirements + summary + sections
   + quickFacts (genererar nya fält för befintliga jobb). JobCreate sparar samma fält vid skapande.
 
-## Kompetensbank – UI & hantering
-- CompetencyList.jsx: `categorize(comp)` läser `comp.category` (exakt namn) FÖRST, faller sedan tillbaka på tagg-matchning
-- CATEGORIES-arrayen i CompetencyList har 13 poster med namn som matchar CATEGORY_ENUM exakt
-- CompetencyBank.jsx: "🔄 Kategorisera om"-knapp → kör `recategorizeCompetencies()` → updateDoc(category, tags) per kompetens
-- CompetencyBank.jsx: "🗑 Töm kompetensbank"-knapp med tvåstegs-bekräftelse → deleteDoc per kompetens
-- Samma recategorize + töm-mönster finns i KonsultProfilPage.jsx och PendingProfilPage.jsx
-  - KonsultProfilPage: updateDoc per Firestore-doc
-  - PendingProfilPage: updateDoc({ competencies: [] }) resp. updateDoc({ competencies: updatedArray }) på pendingProfiles-doc
-- FileUpload.jsx validerar kategorier mot `new Set(CATEGORY_ENUM)` (importerad från claude.js)
+## CV per uppdrag – arkitektur & UI
+Flöde (säljare): skapa konsult → lägg till uppdrag → koppla CV till uppdraget.
+- `lib/cvs.js` (REN, enhetstestad – cvs.test.js): `buildCvData`, `groupLegacyCompetencies`
+  (gamla banken → CV per sourceFile, manuella i "Manuellt tillagda kompetenser", STABILA id:n
+  `legacy_<hash>` så samtidiga migreringar inte dubblerar), `resolveJobCv(job,cvs)` →
+  'linked'|'none'|'missing', `trainingReadiness(job,cvs)` → reason 'no-cv'|'cv-missing'|
+  'no-questions' + `READINESS_MESSAGE`, `jobsUsingCv`/`cvUsageMap`, `buildCvLinkUpdate`,
+  `linkCvToJob({job,cv,analyze,save})` (beroenden injiceras), pending-arrayhjälpare.
+- `lib/cvStore.js` (Firestore, testad mot minnes-Firestore – cvStore.test.js): ETT gränssnitt,
+  två adaptrar: `createUserCvStore(uid)` och `createPendingCvStore(email)` med
+  list/get/create/rename/remove/addCompetency/removeCompetency/saveJob. Sidorna vet inte var datan ligger.
+  - `list()` kör `migrateLegacyCompetencies` först (en TRANSAKTION per CV-grupp som bara flyttar
+    omärkta kompetenser → samtidiga öppningar kan inte dubblera; nya omärkta läggs TILL i befintligt
+    CV, skriver aldrig över; blockerar aldrig vyn). Körs när konsulten ELLER säljaren öppnar en vy.
+  - Väntande profiler: `competencies[]` lämnas orörd, `competenciesMigrated: true` hindrar ny
+    konvertering (annars skulle ett raderat CV komma tillbaka).
+  - `remove(cvId)` raderar CV:t och sätter cvId:null på dess uppdrag i SAMMA batch/skrivning.
+- KOPPLA/BYTA CV kör om analysen (krav, summary, sections, quickFacts, svenska frågor) mot CV:t
+  och nollställer questionsEn/jobTitleEn (skapas om lat). Kopplingen sparas FÖRST när analysen
+  lyckats → cvId och analys kan aldrig hamna i otakt. Feedback/historik rörs inte.
+  "🔄 Uppdatera analys" analyserar mot det KOPPLADE CV:t (rör inte frågorna, som förut).
+- Komponenter: `JobCvPicker` (CV-val per uppdrag, byte kräver inline-bekräftelse, "+ Ladda upp
+  nytt CV för det här uppdraget" laddar upp OCH kopplar), `JobCvCard` (uppdragskort i säljarvyerna),
+  `CvLibrary` (CV-överblick: namn/byt namn, datum, antal, "Används i", visa kompetenser,
+  + lägg till kompetens, radera med varning om berörda uppdrag), `AddCompetencyModal`,
+  `CompetencyList` (REN visningskomponent för ett CV:s kompetenser, borttagning på index),
+  `FileUpload({ store })` (skapar ett CV – ingen dubblettkoll mot andra CV:n). Hook: `lib/useCvs.js`.
+- Sidor: "Mina CV" (CompetencyBank.jsx, route /kompetensbank behålls, navbar "Mina CV").
+  KonsultProfilPage + PendingProfilPage: flikar Uppdrag (FÖRST, default) | CV | (Delad feedback).
+  JobCreate: "CV för uppdraget"-val (ett enda CV förväljs, annars "Koppla CV senare") + "Ladda upp CV"
+  som väljer en FIL (laddas inte upp direkt). Vid "Analysera CV och uppdrag" körs ETT svep via
+  `lib/jobCreation.js` `createJobFromPosting()`: CV tolkas → sparas → uppdraget analyseras mot det →
+  sparas kopplat. Misslyckas analysen efter att CV:t sparats bär felet `savedCv` → sidan väljer det
+  sparade CV:t så nästa försök inte laddar upp samma fil igen.
+- STEGVISNING (`lib/progressSteps.js` + hook `useProgressSteps`): riktiga FASER (cv → cv-save → job →
+  save → done) rapporteras av koden; understeg inom en fas tickar på TID ("Plockar ut kompetenser",
+  "Matchar krav mot CV:t", "Skapar intervjufrågor"…) men kan ALDRIG springa förbi sin fas.
+  Kalibrerat mot riktiga anrop: CV-tolkning ≈ 20 s, uppdragsanalys 45–160 s (varierar kraftigt). Används av JobCreate,
+  FileUpload och JobCvPicker (kompakt steg-rad vid koppling/byte).
+  JobPage: CV-raden under headern (alla roller), Starta spärrad + förklaring utan CV, Förberedelse
+  döljer kravtäckning/styrkor utan CV (äldre analys mot gamla banken visas medvetet inte).
+  Home: kort visar "Koppla CV för att träna", matchning visas bara med kopplat CV.
+  InterviewSimulatorTTS: läser users/{uid}/cvs/{cvId}; utan CV → lugn inforuta (copy.cvRequired),
+  spärrar även direktlänkar. SäljarePage räknar "CV" (countUserCvs inkl. ej migrerade grupper).
+- Färg: ingen-CV-läget är NEUTRALT lila (#8064ad-kant), aldrig amber/röd.
+- BORTTAGET: samlad kompetensbank, "Kategorisera om", "Töm kompetensbank", dubblettkoll över
+  CV:n. `recategorizeCompetencies()` finns kvar i claude.js men används inte.
+- CATEGORIES i CompetencyList har 13 poster med namn som matchar CATEGORY_ENUM; categorize()
+  läser `comp.category` först, sedan tagg-matchning.
 
 ## Intervju state machine (InterviewSimulatorTTS)
 States: CONNECTING → AI_SPEAKING → WAITING_FOR_USER → RECORDING → PROCESSING → PREPARING_NEXT → (loop eller FINISHED)
@@ -359,8 +412,16 @@ fungerar, alla röster finns i sv-SE + en-US), men i livetest:
 - svenska rösten upplevdes märkbart mer robotaktig än OpenAI
 - "24/7" lästes som bråk ("tjugofyra sjundedelar") – behöver textnormalisering
 - Azure valdes bort tidigare: bara 3 svenska röster (2 kv, 1 m), räcker ej för 3+3.
-Nästa steg: lyssningsjämförelse (fler Chirp-röster, Gemini-TTS – sv-SE i preview,
-ev. ElevenLabs) INNAN nästa byte. Lyssna först, byt sedan.
+Ägarens dom efter återställningen: OpenAI-rösten är "STOR skillnad, mycket
+bättre upplevelse" – ribban är dagens OpenAI-röst, inte "fungerar".
+BESLUTAD RIKTNING (ej påbörjad): OpenAI Realtime (`gpt-realtime-2.1-mini`) –
+samma röstfamilj, samma nyckel. Plan: skriv om ENBART api/tts.js (server-side
+WebSocket, text in → PCM16 ut → WAV-header → `audio/wav`; klienten oförändrad),
+instruera modellen att läsa ORDAGRANT och verifiera det. shimmer/alloy/echo finns
+kvar; nova/onyx/fable mappas till närmaste nya röst. Lyssningssida i webbläsaren
+(ägaren är icketekniker – inget terminal-lyssnande) med riktiga repliker inkl.
+"24/7" och "Azure DevOps", sv + en, INNAN produktion. Google-nyckeln i Vercel
+kan tas bort när Realtime är ute.
 
 ## IAM & Åtkomstkontroll
 
@@ -407,7 +468,7 @@ ev. ElevenLabs) INNAN nästa byte. Lyssna först, byt sedan.
 
 ### Navbar
 - Utloggade användare ser ENBART loggan (ingen knapp i navbar – knappen finns på startsidan)
-- Inloggade: Mina uppdrag | Kompetensbank | (Konsulter om säljare/admin) | (Användarhantering om admin) | (Driftöversikt om admin) | Om | Avatar | Logga ut
+- Inloggade: Mina uppdrag | Mina CV | (Konsulter om säljare/admin) | (Användarhantering om admin) | (Driftöversikt om admin) | Om | Avatar | Logga ut
 - NavLink-styling: alla länkar identiska – ingen aktiv bakgrund, enbart vit textfärg på aktiv/hover vs #6b7280 inaktiv
 - /om (OmPage): synlig för alla inloggade, RequireAuth, innehåller Varför/Techstack/Byggt av
 
@@ -428,12 +489,14 @@ ev. ElevenLabs) INNAN nästa byte. Lyssna först, byt sedan.
   - Hämtar kompetenser från pendingProfiles/{email}.competencies istället för users-subcollection
   - Sparar jobb via arrayUnion till pendingProfiles/{email}.jobs (med genererat id-fält)
   - Navigerar till /konsulter/pending/:email efter save
-- AuthGate: kopierar pendingProfiles/{email} → users/{uid}/competencies + jobs →
+- AuthGate → `lib/pendingHandover.js` `migratePendingProfile(uid, email)` (bruten ur AuthGate så
+  E2E-testet kör samma kod): kopierar pendingProfiles/{email} → users/{uid}/cvs (SAMMA id) + jobs (cvId bevaras) →
   raderar pending-doc → sätter profileActivated=true
 
 ### Överlämning av förberedd profil (pendingMigration)
-- `lib/pendingMigration.js` (ren, enhetstestad): `buildMigrationPlan()` strippar
-  createdAt från kompetenser och createdAt+id från uppdrag; `fitsInOneBatch()`
+- `lib/pendingMigration.js` (ren, enhetstestad): `buildMigrationPlan()` → { cvs:[{id,data}],
+  jobs, total }: CV:n behåller id + createdAt, äldre competencies[] grupperas till CV:n,
+  uppdrag strippas på createdAt+id (cvId bevaras); `fitsInOneBatch()`
   vaktar Firestores tak på 500 operationer; `filterAwaitingLogin()` används av
   säljarvyn; `normalizeEmail()` för jämförelser.
 - ATOMÄRT: skrivningarna OCH raderingen av pending-dokumentet ligger i SAMMA
@@ -464,6 +527,9 @@ ev. ElevenLabs) INNAN nästa byte. Lyssna först, byt sedan.
 
 ### Firestore Security Rules (firestore.rules)
 - Roller: admin kan läsa/skriva alla users; säljare kan läsa users + jobb + kompetenser; owner kan allt i sitt eget träd
+- users/{uid}/cvs/{cvId}: samma som jobs – owner, admin och säljare läser+skriver (säljaren
+  förbereder CV:n och kopplar dem). Annan konsult nekas. MÅSTE DEPLOYAS före frontend
+  (annars får CV-vyerna PERMISSION_DENIED): `firebase deploy --only firestore:rules`.
 - feedback-subcollection (SAMTYCKESSTYRD, specifik path-regel):
   - read:   owner ELLER ((säljare||admin) OCH resource.data.sharedWithSeller == true)
   - create: owner
@@ -519,8 +585,9 @@ ev. ElevenLabs) INNAN nästa byte. Lyssna först, byt sedan.
     + jobBriefing.test.js + claude.test.js (extractJsonObject/normalizeInterviewFeedback/
     sanitizeCompetencies) + userData.test.js (rensning, mockad Firestore) + interviewPhase.test.js
     + language.test.js + interviewScript.test.js + claudePrompts.test.js + gapAnalysisGuard.test.js
-    + feedbackCopy.test.js.
-    296 tester i 13 filer. (vite.config.js sätter dummy VITE_FIREBASE_*-env för test så moduler som
+    + feedbackCopy.test.js + pendingMigration.test.js + cvs.test.js + cvStore.test.js
+    + jobCreation.test.js (svep-orkestrering + progressSteps).
+    442 tester i 17 filer. (vite.config.js sätter dummy VITE_FIREBASE_*-env för test så moduler som
     initierar Firebase-SDK:t vid import laddar utan .env – rör INTE `vite build`.)
   - VIKTIGT: testmiljön har INGEN DOM-rigg (ingen jsdom, inga setupFiles). Alla
     tester måste vara rena Node-tester – inget får bero på React-rendering.
@@ -529,11 +596,20 @@ ev. ElevenLabs) INNAN nästa byte. Lyssna först, byt sedan.
     kategorivärdena förblir svenska i BÅDA språklägena (claudePrompts.test.js).
 - Firestore-regeltester (@firebase/rules-unit-testing mot emulatorn): `npm run test:rules`
   - test/rules/firestore.rules.test.js bevisar samtyckesgrindning + systemEvents-åtkomst
-    + pendingProfiles-migreringsåtkomst (konsult self-read/delete). 23 tester.
+    + pendingProfiles-migreringsåtkomst (konsult self-read/delete) + CV-åtkomst
+    (users/{uid}/cvs: ägare/säljare/admin ja, annan konsult/utloggad nej). 47 tester.
   - Kräver Java/Firestore-emulatorn; körs via `firebase emulators:exec --only firestore`.
+- END-TO-END (test/integration/cvFlow.e2e.test.js): `npm run test:e2e`. RIKTIGA Claude-anrop
+  (nyckel från .env.local, kostar ~6 anrop, tar ~5 min) + Firestore-emulatorn med RIKTIGA regler,
+  varje steg som rätt roll. Täcker: nytt uppdrag + nytt CV i ett svep, byte av CV (matchningen
+  sjunker mätbart: Android-CV 11/12 stark → PL-CV 2/12), feedback mot CV:ts kompetenser, radera CV
+  → spärr, väntande profil → inloggning (kopplingen överlever), migrering av gammal bank (inga
+  dubbletter vid samtidiga öppningar), annan konsult nekas. Bara lib/firebase.js byts mot emulatorn;
+  mammoth översätts till Node-bygget i testet (appen använder browser-bygget). Hoppas över utan nyckel.
 - Manuella röktest-checklistor (det som ej kan automatiseras):
   - docs/SMOKE_TEST.md (delning/drift, ljudkedjan)
   - docs/SMOKE_TEST_ONBOARDING.md (förstagångsupplevelse: utan data / uppdrag utan träning / genomförd träning)
+  - docs/SMOKE_TEST_CV.md (CV per uppdrag: säljarflöde, överlämning, träningsspärr, äldre data)
   - docs/SMOKE_TEST_GAPANALYSIS.md (gap-analys: äldre jobb / nytt jobb med criticalGaps / utan gaps)
   - docs/SMOKE_TEST_JOBPAGE.md (executive briefing: äldre jobb / nytt jobb efter "Uppdatera analys" / smal vs bred skärm)
 

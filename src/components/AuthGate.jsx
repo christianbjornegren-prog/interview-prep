@@ -8,13 +8,9 @@ import {
 import {
   auth, db, doc, collection,
   getDoc, getDocs, setDoc, addDoc,
-  serverTimestamp, writeBatch,
+  serverTimestamp,
 } from '../lib/firebase'
-import {
-  buildMigrationPlan,
-  fitsInOneBatch,
-  MAX_BATCH_OPERATIONS,
-} from '../lib/pendingMigration'
+import { migratePendingProfile } from '../lib/pendingHandover'
 
 // ── IAM config ────────────────────────────────────────────────────────────
 
@@ -137,39 +133,7 @@ export default function AuthGate({ children }) {
         // så det finns inget kvar att kopiera en andra gång.
         // Best-effort – ett fel loggas men blockerar aldrig inloggningen.
         try {
-          const pendingRef  = doc(db, 'pendingProfiles', email)
-          const pendingSnap = await getDoc(pendingRef)
-
-          if (pendingSnap.exists()) {
-            const plan = buildMigrationPlan(pendingSnap.data())
-
-            if (!fitsInOneBatch(plan)) {
-              throw new Error(
-                `Profilen rymms inte i en atomär överlämning: ${plan.total} ` +
-                `poster, max ${MAX_BATCH_OPERATIONS - 1}.`
-              )
-            }
-
-            // ATOMÄRT: skrivningarna OCH raderingen i SAMMA batch. Antingen
-            // landar allt, eller ingenting. Tidigare var commit och delete två
-            // skilda operationer – gick den ena igenom men inte den andra blev
-            // konsulten kvar som både aktiv OCH väntande, med data på vift.
-            const batch = writeBatch(db)
-            for (const comp of plan.competencies) {
-              batch.set(
-                doc(collection(db, 'users', u.uid, 'competencies')),
-                { ...comp, createdAt: serverTimestamp() }
-              )
-            }
-            for (const job of plan.jobs) {
-              batch.set(
-                doc(collection(db, 'users', u.uid, 'jobs')),
-                { ...job, createdAt: serverTimestamp() }
-              )
-            }
-            batch.delete(pendingRef)
-
-            await batch.commit()
+          if (await migratePendingProfile(u.uid, email)) {
             setProfileActivated(true)
           }
         } catch (migErr) {

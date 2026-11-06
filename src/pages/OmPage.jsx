@@ -6,8 +6,8 @@ export default function OmPage() {
       <Section title="Varför finns den">
         <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
           Intervjucoach är ett internt verktyg byggt för Boulder-konsulter för att träna
-          inför specifika uppdrag. Verktyget analyserar din kompetensbank mot jobbannonsen,
-          identifierar gap och låter dig öva med en AI-driven intervjuare som ger personlig
+          inför specifika uppdrag. Verktyget analyserar det CV du kopplat till uppdraget mot jobbannonsen,
+          visar vad du ska förbereda och låter dig öva med en AI-driven intervjuare som ger personlig
           feedback.
         </p>
       </Section>

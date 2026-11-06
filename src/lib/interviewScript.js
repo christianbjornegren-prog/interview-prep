@@ -147,6 +147,7 @@ const SCREEN = {
     back:             '← Tillbaka',
     backToJob:        'Tillbaka till uppdraget',
     notFound:         'Hittade ingen jobbannons.',
+    cvRequired:       'Koppla ett CV till uppdraget innan du startar träningen – då bygger frågorna och feedbacken på rätt profil. Gå tillbaka till uppdraget och välj CV.',
     saveFailed:       'Kunde inte spara din feedback',
     retry:            'Försök igen',
     dismiss:          'Stäng',
@@ -156,7 +157,7 @@ const SCREEN = {
     finishedSteps: [
       'Intervju genomförd',
       'Svar transkriberade',
-      'Analyserar mot kompetensbank',
+      'Analyserar mot ditt CV',
       'Genererar feedback...',
     ],
   },
@@ -174,6 +175,7 @@ const SCREEN = {
     back:             '← Back',
     backToJob:        'Back to the assignment',
     notFound:         'No job posting found.',
+    cvRequired:       'Link a CV to this assignment before you start training, so the questions and feedback are based on the right profile. Go back to the assignment and choose a CV.',
     saveFailed:       'Could not save your feedback',
     retry:            'Try again',
     dismiss:          'Dismiss',
@@ -183,7 +185,7 @@ const SCREEN = {
     finishedSteps: [
       'Interview completed',
       'Answers transcribed',
-      'Matching against your competency bank',
+      'Matching against your CV',
       'Generating feedback...',
     ],
   },

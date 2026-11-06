@@ -1,59 +1,38 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'
-import { db, auth } from '../lib/firebase'
 import { extractCompetencies } from '../lib/claude'
-import StepIndicator, { percentToStep } from './StepIndicator'
+import { cvDisplayName, describeCvError } from '../lib/cvs'
+import StepIndicator from './StepIndicator'
+import { getCvFileType, validateCvFile } from '../lib/jobCreation'
+import { CV_UPLOAD_STEPS } from '../lib/progressSteps'
+import { useProgressSteps } from '../lib/useProgressSteps'
 
-const CV_STEPS = [
-  { label: 'Läser dokumentet',       subtext: 'Förbereder din fil...' },
-  { label: 'Skickar till Claude',    subtext: 'Väntar på svar från Claude...' },
-  { label: 'Analyserar kompetenser', subtext: 'Bearbetar extraherade kompetenser...' },
-  { label: 'Sparar till din bank',   subtext: 'Skriver kompetenser till databasen...' },
-]
-
-const ACCEPTED_TYPES = '.pdf,.docx'
-const MAX_FILE_MB = 20
-
-function getFileType(file) {
-  const name = (file.name ?? '').toLowerCase()
-  // Some browsers report an empty/incorrect MIME for drag-dropped files, so
-  // fall back to the filename extension for BOTH formats.
-  if (file.type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf'
-  if (
-    file.type ===
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    name.endsWith('.docx')
-  )
-    return 'docx'
-  return null
-}
-
-export default function FileUpload({ targetUid, onSuccess } = {}) {
+/**
+ * Laddar upp ETT CV: extraherar kompetenserna och sparar dem som ett eget CV
+ * via CV-lagret (lib/cvStore.js). Varje uppladdning blir ett nytt CV – ingen
+ * sammanslagning eller dubblettkoll mot andra CV:n, eftersom varje CV är en
+ * egen, medvetet förfinad version av profilen.
+ *
+ * @param {object}   store          – createUserCvStore(uid) / createPendingCvStore(email)
+ * @param {(cv) => void} [onSuccess] – anropas med det sparade CV:t
+ * @param {boolean}  [showNextStep] – visa "lägg till uppdrag"-länken (konsultens egen vy)
+ * @param {(busy: boolean) => void} [onBusyChange] – true medan CV:t analyseras/sparas
+ */
+export default function FileUpload({ store, onSuccess, showNextStep = false, onBusyChange } = {}) {
   const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
   const [status, setStatus] = useState('idle') // idle | loading | success | error
   const [message, setMessage] = useState('')
-  const [progressPct, setProgressPct] = useState(0)
-  const [addedCount, setAddedCount] = useState(0)
-  const [skippedCount, setSkippedCount] = useState(0)
-
-  function onProgress(_msg, pct) {
-    setProgressPct(pct)
-  }
+  const progress = useProgressSteps(CV_UPLOAD_STEPS)
+  const [savedCv, setSavedCv] = useState(null)
 
   function handleFileSelect(file) {
     if (!file) return
-    if (!getFileType(file)) {
+    const invalid = validateCvFile(file)
+    if (invalid) {
       setStatus('error')
-      setMessage('Otillåtet filformat. Ladda upp en PDF- eller DOCX-fil.')
-      setSelectedFile(null)
-      return
-    }
-    if (file.size > MAX_FILE_MB * 1024 * 1024) {
-      setStatus('error')
-      setMessage(`Filen är för stor (max ${MAX_FILE_MB} MB). Komprimera eller dela upp den.`)
+      setMessage(invalid)
       setSelectedFile(null)
       return
     }
@@ -64,55 +43,36 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
 
   async function handleAnalyze() {
     if (!selectedFile) return
-    const fileType = getFileType(selectedFile)
+    const fileType = getCvFileType(selectedFile)
 
     setStatus('loading')
     setMessage('')
-    setProgressPct(0)
+    progress.enterPhase('cv')
+    onBusyChange?.(true)
 
     try {
-      const competencies = await extractCompetencies(selectedFile, fileType, onProgress)
+      const competencies = await extractCompetencies(selectedFile, fileType)
 
-      // Duplicate check against existing Firestore titles
-      const uid = targetUid ?? auth.currentUser.uid
-      const colRef = collection(db, 'users', uid, 'competencies')
-      const existingSnap = await getDocs(colRef)
-      const existingTitles = new Set(
-        existingSnap.docs.map((d) => (d.data().title ?? '').toLowerCase())
-      )
+      progress.enterPhase('cv-save')
+      const cv = await store.create({
+        fileName: selectedFile.name,
+        competencies,
+        source: 'upload',
+      })
 
-      const toSave = competencies.filter(
-        (c) => !existingTitles.has((c.title ?? '').toLowerCase())
-      )
-
-      // Step 3: save to Firestore (85-99 %)
-      onProgress('Sparar till din bank...', 87)
-      for (let i = 0; i < toSave.length; i++) {
-        onProgress(
-          `Sparar ${i + 1} av ${toSave.length}...`,
-          88 + (i / Math.max(toSave.length, 1)) * 11,
-        )
-        await addDoc(colRef, {
-          ...toSave[i],
-          createdAt: serverTimestamp(),
-          sourceFile: selectedFile.name,
-        })
-      }
-
-      const skipped = competencies.length - toSave.length
-
-      // Show all-done state for 1 second before revealing success card
-      onProgress('Klart!', 100)
-      await new Promise((r) => setTimeout(r, 1000))
-      setAddedCount(toSave.length)
-      setSkippedCount(skipped)
+      // Visa "allt klart" en kort stund innan kvittensen
+      progress.enterPhase('done')
+      await new Promise((r) => setTimeout(r, 800))
+      setSavedCv(cv)
       setStatus('success')
       setSelectedFile(null)
-      onSuccess?.()
+      onSuccess?.(cv)
     } catch (err) {
       console.error(err)
       setStatus('error')
-      setMessage(err.message ?? 'Något gick fel. Försök igen.')
+      setMessage(describeCvError(err))
+    } finally {
+      onBusyChange?.(false)
     }
   }
 
@@ -120,9 +80,8 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
     setStatus('idle')
     setMessage('')
     setSelectedFile(null)
-    setAddedCount(0)
-    setSkippedCount(0)
-    setProgressPct(0)
+    setSavedCv(null)
+    progress.reset()
   }
 
   function onDrop(e) {
@@ -142,7 +101,7 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
     <div className="space-y-3">
       {/* Step indicator while Claude is working */}
       {isLoading && (
-        <StepIndicator steps={CV_STEPS} currentStep={percentToStep(progressPct)} />
+        <StepIndicator steps={CV_UPLOAD_STEPS} currentStep={progress.index} />
       )}
 
       {/* Drop zone – hidden while loading and after a successful upload */}
@@ -166,7 +125,7 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
           <input
             ref={inputRef}
             type="file"
-            accept={ACCEPTED_TYPES}
+            accept=".pdf,.docx"
             className="hidden"
             onChange={onInputChange}
           />
@@ -219,26 +178,24 @@ export default function FileUpload({ targetUid, onSuccess } = {}) {
           <div className="flex items-center gap-2">
             <span style={{ color: '#4ade80' }}><CheckIcon /></span>
             <p className="text-base font-semibold" style={{ color: '#4ade80' }}>
-              {addedCount} kompetens{addedCount === 1 ? '' : 'er'} tillagda!
+              CV:t "{cvDisplayName(savedCv)}" är sparat
             </p>
           </div>
-
-          {skippedCount > 0 && (
-            <p className="text-xs" style={{ color: '#6b9a7a' }}>
-              {skippedCount} dubblett{skippedCount === 1 ? '' : 'er'} hoppades över.
-            </p>
-          )}
+          <p className="text-xs" style={{ color: '#6b9a7a' }}>
+            {savedCv?.competencyCount ?? 0} kompetens{savedCv?.competencyCount === 1 ? '' : 'er'} hittades.
+            Koppla CV:t till de uppdrag det är skrivet för.
+          </p>
 
           {/* Nästa steg – endast för konsultens egen uppladdning (ej säljare) */}
-          {!targetUid && (
+          {showNextStep && (
             <Link
-              to="/jobb/ny"
+              to="/"
               className="inline-flex items-center gap-1 text-sm font-semibold transition-colors"
               style={{ color: '#8064ad' }}
               onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
               onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
             >
-              Nästa steg: lägg till ett uppdrag och starta din träning →
+              Nästa steg: koppla CV:t till ett uppdrag →
             </Link>
           )}
 

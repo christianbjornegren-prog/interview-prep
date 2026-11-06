@@ -18,22 +18,61 @@ describe('normalizeEmail', () => {
 })
 
 describe('buildMigrationPlan', () => {
-  it('plockar ut kompetenser och uppdrag', () => {
+  it('plockar ut CV:n och uppdrag', () => {
     const plan = buildMigrationPlan({
-      competencies: [{ title: 'Azure' }, { title: 'React' }],
-      jobs: [{ jobTitle: 'IT-chef' }],
+      cvs: [
+        { id: 'cv_a', label: 'Arkitekt', competencies: [{ title: 'Azure' }] },
+        { id: 'cv_b', label: 'PL', competencies: [] },
+      ],
+      jobs: [{ jobTitle: 'IT-chef', cvId: 'cv_a' }],
     })
-    expect(plan.competencies).toHaveLength(2)
+    expect(plan.cvs.map((c) => c.id)).toEqual(['cv_a', 'cv_b'])
     expect(plan.jobs).toHaveLength(1)
     expect(plan.total).toBe(3)
   })
 
-  it('strippar createdAt från kompetenser (mottagaren får färsk tidsstämpel)', () => {
+  it('CV:t behåller sitt id så uppdragets cvId fortsätter peka rätt', () => {
     const plan = buildMigrationPlan({
-      competencies: [{ title: 'Azure', createdAt: 'gammal' }],
+      cvs: [{ id: 'cv_a', label: 'Arkitekt', competencies: [{ title: 'Azure' }] }],
+      jobs: [{ id: 'job_1', jobTitle: 'IT-chef', cvId: 'cv_a' }],
     })
-    expect(plan.competencies[0]).toEqual({ title: 'Azure' })
-    expect('createdAt' in plan.competencies[0]).toBe(false)
+    expect(plan.cvs[0].id).toBe('cv_a')
+    expect('id' in plan.cvs[0].data).toBe(false)
+    expect(plan.jobs[0].cvId).toBe(plan.cvs[0].id)
+  })
+
+  it('CV:ts uppladdningstid behålls', () => {
+    const plan = buildMigrationPlan({ cvs: [{ id: 'cv_a', createdAt: 'då' }] })
+    expect(plan.cvs[0].data.createdAt).toBe('då')
+  })
+
+  it('äldre samlad kompetensarray görs om till CV:n per källfil', () => {
+    const plan = buildMigrationPlan({
+      competencies: [
+        { title: 'Azure', sourceFile: 'a.pdf', createdAt: 'gammal' },
+        { title: 'React', sourceFile: 'a.pdf' },
+        { title: 'Ledarskap' },
+      ],
+    })
+    expect(plan.cvs).toHaveLength(2)
+    const a = plan.cvs.find((c) => c.data.fileName === 'a.pdf')
+    expect(a.data.competencies.map((c) => c.title)).toEqual(['Azure', 'React'])
+    expect('createdAt' in a.data.competencies[0]).toBe(false)
+    expect(plan.total).toBe(2)
+  })
+
+  it('redan konverterad äldre array (competenciesMigrated) ger inga extra CV:n vid överlämningen', () => {
+    const plan = buildMigrationPlan({
+      cvs: [{ id: 'legacy_x', label: 'A' }],
+      competencies: [{ title: 'Azure', sourceFile: 'a.pdf' }],
+      competenciesMigrated: true,
+    })
+    expect(plan.cvs.map((c) => c.id)).toEqual(['legacy_x'])
+  })
+
+  it('CV:n utan id hoppas över (kan inte kopplas)', () => {
+    const plan = buildMigrationPlan({ cvs: [{ label: 'utan id' }, { id: 'cv_ok' }] })
+    expect(plan.cvs.map((c) => c.id)).toEqual(['cv_ok'])
   })
 
   it('strippar createdAt OCH id från uppdrag', () => {
@@ -63,7 +102,7 @@ describe('buildMigrationPlan', () => {
   it('tomt eller trasigt underlag ger en tom plan utan att kasta', () => {
     ;[null, undefined, {}, 'nej', 42, []].forEach((input) => {
       const plan = buildMigrationPlan(input)
-      expect(plan.competencies).toEqual([])
+      expect(plan.cvs).toEqual([])
       expect(plan.jobs).toEqual([])
       expect(plan.total).toBe(0)
     })
@@ -71,10 +110,10 @@ describe('buildMigrationPlan', () => {
 
   it('hoppar över trasiga poster i listorna', () => {
     const plan = buildMigrationPlan({
-      competencies: [null, { title: 'Azure' }, 'skräp', undefined],
+      cvs: [null, { id: 'cv_a' }, 'skräp', undefined],
       jobs: [{ jobTitle: 'OK' }, null],
     })
-    expect(plan.competencies).toHaveLength(1)
+    expect(plan.cvs).toHaveLength(1)
     expect(plan.jobs).toHaveLength(1)
   })
 

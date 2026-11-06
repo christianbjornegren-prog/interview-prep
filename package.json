@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run test/unit",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-intervjucoach \"vitest run test/rules\""
+    "test:rules": "firebase emulators:exec --only firestore --project demo-intervjucoach \"vitest run test/rules\"",
+    "test:e2e": "firebase emulators:exec --only firestore --project demo-intervjucoach \"vitest run test/integration --reporter=verbose\""
   },
   "dependencies": {
     "firebase": "^10.12.0",

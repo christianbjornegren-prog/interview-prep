@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, onSnapshot, deleteDoc, doc, query, orderBy } from 'firebase/firestore'
-import { db, auth } from '../lib/firebase'
 
 // ── Category definitions (names must match CATEGORY_ENUM in claude.js) ────
 
@@ -106,28 +104,25 @@ function tagStyle(tag) {
 
 // ── Component ─────────────────────────────────────────────────────────────
 
-export default function CompetencyList() {
-  const [competencies, setCompetencies] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [deletingId, setDeletingId] = useState(null)
+/**
+ * Visar ETT CV:s kompetenser grupperade per kategori (accordion, kollapsade
+ * by default) med filter-chips. Ren visningskomponent – datan och
+ * borttagningen ägs av anroparen (CV-lagret), så samma lista används för
+ * konsultens egna CV:n, säljarens vy och väntande profiler.
+ *
+ * @param {object[]} competencies – CV:ts kompetenser i lagrad ordning
+ * @param {(index: number) => Promise<void>} [onDelete] – utelämna för läsläge
+ */
+export default function CompetencyList({ competencies: input = [], onDelete, emptyText }) {
+  const [deletingIndex, setDeletingIndex] = useState(null)
   const [activeCategory, setActiveCategory] = useState(null) // null = Alla
 
-  useEffect(() => {
-    const uid = auth.currentUser.uid
-    const q = query(collection(db, 'users', uid, 'competencies'), orderBy('createdAt', 'desc'))
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        setCompetencies(snapshot.docs.map((d) => ({ docId: d.id, ...d.data() })))
-        setLoading(false)
-      },
-      (err) => {
-        console.error('Firestore onSnapshot-fel:', err)
-        setLoading(false)
-      }
-    )
-    return unsubscribe
-  }, [])
+  // Varje kompetens bär sitt index i CV:ts lagrade lista. Filtrering och
+  // gruppering ändrar ordningen – borttagning måste ändå träffa rätt post.
+  const competencies = useMemo(
+    () => (Array.isArray(input) ? input : []).map((c, i) => ({ ...c, _index: i })),
+    [input]
+  )
 
   const categoryCounts = useMemo(() => {
     const counts = new Map(CATEGORIES.map((c) => [c.name, 0]))
@@ -138,28 +133,26 @@ export default function CompetencyList() {
     return counts
   }, [competencies])
 
+  // Ett filter som inte längre har några träffar (sista posten borttagen)
+  // ska inte lämna en tom lista kvar.
+  useEffect(() => {
+    if (activeCategory && !(categoryCounts.get(activeCategory) > 0)) setActiveCategory(null)
+  }, [activeCategory, categoryCounts])
+
   const filtered = activeCategory
     ? competencies.filter((c) => categorize(c).name === activeCategory)
     : competencies
 
-  async function handleDelete(docId) {
-    setDeletingId(docId)
+  async function handleDelete(index) {
+    if (!onDelete) return
+    setDeletingIndex(index)
     try {
-      await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'competencies', docId))
+      await onDelete(index)
     } catch (err) {
       console.error('Kunde inte ta bort kompetens:', err)
     } finally {
-      setDeletingId(null)
+      setDeletingIndex(null)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-3 py-8" style={{ color: '#6b7280' }}>
-        <MiniSpinner />
-        <span className="text-sm">Laddar kompetenser...</span>
-      </div>
-    )
   }
 
   if (competencies.length === 0) {
@@ -169,7 +162,7 @@ export default function CompetencyList() {
         style={{ borderColor: '#404040' }}
       >
         <p className="text-sm" style={{ color: '#6b7280' }}>
-          Kompetensbanken är tom. Ladda upp ett CV för att komma igång.
+          {emptyText ?? 'Inga kompetenser i det här CV:t.'}
         </p>
       </div>
     )
@@ -177,7 +170,8 @@ export default function CompetencyList() {
 
   return (
     <div className="space-y-5">
-      {/* Category filter chips */}
+      {/* Category filter chips – bara meningsfulla med fler än en kategori */}
+      {categoryCounts && [...categoryCounts.values()].filter((n) => n > 0).length > 1 && (
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setActiveCategory(null)}
@@ -214,19 +208,20 @@ export default function CompetencyList() {
           )
         })}
       </div>
+      )}
 
       {/* Count label */}
       <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
         {activeCategory
           ? `${filtered.length} kompetens${filtered.length === 1 ? '' : 'er'} i "${activeCategory}"`
-          : `${competencies.length} kompetens${competencies.length === 1 ? '' : 'er'} i din bank`}
+          : `${competencies.length} kompetens${competencies.length === 1 ? '' : 'er'} i CV:t`}
       </p>
 
       <CategoryAccordions
         competencies={filtered}
         activeCategory={activeCategory}
-        deletingId={deletingId}
-        onDelete={handleDelete}
+        deletingIndex={deletingIndex}
+        onDelete={onDelete ? handleDelete : null}
       />
     </div>
   )
@@ -234,7 +229,7 @@ export default function CompetencyList() {
 
 // ── Accordion grouping ────────────────────────────────────────────────────
 
-function CategoryAccordions({ competencies, activeCategory, deletingId, onDelete }) {
+function CategoryAccordions({ competencies, activeCategory, deletingIndex, onDelete }) {
   const grouped = useMemo(() => {
     const map = new Map()
     competencies.forEach((c) => {
@@ -312,10 +307,10 @@ function CategoryAccordions({ competencies, activeCategory, deletingId, onDelete
               >
                 {items.map((c) => (
                   <CompetencyCard
-                    key={c.docId}
+                    key={`${c._index}-${c.title ?? ''}`}
                     competency={c}
-                    deleting={deletingId === c.docId}
-                    onDelete={() => onDelete(c.docId)}
+                    deleting={deletingIndex === c._index}
+                    onDelete={onDelete ? () => onDelete(c._index) : null}
                   />
                 ))}
               </ul>
@@ -390,20 +385,23 @@ function CompetencyCard({ competency, deleting, onDelete }) {
             <ChevronIcon expanded={expanded} />
           </span>
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete()
-            }}
-            disabled={deleting}
-            title="Ta bort kompetens"
-            className="p-1.5 rounded transition-colors disabled:opacity-40"
-            style={{ color: '#6b7280' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
-          >
-            {deleting ? <MiniSpinner size={15} /> : <TrashIcon />}
-          </button>
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+              }}
+              disabled={deleting}
+              title="Ta bort kompetens"
+              aria-label="Ta bort kompetens"
+              className="p-1.5 rounded transition-colors disabled:opacity-40"
+              style={{ color: '#6b7280' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
+              onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+            >
+              {deleting ? <MiniSpinner size={15} /> : <TrashIcon />}
+            </button>
+          )}
         </div>
       </div>
 

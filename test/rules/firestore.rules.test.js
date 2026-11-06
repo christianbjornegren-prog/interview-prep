@@ -354,3 +354,64 @@ describe('konsultens första inloggning – hela migreringen (AuthGate)', () => 
     )
   })
 })
+
+// ── CV:n per uppdrag ──────────────────────────────────────────────────────
+// Säljaren förbereder konsultens CV:n och kopplar dem till uppdrag; konsulten
+// gör samma sak själv. Ingen annan konsult får se eller ändra dem.
+describe('CV:n (users/{uid}/cvs) och CV-koppling på uppdrag', () => {
+  const OTHER = 'konsult_other'
+  const cvDoc = (db, id = 'cv1') => doc(db, 'users', KONSULT, 'cvs', id)
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore()
+      await setDoc(doc(db, 'users', OTHER), { role: 'konsult', email: 'o@boulder.se' })
+      await setDoc(cvDoc(db), { label: 'Arkitekt', competencies: [{ title: 'Azure' }], competencyCount: 1 })
+      await setDoc(doc(db, 'users', KONSULT, 'jobs', 'job1'), { jobTitle: 'Roll', cvId: null })
+    })
+  })
+
+  it('konsulten läser, skapar, byter namn på och raderar sina EGNA CV:n', async () => {
+    const db = ctxFor(KONSULT)
+    await assertSucceeds(getDoc(cvDoc(db)))
+    await assertSucceeds(setDoc(cvDoc(db, 'cv2'), { label: 'PL', competencies: [] }))
+    await assertSucceeds(updateDoc(cvDoc(db), { label: 'Ny' }))
+    await assertSucceeds(deleteDoc(cvDoc(db, 'cv2')))
+  })
+
+  it('säljaren laddar upp CV åt konsulten och listar konsultens CV:n', async () => {
+    const db = ctxFor(SALJARE)
+    await assertSucceeds(setDoc(cvDoc(db, 'cvS'), { label: 'Från säljaren', competencies: [] }))
+    await assertSucceeds(getDocs(collection(db, 'users', KONSULT, 'cvs')))
+  })
+
+  it('säljaren OCH konsulten kan koppla CV till uppdraget', async () => {
+    await assertSucceeds(
+      updateDoc(doc(ctxFor(SALJARE), 'users', KONSULT, 'jobs', 'job1'), { cvId: 'cv1' })
+    )
+    await assertSucceeds(
+      updateDoc(doc(ctxFor(KONSULT), 'users', KONSULT, 'jobs', 'job1'), { cvId: null })
+    )
+  })
+
+  it('admin har åtkomst', async () => {
+    await assertSucceeds(getDoc(cvDoc(ctxFor(ADMIN))))
+  })
+
+  it('negativ kontroll: en ANNAN konsult kan varken läsa eller skriva', async () => {
+    const db = ctxFor(OTHER)
+    await assertFails(getDoc(cvDoc(db)))
+    await assertFails(getDocs(collection(db, 'users', KONSULT, 'cvs')))
+    await assertFails(setDoc(cvDoc(db, 'evil'), { label: 'X' }))
+    await assertFails(deleteDoc(cvDoc(db)))
+  })
+
+  it('negativ kontroll: utloggad nekas', async () => {
+    await assertFails(getDoc(cvDoc(testEnv.unauthenticatedContext().firestore())))
+  })
+
+  it('överlämningen: konsulten skriver CV med säljarens id i sitt eget träd', async () => {
+    const db = ctxForEmail(KONSULT, 'k@boulder.se')
+    await assertSucceeds(setDoc(cvDoc(db, 'cv_lxyz_abc123'), { label: 'Förberett', competencies: [] }))
+  })
+})

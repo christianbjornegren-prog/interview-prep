@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { useUser } from '../components/AuthGate'
-import { clearCompetencies, clearJobs, clearAll } from '../lib/userData'
+import { clearCvs, clearJobs, clearAll } from '../lib/userData'
 
 const ACTIONS = [
   {
-    key: 'competencies',
-    label: 'Rensa kompetensbank',
-    description: 'Tar bort alla extraherade kompetenser i din kompetensbank.',
-    confirm:
-      'Ta bort ALLA kompetenser i din kompetensbank? Detta går inte att ångra.',
-    run: clearCompetencies,
+    key: 'cvs',
+    label: 'Rensa CV:n',
+    description:
+      'Tar bort alla dina CV:n och deras kompetenser. Uppdragen finns kvar men behöver ett nytt CV kopplat innan du kan träna.',
+    confirm: 'Ta bort ALLA dina CV:n? Detta går inte att ångra.',
+    run: clearCvs,
   },
   {
     key: 'jobs',
@@ -108,17 +108,17 @@ export default function Settings() {
         <div className="min-w-0">
           <h3 className="text-white font-semibold text-sm">Rensa allt</h3>
           <p className="text-xs mt-1" style={{ color: '#f0a085' }}>
-            Nollställ profilen helt – kompetensbank och alla uppdrag.
+            Nollställ profilen helt – alla CV:n och alla uppdrag.
           </p>
         </div>
         <button
           onClick={() =>
             run(
               'all',
-              'Ta bort ALL din data – kompetensbank och alla uppdrag? Detta går inte att ångra.',
+              'Ta bort ALL din data – alla CV:n och alla uppdrag? Detta går inte att ångra.',
               clearAll,
               (res) =>
-                `Allt rensat: ${res.competencies} kompetenser och ${res.jobs} uppdrag borttagna.`
+                `Allt rensat: ${res.cvs} CV och ${res.jobs} uppdrag borttagna.`
             )
           }
           disabled={busy}

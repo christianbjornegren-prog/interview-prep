@@ -5,13 +5,13 @@ import {
   collection,
   doc,
   getDoc,
-  getDocs,
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
 import { analyzeInterviewFeedback, sanitizeCompetencies } from '../lib/claude'
 import { logSystemEvent } from '../lib/systemEvents'
+import { cvCompetencies, cvDisplayName, trainingReadiness } from '../lib/cvs'
 import {
   buttonStateForPhase,
   shouldShowIntroHint,
@@ -70,6 +70,8 @@ export default function InterviewSimulatorTTS() {
   const copy = screenCopy(language)
 
   const [job, setJob] = useState(null)
+  // Uppdragets kopplade CV – feedbacken bedöms mot ENBART det.
+  const cvRef = useRef(null)
   const [loadingJob, setLoadingJob] = useState(true)
   const [loadError, setLoadError] = useState('')
 
@@ -155,9 +157,23 @@ export default function InterviewSimulatorTTS() {
         if (cancelled) return
         if (!snap.exists()) {
           setLoadError('Hittade ingen jobbannons med det id:et.')
-        } else {
-          setJob({ docId: snap.id, ...snap.data() })
+          return
         }
+        const loadedJob = { docId: snap.id, ...snap.data() }
+        // Spärr även här (inte bara på uppdragssidan): en direktlänk eller ett
+        // bokmärke ska inte kunna starta en träning utan kopplat CV.
+        const cvSnap = loadedJob.cvId
+          ? await getDoc(doc(db, 'users', uid, 'cvs', loadedJob.cvId))
+          : null
+        if (cancelled) return
+        const cv = cvSnap?.exists() ? { id: cvSnap.id, ...cvSnap.data() } : null
+        const readiness = trainingReadiness(loadedJob, cv ? [cv] : [])
+        if (readiness.reason === 'no-cv' || readiness.reason === 'cv-missing') {
+          setLoadError(copy.cvRequired)
+          return
+        }
+        cvRef.current = cv
+        setJob(loadedJob)
       } catch (err) {
         console.error('Kunde inte hämta jobbet:', err)
         if (!cancelled) setLoadError(err.message ?? 'Kunde inte hämta jobbet.')
@@ -500,8 +516,7 @@ export default function InterviewSimulatorTTS() {
         }
       })
 
-      const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
-      const rawCompetencies = compSnap.docs.map((d) => d.data())
+      const rawCompetencies = cvCompetencies(cvRef.current)
 
       let feedback
       try {
@@ -537,6 +552,10 @@ export default function InterviewSimulatorTTS() {
             // och "Interim IT-chef" i en engelsk rubrik ser ofärdigt ut.
             jobTitle: (isEnglish(language) && job?.jobTitleEn) || job?.jobTitle || '',
             company: job?.company ?? '',
+            // Vilket CV sessionen bedömdes mot – historiken behåller det även
+            // om uppdraget senare kopplas till ett annat CV.
+            cvId: cvRef.current?.id ?? null,
+            cvLabel: cvRef.current ? cvDisplayName(cvRef.current) : '',
             interviewer: interviewerName,
             // Språket sparas så historiken och säljarens vy kan märka upp
             // engelska sessioner. Äldre feedback saknar fältet och behandlas
@@ -609,9 +628,26 @@ export default function InterviewSimulatorTTS() {
         >
           {copy.back}
         </button>
-        <p className="text-sm" style={{ color: '#f87171' }}>
-          {loadError || copy.notFound}
-        </p>
+        {loadError === copy.cvRequired ? (
+          // Ingen krasch – en vägledning. Neutral inforuta, coach-ton.
+          <div
+            className="rounded-xl border p-5 space-y-3 max-w-xl"
+            style={{ backgroundColor: '#1a1626', borderColor: '#8064ad80' }}
+          >
+            <p className="text-sm text-white">{copy.cvRequired}</p>
+            <button
+              onClick={() => navigate(`/jobb/${jobId}`)}
+              className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+              style={{ backgroundColor: 'transparent', border: '1px solid #8064ad', color: '#d8ccec' }}
+            >
+              {copy.backToJob}
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm" style={{ color: '#f87171' }}>
+            {loadError || copy.notFound}
+          </p>
+        )}
       </div>
     )
   }

@@ -26,7 +26,7 @@ const COPY = {
     summary:          'Sammanfattning',
     strengths:        'Styrkor',
     improvements:     'Förbättringsområden',
-    competencyLink:   'Koppling till din kompetensbank',
+    competencyLink:   'Koppling till ditt CV',
     perQuestion:      'Feedback per fråga',
     question:         (n) => `Fråga ${n}`,
     privacyNote:      'Din träning är privat. Den delas med din säljare endast om du själv ' +
@@ -47,7 +47,7 @@ const COPY = {
     summary:          'Summary',
     strengths:        'Strengths',
     improvements:     'Areas to improve',
-    competencyLink:   'Link to your competency bank',
+    competencyLink:   'Link to your CV',
     perQuestion:      'Feedback per question',
     question:         (n) => `Question ${n}`,
     privacyNote:      'Your practice is private. It is shared with your salesperson only if ' +

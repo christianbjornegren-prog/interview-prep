@@ -30,6 +30,10 @@ import {
   normalizeLanguage,
 } from '../lib/language'
 import StartInterviewButton from '../components/StartInterviewButton'
+import JobCvPicker from '../components/JobCvPicker'
+import { createPendingCvStore, createUserCvStore } from '../lib/cvStore'
+import { READINESS_MESSAGE, cvCompetencies, resolveJobCv, trainingReadiness } from '../lib/cvs'
+import { useCvs } from '../lib/useCvs'
 
 const TABS = [
   { key: 'preparation', label: 'Förberedelse' },
@@ -73,6 +77,14 @@ export default function JobPage() {
   })
   const [preparing, setPreparing] = useState(false)
   const [prepareError, setPrepareError] = useState('')
+
+  // CV:n för uppdragets ägare. Uppdraget pekar ut EXAKT ETT av dem (cvId) –
+  // analys, frågor och feedback bygger enbart på det.
+  const cvStore = useMemo(
+    () => (pendingEmail ? createPendingCvStore(pendingEmail) : createUserCvStore(uid)),
+    [pendingEmail, uid]
+  )
+  const { cvs, loading: loadingCvs, reload: reloadCvs } = useCvs(cvStore)
 
   useEffect(() => {
     if (pendingEmail) {
@@ -152,8 +164,14 @@ export default function JobPage() {
   }
 
   const questions = job.questions ?? []
+  const { status: cvStatus, cv: jobCv } = resolveJobCv(job, cvs)
+  const readiness = trainingReadiness(job, cvs)
+  // Medan CV:n laddas vet vi inte om träningen får starta – håll knappen
+  // spärrad hellre än att låta den blinka till aktiv.
+  const canStart = !loadingCvs && readiness.ready
 
   function startInterview() {
+    if (!canStart) return
     setShowConfig(true)
   }
 
@@ -173,11 +191,10 @@ export default function JobPage() {
     setPreparing(true)
     setPrepareError('')
     try {
-      const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
       const result = await generateInterviewQuestions(
         job.rawJobText ?? job.summary ?? '',
         job.companyInfo ?? '',
-        sanitizeCompetencies(compSnap.docs.map((d) => d.data())),
+        sanitizeCompetencies(cvCompetencies(jobCv)),
         'en'
       )
       await updateDoc(doc(db, 'users', uid, 'jobs', jobId), {
@@ -206,6 +223,8 @@ export default function JobPage() {
   }
 
   async function launchInterview() {
+    // Sista spärren: utan kopplat CV startas ingen träning.
+    if (!canStart) return
     const language = normalizeLanguage(config.language)
 
     let sourceQuestions = questions
@@ -227,16 +246,16 @@ export default function JobPage() {
   }
 
   async function handleRefreshGap() {
-    if (!job || refreshingGap) return
+    if (!job || refreshingGap || !jobCv) return
     setRefreshingGap(true)
     setRefreshError('')
     try {
-      const compSnap = await getDocs(collection(db, 'users', uid, 'competencies'))
-      const latestComps = compSnap.docs.map((d) => d.data())
+      // Analysen görs mot det KOPPLADE CV:t – aldrig mot alla kompetenser.
+      const latest = await cvStore.get(jobCv.id)
       const result = await analyzeJobPosting(
         job.rawJobText ?? job.summary ?? '',
-        '',
-        sanitizeCompetencies(latestComps)
+        job.companyInfo ?? '',
+        sanitizeCompetencies(cvCompetencies(latest ?? jobCv))
       )
       await updateDoc(doc(db, 'users', uid, 'jobs', jobId), {
         requirements: result.requirements ?? [],
@@ -295,12 +314,37 @@ export default function JobPage() {
         </div>
 
         {!isReadOnly && !inConfig && (
-          <StartInterviewButton
-            onClick={startInterview}
-            disabled={questions.length === 0}
-          />
+          <div className="flex flex-col items-end gap-1.5">
+            <StartInterviewButton
+              onClick={startInterview}
+              disabled={!canStart}
+            />
+            {!loadingCvs && !readiness.ready && (
+              <p className="text-xs max-w-[16rem] text-right" style={{ color: '#9ca3af' }}>
+                {readiness.reason === 'no-questions'
+                  ? READINESS_MESSAGE['no-questions']
+                  : 'Koppla ett CV nedan för att kunna starta.'}
+              </p>
+            )}
+          </div>
         )}
       </div>
+
+      {/* CV för uppdraget – konsulten och säljaren kan båda koppla/byta.
+          Dold i konfigurationsläget, där valet redan är gjort. */}
+      {!inConfig && (
+        loadingCvs ? (
+          <p className="text-xs" style={{ color: '#6b7280' }}>Laddar CV...</p>
+        ) : (
+          <JobCvPicker
+            job={job}
+            cvs={cvs}
+            store={cvStore}
+            onChanged={reloadCvs}
+            variant="banner"
+          />
+        )
+      )}
 
       {!isReadOnly && showConfig ? (
         <InterviewConfigScreen
@@ -347,16 +391,19 @@ export default function JobPage() {
               // "Uppdatera analys" writes the job doc, which a säljare/pending
               // viewer can't do (rules deny) and shouldn't trigger a Claude call
               // on someone else's data. Gate on the full read-only flag.
-              onRefreshGap={isReadOnly ? null : handleRefreshGap}
+              onRefreshGap={isReadOnly || cvStatus !== 'linked' ? null : handleRefreshGap}
               refreshingGap={refreshingGap}
               refreshError={refreshError}
+              cvLinked={cvStatus === 'linked'}
+              loadingCvs={loadingCvs}
             />
           )}
           {!isReadOnly && activeTab === 'history' && (
             <HistoryTab
               feedbacks={feedbacks}
               loading={loadingFeedbacks}
-              hasQuestions={questions.length > 0}
+              canStart={canStart}
+              blockedMessage={loadingCvs || readiness.ready ? '' : READINESS_MESSAGE[readiness.reason]}
               onNavigate={(fId) => navigate(`/feedback/${jobId}/${fId}`)}
               onStartInterview={startInterview}
             />
@@ -465,7 +512,7 @@ function DescriptionView({ blocks }) {
   )
 }
 
-function PrepTab({ job, onRefreshGap, refreshingGap, refreshError }) {
+function PrepTab({ job, onRefreshGap, refreshingGap, refreshError, cvLinked, loadingCvs }) {
   const requirements = resolveRequirements(job)
   const buckets = deriveGapBuckets(requirements)
   // Skydd mot TYST degradering: värden utanför den svenska värdemängden
@@ -516,7 +563,7 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError }) {
         </p>
       )}
 
-      {invalidValues.length > 0 && !refreshingGap && (
+      {cvLinked && invalidValues.length > 0 && !refreshingGap && (
         <div
           className="rounded-xl border p-4"
           style={{ backgroundColor: '#2b1a0d', borderColor: '#7c5a1a' }}
@@ -534,14 +581,21 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError }) {
 
       {refreshingGap && (
         <p className="text-xs" style={{ color: '#9ca3af' }}>
-          Analyserar mot din uppdaterade kompetensbank...
+          Analyserar mot det kopplade CV:t...
         </p>
       )}
 
       {/* c. quick facts som pills */}
       {quickFacts.length > 0 && <QuickFactPills facts={quickFacts} />}
 
-      {hasReqs ? (
+      {loadingCvs ? null : !cvLinked ? (
+        // Matchningen är personlig – utan CV finns inget att matcha mot.
+        // (Äldre uppdrag kan ha en analys mot den gamla samlade banken; den
+        // visas inte, eftersom den inte gäller något specifikt CV.)
+        <p className="text-sm" style={{ color: '#6b7280' }}>
+          Kravtäckning, styrkor och vad du ska förbereda visas så snart ett CV är kopplat.
+        </p>
+      ) : hasReqs ? (
         <>
           {/* d. metric-rad */}
           <MetricRow metrics={metrics} onJump={scrollToSection} />
@@ -792,7 +846,7 @@ function StructuredSections({ sections }) {
 
 // ── Tab: Historik ─────────────────────────────────────────────────────────
 
-function HistoryTab({ feedbacks, loading, hasQuestions, onNavigate, onStartInterview }) {
+function HistoryTab({ feedbacks, loading, canStart, blockedMessage, onNavigate, onStartInterview }) {
   if (loading) {
     return (
       <p className="text-sm" style={{ color: '#6b7280' }}>
@@ -808,8 +862,11 @@ function HistoryTab({ feedbacks, loading, hasQuestions, onNavigate, onStartInter
           Du har inte tränat på detta uppdrag ännu. Starta din första intervju!
         </p>
         <div className="flex justify-center">
-          <StartInterviewButton onClick={onStartInterview} disabled={!hasQuestions} />
+          <StartInterviewButton onClick={onStartInterview} disabled={!canStart} />
         </div>
+        {blockedMessage && (
+          <p className="text-xs" style={{ color: '#9ca3af' }}>{blockedMessage}</p>
+        )}
       </div>
     )
   }

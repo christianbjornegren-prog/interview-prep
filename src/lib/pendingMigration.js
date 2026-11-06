@@ -16,6 +16,8 @@
  *      om, eftersom en lyckad körning tar bort sitt eget underlag.
  */
 
+import { convertLegacyPendingCompetencies } from './cvs'
+
 /** Firestore tar max 500 operationer per batch. */
 export const MAX_BATCH_OPERATIONS = 500
 
@@ -34,27 +36,38 @@ export function normalizeEmail(email) {
 /**
  * Bygger listan över vad som ska skrivas över till konsultens eget träd.
  *
- * `createdAt` strippas eftersom mottagaren ska få en färsk servertidsstämpel,
- * och `id` strippas från uppdrag eftersom pending-uppdrag bär ett genererat
+ * CV:n flyttas med SITT id (blir dokument-id i users/{uid}/cvs) – uppdragens
+ * `cvId` pekar på det id:t, och kopplingen uppdrag→CV måste överleva
+ * överlämningen. Äldre profiler med en samlad `competencies`-array görs om
+ * till CV:n (grupperat på källfil) på vägen, så ingen data tappas.
+ *
+ * CV:ns `createdAt` (konkret Timestamp) behålls – det är uppladdningstiden.
+ * Uppdragens `createdAt` strippas eftersom mottagaren ska få en färsk
+ * servertidsstämpel, och `id` strippas från uppdrag eftersom pending-uppdrag bär ett genererat
  * id-fält som inte hör hemma i ett Firestore-dokument med eget dokument-id.
  *
  * @param {object} pendingData – innehållet i pendingProfiles/{email}
- * @returns {{ competencies: object[], jobs: object[], total: number }}
+ * @returns {{ cvs: Array<{id: string, data: object}>, jobs: object[], total: number }}
  */
 export function buildMigrationPlan(pendingData) {
   const data = pendingData && typeof pendingData === 'object' ? pendingData : {}
-  const rawComps = Array.isArray(data.competencies) ? data.competencies : []
   const rawJobs = Array.isArray(data.jobs) ? data.jobs : []
 
-  const competencies = rawComps
-    .filter((c) => c && typeof c === 'object')
-    .map(({ createdAt: _createdAt, ...rest }) => rest)
+  const { cvs: allCvs } = convertLegacyPendingCompetencies({
+    cvs: (Array.isArray(data.cvs) ? data.cvs : []).filter((cv) => cv && typeof cv === 'object'),
+    competencies: Array.isArray(data.competencies) ? data.competencies : [],
+    competenciesMigrated: data.competenciesMigrated,
+  })
+
+  const cvs = allCvs
+    .filter((cv) => typeof cv.id === 'string' && cv.id)
+    .map(({ id, ...rest }) => ({ id, data: rest }))
 
   const jobs = rawJobs
     .filter((j) => j && typeof j === 'object')
     .map(({ createdAt: _createdAt, id: _id, ...rest }) => rest)
 
-  return { competencies, jobs, total: competencies.length + jobs.length }
+  return { cvs, jobs, total: cvs.length + jobs.length }
 }
 
 /**

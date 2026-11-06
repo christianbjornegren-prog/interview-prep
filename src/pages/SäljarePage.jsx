@@ -11,6 +11,8 @@ import {
   where,
 } from '../lib/firebase'
 import { filterAwaitingLogin } from '../lib/pendingMigration'
+import { countUserCvs } from '../lib/cvStore'
+import { convertLegacyPendingCompetencies } from '../lib/cvs'
 
 export default function SäljarePage() {
   const navigate = useNavigate()
@@ -31,15 +33,17 @@ export default function SäljarePage() {
       const withCounts = await Promise.all(
         usersSnap.docs.map(async (d) => {
           const u = { uid: d.id, ...d.data() }
-          // One consultant's counts failing must not sink the whole list.
-          try {
-            const [compSnap, jobsSnap] = await Promise.all([
-              getDocs(collection(db, 'users', u.uid, 'competencies')),
-              getDocs(collection(db, 'users', u.uid, 'jobs')),
-            ])
-            return { ...u, competencyCount: compSnap.size, jobCount: jobsSnap.size }
-          } catch {
-            return { ...u, competencyCount: null, jobCount: null }
+          // One consultant's counts failing must not sink the whole list –
+          // and one COUNT failing must not hide the other (allSettled).
+          const [cvRes, jobsRes] = await Promise.allSettled([
+            countUserCvs(u.uid),
+            getDocs(collection(db, 'users', u.uid, 'jobs')),
+          ])
+          if (cvRes.status === 'rejected') console.error('Kunde inte räkna CV:n:', cvRes.reason)
+          return {
+            ...u,
+            cvCount: cvRes.status === 'fulfilled' ? cvRes.value : null,
+            jobCount: jobsRes.status === 'fulfilled' ? jobsRes.value.size : null,
           }
         })
       )
@@ -96,7 +100,7 @@ export default function SäljarePage() {
                     key={k.uid}
                     name={k.name}
                     email={k.email}
-                    competencyCount={k.competencyCount}
+                    cvCount={k.cvCount}
                     jobCount={k.jobCount}
                     onClick={() => navigate(`/konsulter/${k.uid}`)}
                   />
@@ -117,7 +121,7 @@ export default function SäljarePage() {
                     key={p.email}
                     name={p.name}
                     email={p.email}
-                    competencyCount={(p.competencies ?? []).length}
+                    cvCount={convertLegacyPendingCompetencies(p).cvs.length}
                     jobCount={(p.jobs ?? []).length}
                     pending
                     onClick={() => navigate(`/konsulter/pending/${encodeURIComponent(p.email)}`)}
@@ -144,7 +148,7 @@ export default function SäljarePage() {
 
 // ── Cards ─────────────────────────────────────────────────────────────────
 
-function KonsultCard({ name, email, competencyCount, jobCount, pending, onClick }) {
+function KonsultCard({ name, email, cvCount, jobCount, pending, onClick }) {
   const initials = (name ?? email ?? '?')
     .split(' ')
     .map((w) => w[0])
@@ -182,7 +186,7 @@ function KonsultCard({ name, email, competencyCount, jobCount, pending, onClick 
         </div>
 
         <div className="flex gap-6">
-          <Stat label="Kompetenser" value={competencyCount} />
+          <Stat label="CV" value={cvCount} />
           <Stat label="Uppdrag" value={jobCount} />
         </div>
       </button>
@@ -224,7 +228,7 @@ function NewKonsultModal({ onClose, onCreated }) {
         name: trimmedName,
         email: trimmedEmail,
         createdAt: serverTimestamp(),
-        competencies: [],
+        cvs: [],
         jobs: [],
       })
       onCreated(trimmedEmail)

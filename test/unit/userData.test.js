@@ -30,7 +30,7 @@ vi.mock('../../src/lib/firebase.js', () => {
   }
 })
 
-const { clearCompetencies, clearJobs, clearAll } = await import(
+const { clearCompetencies, clearCvs, clearJobs, clearAll } = await import(
   '../../src/lib/userData.js'
 )
 
@@ -38,6 +38,7 @@ beforeEach(() => {
   committed.length = 0
   store = {
     'users/u1/competencies': ['c1', 'c2', 'c3'],
+    'users/u1/cvs': ['cv1', 'cv2'],
     'users/u1/jobs': ['j1', 'j2'],
     'users/u1/jobs/j1/feedback': ['f1', 'f2'],
     'users/u1/jobs/j2/feedback': [],
@@ -53,6 +54,21 @@ describe('clearCompetencies', () => {
       'users/u1/competencies/c2',
       'users/u1/competencies/c3',
     ])
+  })
+})
+
+describe('clearCvs', () => {
+  it('deletes every CV AND any unmigrated legacy competencies, returns CV count', async () => {
+    const n = await clearCvs()
+    expect(n).toBe(2)
+    expect(committed).toContain('users/u1/cvs/cv1')
+    expect(committed).toContain('users/u1/cvs/cv2')
+    expect(committed).toContain('users/u1/competencies/c1')
+  })
+
+  it('never touches uppdrag', async () => {
+    await clearCvs()
+    expect(committed.some((p) => p.startsWith('users/u1/jobs'))).toBe(false)
   })
 })
 
@@ -79,8 +95,8 @@ describe('clearJobs', () => {
 })
 
 describe('clearAll', () => {
-  it('reports counts for both collections', async () => {
+  it('reports counts for CV:n and uppdrag', async () => {
     const res = await clearAll()
-    expect(res).toEqual({ competencies: 3, jobs: 2 })
+    expect(res).toEqual({ cvs: 2, jobs: 2 })
   })
 })

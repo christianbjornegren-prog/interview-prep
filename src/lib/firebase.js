@@ -36,4 +36,5 @@ export {
   Timestamp,
   arrayUnion,
   writeBatch,
+  runTransaction,
 } from 'firebase/firestore'

@@ -33,7 +33,7 @@ export default function Layout({ children }) {
                   Mina uppdrag
                 </NavLink>
                 <NavLink to="/kompetensbank" active={location.pathname === '/kompetensbank'}>
-                  Kompetensbank
+                  Mina CV
                 </NavLink>
                 {(role === 'admin' || role === 'saljare') && (
                   <NavLink
