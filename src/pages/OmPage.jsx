@@ -1,10 +1,10 @@
 export default function OmPage() {
   return (
     <div className="max-w-2xl space-y-10">
-      <h1 className="text-2xl font-bold text-white tracking-tight">Om Intervjucoach</h1>
+      <h1 className="text-2xl font-medium text-text-primary tracking-tight">Om Intervjucoach</h1>
 
       <Section title="Varför finns den">
-        <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+        <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-primary)' }}>
           Intervjucoach är ett internt verktyg byggt för Boulder-konsulter för att träna
           inför specifika uppdrag. Verktyget analyserar det CV du kopplat till uppdraget mot jobbannonsen,
           visar vad du ska förbereda och låter dig öva med en AI-driven intervjuare som ger personlig
@@ -25,10 +25,10 @@ export default function OmPage() {
             <li key={name} className="flex items-start gap-3">
               <span
                 className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: '#8064ad' }}
+                style={{ backgroundColor: 'var(--color-accent-purple)' }}
               />
-              <span className="text-sm" style={{ color: '#d1d5db' }}>
-                <span className="font-medium text-white">{name}</span>
+              <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                <span className="font-medium text-text-primary">{name}</span>
                 {' '}— {desc}
               </span>
             </li>
@@ -37,7 +37,7 @@ export default function OmPage() {
       </Section>
 
       <Section title="Byggt av">
-        <p className="text-sm" style={{ color: '#d1d5db' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
           Christian Björnegren, Boulder AB, 2026
         </p>
       </Section>
@@ -49,14 +49,14 @@ function Section({ title, children }) {
   return (
     <section className="space-y-3">
       <h2
-        className="text-xs font-semibold uppercase tracking-widest"
-        style={{ color: '#8064ad' }}
+        className="text-xs font-medium uppercase tracking-widest"
+        style={{ color: 'var(--color-accent-purple)' }}
       >
         {title}
       </h2>
       <div
         className="rounded-xl border p-5"
-        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+        style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       >
         {children}
       </div>

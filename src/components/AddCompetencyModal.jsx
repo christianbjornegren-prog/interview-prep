@@ -38,7 +38,7 @@ export default function AddCompetencyModal({ cvName, onClose, onSave }) {
   }
 
   const inputClass =
-    'w-full rounded-lg border px-3 py-2 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#8064ad]'
+    'w-full rounded-lg border px-3 py-2 text-sm text-input-text placeholder:text-[var(--color-input-placeholder)] focus:outline-none focus:border-focus-ring'
 
   return (
     <div
@@ -51,20 +51,20 @@ export default function AddCompetencyModal({ cvName, onClose, onSave }) {
         aria-modal="true"
         aria-label="Lägg till kompetens"
         className="w-full max-w-md rounded-2xl border p-6 space-y-5"
-        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+        style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-white font-semibold text-lg">Lägg till kompetens</h2>
+            <h2 className="text-text-primary font-medium text-lg">Lägg till kompetens</h2>
             {cvName && (
-              <p className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>
-                I CV:t <span className="text-white">{cvName}</span>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
+                I CV:t <span className="text-text-primary">{cvName}</span>
               </p>
             )}
           </div>
-          <button onClick={onClose} aria-label="Stäng" className="text-sm transition-colors" style={{ color: '#6b7280' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          <button onClick={onClose} aria-label="Stäng" className="text-sm transition-colors" style={{ color: 'var(--color-text-secondary)' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+            onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
           >✕</button>
         </div>
 
@@ -73,14 +73,14 @@ export default function AddCompetencyModal({ cvName, onClose, onSave }) {
             type="text" autoFocus value={form.namn}
             onChange={(e) => update('namn', e.target.value)}
             placeholder="T.ex. Strategiskt ledarskap i offentlig sektor"
-            className={inputClass} style={{ backgroundColor: '#141414', borderColor: '#404040' }}
+            className={inputClass} style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)' }}
           />
         </Field>
         <Field label="Kategori">
           <select
             value={form.kategori}
             onChange={(e) => update('kategori', e.target.value)}
-            className={inputClass} style={{ backgroundColor: '#141414', borderColor: '#404040' }}
+            className={inputClass} style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)' }}
           >
             {CATEGORY_ENUM.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -92,7 +92,7 @@ export default function AddCompetencyModal({ cvName, onClose, onSave }) {
             placeholder="Vad personen gjort och hur..."
             rows={3}
             className={inputClass + ' p-3'}
-            style={{ backgroundColor: '#141414', borderColor: '#404040', resize: 'vertical' }}
+            style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)', resize: 'vertical' }}
           />
         </Field>
         <Field label="Taggar (kommaseparerade)">
@@ -100,27 +100,27 @@ export default function AddCompetencyModal({ cvName, onClose, onSave }) {
             type="text" value={form.taggar}
             onChange={(e) => update('taggar', e.target.value)}
             placeholder="ledarskap, strategi, governance"
-            className={inputClass} style={{ backgroundColor: '#141414', borderColor: '#404040' }}
+            className={inputClass} style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)' }}
           />
         </Field>
 
-        {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+        {error && <p className="text-xs" style={{ color: 'var(--color-feedback-error)' }}>{error}</p>}
 
         <div className="flex gap-3">
           <button
             onClick={onClose}
             className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors"
-            style={{ backgroundColor: '#404040', color: '#9ca3af' }}
+            style={{ backgroundColor: 'var(--color-background-tertiary)', color: 'var(--color-text-secondary)' }}
           >
             Avbryt
           </button>
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-60"
-            style={{ backgroundColor: '#8064ad' }}
-            onMouseOver={(e) => !saving && (e.currentTarget.style.backgroundColor = '#9781be')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-action-primary-text transition-colors disabled:opacity-60"
+            style={{ backgroundColor: 'var(--color-action-primary-background)' }}
+            onMouseOver={(e) => !saving && (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}
           >
             {saving ? 'Sparar...' : 'Spara kompetens'}
           </button>
@@ -133,7 +133,7 @@ export default function AddCompetencyModal({ cvName, onClose, onSave }) {
 function Field({ label, children }) {
   return (
     <label className="block space-y-1">
-      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#8064ad' }}>
+      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-accent-purple)' }}>
         {label}
       </span>
       {children}

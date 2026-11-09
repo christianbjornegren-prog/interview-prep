@@ -5,67 +5,67 @@ import { useEffect, useMemo, useState } from 'react'
 const CATEGORIES = [
   {
     name: 'Mjukvaruutveckling & programmering',
-    color: '#3B82F6', bg: '#0d1f3c', textColor: '#7db4f8',
+    color: 'var(--color-tag-blue-1)', bg: 'var(--color-tag-blue-1)', textColor: 'var(--color-tag-text)',
     tags: new Set(['react', 'angular', 'vue', 'typescript', 'javascript', 'c#', '.net', 'java', 'python', 'nodejs', 'node.js', 'fullstack', 'backend', 'frontend', 'blazor', 'asp.net']),
   },
   {
     name: 'IT-arkitektur & design',
-    color: '#2a9d8f', bg: '#0d2b27', textColor: '#5ecfc3',
+    color: 'var(--color-tag-teal-1)', bg: 'var(--color-tag-teal-1)', textColor: 'var(--color-tag-text)',
     tags: new Set(['arkitektur', 'togaf', 'systemarkitektur', 'api-strategi', 'access-management', 'integrationsstrategi', 'skalbarhet', 'ddd', 'systemdesign', 'lösningsarkitektur', 'domänmodellering']),
   },
   {
     name: 'Molntjänster & Azure',
-    color: '#0EA5E9', bg: '#0d2233', textColor: '#5bc4f5',
+    color: 'var(--color-tag-blue-2)', bg: 'var(--color-tag-blue-2)', textColor: 'var(--color-tag-text)',
     tags: new Set(['azure', 'cloud', 'aws', 'gcp', 'docker', 'kubernetes', 'cloud-migration', 'microsoft-azure', 'plattformsledning', 'teknisk-transformation', 'cosmosdb', 'service bus']),
   },
   {
     name: 'Systemintegration & API',
-    color: '#8B5CF6', bg: '#1e1433', textColor: '#b48ef5',
+    color: 'var(--color-tag-purple-2)', bg: 'var(--color-tag-purple-2)', textColor: 'var(--color-tag-text)',
     tags: new Set(['integration', 'api', 'biztalk', 'webhooks', 'event-driven', 'meddelandehantering', 'kundportal']),
   },
   {
     name: 'Testning & kvalitetssäkring',
-    color: '#10B981', bg: '#0d2b1f', textColor: '#4ec994',
+    color: 'var(--color-tag-green-1)', bg: 'var(--color-tag-green-1)', textColor: 'var(--color-tag-text)',
     tags: new Set(['testautomation', 'jest', 'selenium', 'enhetstester', 'integrationstester', 'storybook', 'puppeteer']),
   },
   {
     name: 'Microsoft 365 & modern arbetsplats',
-    color: '#F59E0B', bg: '#2b2010', textColor: '#f5c060',
+    color: 'var(--color-tag-orange-1)', bg: 'var(--color-tag-orange-1)', textColor: 'var(--color-tag-text)',
     tags: new Set(['microsoft-365', 'sharepoint', 'teams', 'power-platform', 'power-apps', 'power-automate', 'intune']),
   },
   {
     name: 'Informationsförvaltning & governance',
-    color: '#EC4899', bg: '#2b1020', textColor: '#f07dbf',
+    color: 'var(--color-tag-pink-1)', bg: 'var(--color-tag-pink-1)', textColor: 'var(--color-tag-text)',
     tags: new Set(['informationsförvaltning', 'datagovernance', 'governance', 'master-data', 'datakvalitet']),
   },
   {
     name: 'Data & analys',
-    color: '#06B6D4', bg: '#0d2633', textColor: '#4dd8e8',
+    color: 'var(--color-tag-teal-2)', bg: 'var(--color-tag-teal-2)', textColor: 'var(--color-tag-text)',
     tags: new Set(['power-bi', 'sql', 'datamodellering', 'etl', 'dataplattform', 'rapportering', 'beslutsunderlag']),
   },
   {
     name: 'IT-säkerhet & compliance',
-    color: '#E76F51', bg: '#2b1a14', textColor: '#f0a085',
+    color: 'var(--color-tag-pink-2)', bg: 'var(--color-tag-pink-2)', textColor: 'var(--color-tag-text)',
     tags: new Set(['säkerhet', 'gdpr', 'compliance', 'nis2']),
   },
   {
     name: 'Ledarskap & organisation',
-    color: '#8064ad', bg: '#1e2d45', textColor: '#b19ae0',
+    color: 'var(--color-tag-purple-1)', bg: 'var(--color-tag-purple-1)', textColor: 'var(--color-tag-text)',
     tags: new Set(['ledarskap', 'styrning', 'strategi', 'strategisk-kommunikation', 'ledningsstöd', 'teamledning', 'mentorskap', 'organisationsutveckling']),
   },
   {
     name: 'Affärsutveckling & strategi',
-    color: '#7C5CBF', bg: '#221533', textColor: '#b19de0',
+    color: 'var(--color-tag-orange-3)', bg: 'var(--color-tag-orange-3)', textColor: 'var(--color-tag-text)',
     tags: new Set(['affärsutveckling', 'digitalisering', 'transformation', 'förändringsledning', 'processautomation', 'effektivisering', 'affärsnytta', 'projektledning', 'projektledare', 'portfolio']),
   },
   {
     name: 'AI & innovation',
-    color: '#57A773', bg: '#0d2b1a', textColor: '#7dcc99',
+    color: 'var(--color-tag-green-2)', bg: 'var(--color-tag-green-2)', textColor: 'var(--color-tag-text)',
     tags: new Set(['ai', 'automation', 'innovation', 'maskininlärning']),
   },
   {
     name: 'Övrigt',
-    color: '#6B7280', bg: '#1e1f2a', textColor: '#9ca3af',
+    color: 'var(--color-tag-grey-1)', bg: 'var(--color-tag-neutral-background)', textColor: 'var(--color-tag-neutral-text)',
     tags: new Set(),
   },
 ]
@@ -159,9 +159,9 @@ export default function CompetencyList({ competencies: input = [], onDelete, emp
     return (
       <div
         className="rounded-xl border-2 border-dashed p-12 text-center"
-        style={{ borderColor: '#404040' }}
+        style={{ borderColor: 'var(--color-border-strong)' }}
       >
-        <p className="text-sm" style={{ color: '#6b7280' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           {emptyText ?? 'Inga kompetenser i det här CV:t.'}
         </p>
       </div>
@@ -178,8 +178,8 @@ export default function CompetencyList({ competencies: input = [], onDelete, emp
           className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
           style={
             activeCategory === null
-              ? { backgroundColor: '#8064ad', color: '#fff' }
-              : { backgroundColor: '#323232', color: '#6b7280' }
+              ? { backgroundColor: 'var(--color-action-primary-background)', color: 'var(--color-action-primary-text)' }
+              : { backgroundColor: 'var(--color-background-tertiary)', color: 'var(--color-text-secondary)' }
           }
         >
           Alla ({competencies.length})
@@ -194,10 +194,10 @@ export default function CompetencyList({ competencies: input = [], onDelete, emp
               className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
               style={
                 isActive
-                  ? { backgroundColor: cat.color, color: '#fff' }
+                  ? { backgroundColor: cat.color, color: 'var(--color-tag-text)' }
                   : {
-                      backgroundColor: '#323232',
-                      color: '#9ca3af',
+                      backgroundColor: 'var(--color-background-tertiary)',
+                      color: 'var(--color-text-secondary)',
                       borderLeft: `3px solid ${cat.color}`,
                       paddingLeft: '0.625rem',
                     }
@@ -211,7 +211,7 @@ export default function CompetencyList({ competencies: input = [], onDelete, emp
       )}
 
       {/* Count label */}
-      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-accent-purple)' }}>
         {activeCategory
           ? `${filtered.length} kompetens${filtered.length === 1 ? '' : 'er'} i "${activeCategory}"`
           : `${competencies.length} kompetens${competencies.length === 1 ? '' : 'er'} i CV:t`}
@@ -271,22 +271,22 @@ function CategoryAccordions({ competencies, activeCategory, deletingIndex, onDel
           <div
             key={cat.name}
             className="rounded-xl border overflow-hidden"
-            style={{ borderColor: '#404040' }}
+            style={{ borderColor: 'var(--color-border-default)' }}
           >
             {/* Accordion header */}
             <button
               onClick={() => toggle(cat.name)}
               className="w-full flex items-center justify-between px-4 py-3 transition-colors"
-              style={{ backgroundColor: '#1d1d1d' }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#252525')}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1d1d1d')}
+              style={{ backgroundColor: 'var(--color-background-primary)' }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-ghost-background-hover)')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-background-primary)')}
             >
               <div className="flex items-center gap-3">
                 <span
                   className="w-2.5 h-2.5 rounded-full shrink-0"
                   style={{ backgroundColor: cat.color }}
                 />
-                <span className="text-sm font-semibold text-white">
+                <span className="text-sm font-semibold text-text-primary">
                   {cat.name}
                 </span>
                 <span
@@ -303,7 +303,7 @@ function CategoryAccordions({ competencies, activeCategory, deletingIndex, onDel
             {isOpen && (
               <ul
                 className="space-y-px border-t"
-                style={{ borderColor: '#404040', backgroundColor: '#141414' }}
+                style={{ borderColor: 'var(--color-border-default)', backgroundColor: 'var(--color-background-tertiary)' }}
               >
                 {items.map((c) => (
                   <CompetencyCard
@@ -325,9 +325,9 @@ function CategoryAccordions({ competencies, activeCategory, deletingIndex, onDel
 // ── Card ──────────────────────────────────────────────────────────────────
 
 const STRENGTH_STYLE = {
-  hög:   { label: 'Hög',   color: '#4ade80', bg: '#0d2b1a' },
-  medel: { label: 'Medel', color: '#E9C46A', bg: '#2b2414' },
-  låg:   { label: 'Låg',   color: '#f87171', bg: '#2b0d0d' },
+  hög:   { label: 'Hög',   color: 'var(--color-feedback-success)', bg: 'var(--color-feedback-success-background)' },
+  medel: { label: 'Medel', color: 'var(--color-feedback-warning)', bg: 'var(--color-feedback-warning-background)' },
+  låg:   { label: 'Låg',   color: 'var(--color-feedback-error)', bg: 'var(--color-feedback-error-background)' },
 }
 
 function StrengthBadge({ strength }) {
@@ -337,7 +337,7 @@ function StrengthBadge({ strength }) {
   return (
     <span
       className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
-      style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.color}40` }}
+      style={{ backgroundColor: s.bg, color: s.color, border: `1px solid color-mix(in srgb, ${s.color} 30%, transparent)` }}
     >
       {s.label}
     </span>
@@ -351,14 +351,14 @@ function CompetencyCard({ competency, deleting, onDelete }) {
   return (
     <li
       className="rounded-xl border p-5 transition-colors cursor-pointer"
-      style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+      style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       onClick={() => setExpanded((v) => !v)}
     >
       {/* Always-visible header: title + tags + controls */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <h3 className="text-white font-semibold text-base leading-snug select-none">
+            <h3 className="text-text-primary font-medium text-base leading-snug select-none">
               {title}
             </h3>
             <StrengthBadge strength={strength} />
@@ -381,7 +381,7 @@ function CompetencyCard({ competency, deleting, onDelete }) {
 
         <div className="flex items-center gap-1 shrink-0">
           {/* Chevron – purely visual, click handled by li */}
-          <span className="p-1.5" style={{ color: '#6b7280' }}>
+          <span className="p-1.5" style={{ color: 'var(--color-text-secondary)' }}>
             <ChevronIcon expanded={expanded} />
           </span>
 
@@ -395,9 +395,9 @@ function CompetencyCard({ competency, deleting, onDelete }) {
               title="Ta bort kompetens"
               aria-label="Ta bort kompetens"
               className="p-1.5 rounded transition-colors disabled:opacity-40"
-              style={{ color: '#6b7280' }}
-              onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
-              onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+              style={{ color: 'var(--color-text-secondary)' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-feedback-error)')}
+              onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
             >
               {deleting ? <MiniSpinner size={15} /> : <TrashIcon />}
             </button>
@@ -409,19 +409,19 @@ function CompetencyCard({ competency, deleting, onDelete }) {
       {expanded && (
         <div className="mt-3 space-y-2">
           {description && (
-            <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-primary)' }}>
               {description}
             </p>
           )}
           {impact && (
-            <p className="text-sm leading-relaxed italic" style={{ color: '#9ca3af' }}>
+            <p className="text-sm leading-relaxed italic" style={{ color: 'var(--color-text-secondary)' }}>
               {impact}
             </p>
           )}
           {(context || sourceFile) && (
             <div
               className="mt-3 pt-3 space-y-3 border-t"
-              style={{ borderColor: '#404040' }}
+              style={{ borderColor: 'var(--color-border-default)' }}
             >
               {context && <DetailRow label="Sammanhang" value={context} />}
               {sourceFile && <DetailRow label="Källfil" value={sourceFile} />}
@@ -438,11 +438,11 @@ function DetailRow({ label, value }) {
     <div>
       <p
         className="text-xs uppercase tracking-wider font-semibold mb-1"
-        style={{ color: '#8064ad' }}
+        style={{ color: 'var(--color-accent-purple)' }}
       >
         {label}
       </p>
-      <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+      <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-primary)' }}>
         {value}
       </p>
     </div>

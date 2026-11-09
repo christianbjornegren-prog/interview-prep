@@ -85,7 +85,7 @@ export default function FeedbackPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <div className="flex items-center gap-3" style={{ color: '#6b7280' }}>
+        <div className="flex items-center gap-3" style={{ color: 'var(--color-text-secondary)' }}>
           <Spinner />
           <span className="text-sm">{copy.loading}</span>
         </div>
@@ -99,13 +99,13 @@ export default function FeedbackPage() {
         <button
           onClick={() => navigate(jobId ? `/jobb/${jobId}` : '/')}
           className="text-sm transition-colors"
-          style={{ color: '#6b7280' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          style={{ color: 'var(--color-text-secondary)' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
         >
           {copy.backToJob}
         </button>
-        <p className="text-sm" style={{ color: '#f87171' }}>
+        <p className="text-sm" style={{ color: 'var(--color-feedback-error)' }}>
           {error || copy.notFound}
         </p>
       </div>
@@ -114,10 +114,10 @@ export default function FeedbackPage() {
 
   const scoreColor =
     feedback.overallScore >= 8
-      ? '#22c55e'
+      ? 'var(--color-feedback-success)'
       : feedback.overallScore >= 6
-      ? '#E9C46A'
-      : '#ef4444'
+      ? 'var(--color-feedback-warning)'
+      : 'var(--color-feedback-error)'
 
   const formattedDate = feedback.createdAt?.toDate
     ? new Date(feedback.createdAt.toDate()).toLocaleDateString(copy.locale, {
@@ -137,18 +137,18 @@ export default function FeedbackPage() {
         <button
           onClick={() => navigate(backPath)}
           className="text-sm transition-colors"
-          style={{ color: '#6b7280' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          style={{ color: 'var(--color-text-secondary)' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
         >
           {backLabel}
         </button>
 
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
+          <h1 className="text-2xl font-medium text-text-primary tracking-tight">
             {copy.title(feedback.jobTitle)}
           </h1>
-          <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             {feedback.company && `${feedback.company} · `}
             {formattedDate}
           </p>
@@ -171,7 +171,7 @@ export default function FeedbackPage() {
           style={{
             width: 120,
             height: 120,
-            backgroundColor: scoreColor + '20',
+            backgroundColor: `color-mix(in srgb, ${scoreColor} 12%, transparent)`,
             border: `4px solid ${scoreColor}`,
           }}
         >
@@ -182,7 +182,7 @@ export default function FeedbackPage() {
             {feedback.overallScore}
           </span>
         </div>
-        <p className="text-sm font-semibold" style={{ color: '#9ca3af' }}>
+        <p className="text-sm font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
           {copy.overallScore}
         </p>
       </div>
@@ -191,15 +191,15 @@ export default function FeedbackPage() {
       {feedback.summary && (
         <div
           className="rounded-xl border p-6"
-          style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+          style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
         >
           <h2
             className="text-xs font-semibold uppercase tracking-widest mb-3"
-            style={{ color: '#8064ad' }}
+            style={{ color: 'var(--color-accent-purple)' }}
           >
             {copy.summary}
           </h2>
-          <p className="text-sm leading-relaxed text-white">
+          <p className="text-sm leading-relaxed text-text-primary">
             {feedback.summary}
           </p>
         </div>
@@ -211,11 +211,11 @@ export default function FeedbackPage() {
         {feedback.strengths && feedback.strengths.length > 0 && (
           <div
             className="rounded-xl border p-6 space-y-3"
-            style={{ backgroundColor: '#0d2b1a', borderColor: '#1a4d2e' }}
+            style={{ backgroundColor: 'var(--color-feedback-success-background)', borderColor: 'color-mix(in srgb, var(--color-feedback-success) 25%, transparent)' }}
           >
             <h2
               className="text-xs font-semibold uppercase tracking-widest flex items-center gap-2"
-              style={{ color: '#22c55e' }}
+              style={{ color: 'var(--color-feedback-success)' }}
             >
               <CheckIcon />
               {copy.strengths}
@@ -225,7 +225,7 @@ export default function FeedbackPage() {
                 <li
                   key={i}
                   className="text-sm leading-relaxed"
-                  style={{ color: '#d1f4e0' }}
+                  style={{ color: 'var(--color-text-primary)' }}
                 >
                   • {strength}
                 </li>
@@ -238,11 +238,11 @@ export default function FeedbackPage() {
         {feedback.improvements && feedback.improvements.length > 0 && (
           <div
             className="rounded-xl border p-6 space-y-3"
-            style={{ backgroundColor: '#2b1a0d', borderColor: '#4d2e1a' }}
+            style={{ backgroundColor: 'var(--color-feedback-warning-background)', borderColor: 'color-mix(in srgb, var(--color-feedback-warning) 25%, transparent)' }}
           >
             <h2
               className="text-xs font-semibold uppercase tracking-widest flex items-center gap-2"
-              style={{ color: '#fb923c' }}
+              style={{ color: 'var(--color-feedback-warning)' }}
             >
               <LightbulbIcon />
               {copy.improvements}
@@ -252,7 +252,7 @@ export default function FeedbackPage() {
                 <li
                   key={i}
                   className="text-sm leading-relaxed"
-                  style={{ color: '#f0a085' }}
+                  style={{ color: 'var(--color-text-primary)' }}
                 >
                   • {improvement}
                 </li>
@@ -266,11 +266,11 @@ export default function FeedbackPage() {
       {feedback.competencyGaps && feedback.competencyGaps.length > 0 && (
         <div
           className="rounded-xl border p-6 space-y-3"
-          style={{ backgroundColor: '#0d1a2b', borderColor: '#1a2e4d' }}
+          style={{ backgroundColor: 'var(--color-feedback-info-background)', borderColor: 'color-mix(in srgb, var(--color-feedback-info) 25%, transparent)' }}
         >
           <h2
             className="text-xs font-semibold uppercase tracking-widest flex items-center gap-2"
-            style={{ color: '#60a5fa' }}
+            style={{ color: 'var(--color-feedback-info)' }}
           >
             <LinkIcon />
             {copy.competencyLink}
@@ -280,7 +280,7 @@ export default function FeedbackPage() {
               <li
                 key={i}
                 className="text-sm leading-relaxed"
-                style={{ color: '#a5d8ff' }}
+                style={{ color: 'var(--color-text-primary)' }}
               >
                 • {gap}
               </li>
@@ -294,7 +294,7 @@ export default function FeedbackPage() {
         <div className="space-y-4">
           <h2
             className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: '#8064ad' }}
+            style={{ color: 'var(--color-accent-purple)' }}
           >
             {copy.perQuestion}
           </h2>
@@ -316,20 +316,20 @@ function ShareCard({ status, saving, error, onToggle, copy }) {
   return (
     <div
       className="rounded-xl border p-5 space-y-4"
-      style={{ backgroundColor: '#1d1d1d', borderColor: on ? '#2a9d8f' : '#404040' }}
+      style={{ backgroundColor: 'var(--color-background-primary)', borderColor: on ? 'var(--color-control-checked)' : 'var(--color-border-default)' }}
     >
-      <p className="text-sm leading-relaxed" style={{ color: '#9ca3af' }}>
+      <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
         {copy.privacyNote}
       </p>
 
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-white">
+          <p className="text-sm font-medium text-text-primary">
             {copy.shareToggle}
           </p>
           <p
             className="text-xs mt-0.5"
-            style={{ color: on ? '#5ecfc3' : '#6b7280' }}
+            style={{ color: on ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
           >
             {status.label}
           </p>
@@ -345,11 +345,11 @@ function ShareCard({ status, saving, error, onToggle, copy }) {
           style={{
             width: 48,
             height: 28,
-            backgroundColor: on ? '#2a9d8f' : '#404040',
+            backgroundColor: on ? 'var(--color-control-checked)' : 'var(--color-border-strong)',
           }}
         >
           <span
-            className="absolute rounded-full bg-white transition-transform"
+            className="absolute rounded-full bg-control-check transition-transform"
             style={{
               width: 22,
               height: 22,
@@ -362,7 +362,7 @@ function ShareCard({ status, saving, error, onToggle, copy }) {
       </div>
 
       {error && (
-        <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>
+        <p className="text-xs" style={{ color: 'var(--color-feedback-error)' }}>{error}</p>
       )}
     </div>
   )
@@ -373,23 +373,23 @@ function QuestionFeedbackCard({ feedback, index, copy }) {
 
   const scoreColor =
     feedback.score >= 8
-      ? '#22c55e'
+      ? 'var(--color-feedback-success)'
       : feedback.score >= 6
-      ? '#E9C46A'
-      : '#ef4444'
+      ? 'var(--color-feedback-warning)'
+      : 'var(--color-feedback-error)'
 
   return (
     <div
       className="rounded-xl border transition-colors cursor-pointer"
-      style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+      style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       onClick={() => setExpanded((v) => !v)}
     >
       <div className="flex items-start justify-between gap-4 p-4">
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold mb-1" style={{ color: '#9ca3af' }}>
+          <p className="text-xs font-semibold mb-1" style={{ color: 'var(--color-text-secondary)' }}>
             {copy.question(index + 1)}
           </p>
-          <p className="text-sm text-white leading-relaxed">
+          <p className="text-sm text-text-primary leading-relaxed">
             {feedback.question}
           </p>
         </div>
@@ -399,7 +399,7 @@ function QuestionFeedbackCard({ feedback, index, copy }) {
             style={{
               width: 40,
               height: 40,
-              backgroundColor: scoreColor + '20',
+              backgroundColor: `color-mix(in srgb, ${scoreColor} 12%, transparent)`,
               border: `2px solid ${scoreColor}`,
             }}
           >
@@ -414,9 +414,9 @@ function QuestionFeedbackCard({ feedback, index, copy }) {
       {expanded && feedback.comment && (
         <div
           className="px-4 pb-4 border-t pt-3"
-          style={{ borderColor: '#404040' }}
+          style={{ borderColor: 'var(--color-border-default)' }}
         >
-          <p className="text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-primary)' }}>
             {feedback.comment}
           </p>
         </div>
@@ -513,7 +513,7 @@ function ChevronIcon({ expanded }) {
       style={{
         transition: 'transform 0.2s',
         transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-        color: '#6b7280',
+        color: 'var(--color-text-secondary)',
       }}
     >
       <polyline points="6 9 12 15 18 9" />

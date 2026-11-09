@@ -11,10 +11,10 @@ aldrig på brister. Perspektivet är alltid "jag är på din sida och hjälper d
 gå in i rummet förberedd".
 Namnkonventioner: "Förbered dig på" (ej "gap"), "Prioritera dessa" (ej "kritiska
 gap"), "Dina styrkor" (ej "täckta krav"), "träningsindikator" (ej "betyg").
-Färgspråk: EN ENDA uppmärksamhetsfärg – amber (var(--color-text-warning)) reserveras
+Färgspråk: EN ENDA uppmärksamhetsfärg – amber (var(--color-feedback-warning)) reserveras
 för "Prioritera dessa". "Förbered dig på" är NEUTRALT (inga varningstrianglar/röd/amber).
-Styrkor = grön (var(--color-text-success)), täckning = lila #8064ad. Färgade siffervärden
-i mörkt läge MÅSTE använda ljusa semantiska vars/#8064ad – aldrig mörka ramp-hex.
+Styrkor = grön (var(--color-feedback-success)), täckning = var(--color-accent-purple).
+Färger ALDRIG som hex – alltid Boulder-tokens (se Designsystem nedan).
 
 ## Tech Stack
 - React + Vite, HashRouter, Tailwind CSS
@@ -74,7 +74,9 @@ systemEvents/{eventId} → { type, severity: 'info'|'error', step, message, uid,
 - Betygsskala: 1–10 (overallScore + questionFeedback.score). Kalibreras i claude.js
   (POÄNGSKALA 1–10). All display ska visa "/10" – aldrig "/5".
   Färgtrösklar för betyg (gäller ALLA betygsdisplayer – FeedbackPage, JobPage Historik,
-  KonsultProfilPage Delad feedback): ≥8 grön (#22c55e), ≥6 gul (#E9C46A), <6 röd (#ef4444).
+  KonsultProfilPage Delad feedback): ≥8 --color-feedback-success, ≥6 --color-feedback-warning,
+  <6 --color-feedback-error. Genomskinliga bakgrunder via color-mix(in srgb, var(…) 12%, transparent)
+  – hex+alfa-suffix ('#22c55e20') fungerar inte med var().
   OBS: detta är betygströsklar (1–10), ej att förväxla med JobCard/gap-analysens
   scoreRatio (0–1 matchningsandel: ≥0.7 grön, ≥0.4 gul).
 - Förtroende-i-arkitektur: konsulten äger sin träning. Feedback är PRIVAT by
@@ -85,16 +87,32 @@ systemEvents/{eventId} → { type, severity: 'info'|'error', step, message, uid,
 VITE_FIREBASE_PROJECT_ID=interview-prep-81cb6 (INTE .firebaseapp.com)
 VITE_FIREBASE_STORAGE_BUCKET=interview-prep-81cb6.appspot.com
 
-## Designsystem (Boulder-tema)
-- Font: Poppins (300/400/500/600/700) via Google Fonts – satt på body och rubriker
-- Sidbakgrund: #000000, kortyta: #1d1d1d, mörkare yta: #141414
-- Primär border: #404040, mörk border: #323232
-- Primäraccentfärg: #8064ad (brand-purple) – används på knappar, aktiva tabs, badges, navbar
-- Accent hover: #9781be (brand-purple-header)
-- Semantiska färger behålls: #22c55e (grön), #f87171 (röd), #E9C46A (gul), #e76f51 (orange)
-- Kategorifärger i kompetensbanken behålls distinkta (IT-arkitektur = teal #2a9d8f etc.)
-- FINISHED-ring i InterviewSimulatorTTS: #2a9d8f (teal – semantisk "klar"-signal)
-- CSS-variabler definierade i :root i index.css; Tailwind-tokens i tailwind.config.js
+## Designsystem (Boulder designsystem, ansiktslyft 2026-11)
+Källa: designerns Figma-export, inlagd ORÖRD – ny export = byt filerna:
+- `src/styles/tokens.css` (alla tokens som CSS-variabler, laddas först i main.jsx)
+- `tailwind.boulder.js` (designerns Tailwind-config). `tailwind.config.js` slår ihop den
+  med appen: designerns `screens` (tablet/desktop/wide) LÄGGS TILL – de ersätter INTE
+  sm/md/lg, som appen använder. `brand.*` finns kvar för bakåtkompat.
+- `design-system/BOULDER-DESIGNSYSTEM.md` (regler), `tokens.json`,
+  `design-system/FACELIFT-MAPPING.md` (översättning gamla hex → tokens, per roll).
+Regler i korthet:
+- LJUST tema: `<html data-theme="light">` i index.html. Sidomenyn är alltid mörk
+  (`data-theme="dark"` på den). Byt temat på EN rad om det ska bli mörkt igen.
+- ALDRIG hex i komponenter – bara tokens: inline `'var(--color-…)'`, klasser som
+  `text-text-primary`, `bg-background-primary`, `border-border-default`,
+  `bg-action-primary-background`, `text-link-text`, `text-feedback-error`.
+  Undantag: Googles logofärger, modaldimning rgba(0,0,0,…).
+- Vit text bara PÅ fyllda ytor (`--color-action-primary-text`, `--color-tag-text`);
+  annars blir den osynlig i ljust tema.
+- Lila = interaktion (knappar, länkar, aktiv flik, fokus). Data-lila (kravtäckning,
+  progress, icke-klickbara etiketter) = `--color-accent-purple`. Blå = bara info.
+- Font: Poppins (rubriker vikt 500), Syne 700 för display-stilar.
+- Kategorifärger i kompetenslistan = taggpaletten (`--color-tag-*`), vit taggtext.
+- Intervjuringen: CONNECTING border-strong, AI_SPEAKING feedback-info, WAITING
+  feedback-success, RECORDING feedback-error, PROCESSING text-secondary, FINISHED tag-teal-1.
+- Ingen glöd (PRIMARY_GLOW = 'none' i lib/theme.js).
+- `scripts/check-facelift.mjs [bas-ref]` bevisar att en ändring BARA rör utseende
+  (AST-jämförelse utan className/style/färgvärden). Använd vid framtida stiländringar.
 
 ## UI-konventioner
 - Kompetensbanken visar kompetenser grupperade per kategori i accordion (alla kollapsade by default)
@@ -469,7 +487,11 @@ kan tas bort när Realtime är ute.
 ### Navbar
 - Utloggade användare ser ENBART loggan (ingen knapp i navbar – knappen finns på startsidan)
 - Inloggade: Mina uppdrag | Mina CV | (Konsulter om säljare/admin) | (Användarhantering om admin) | (Driftöversikt om admin) | Om | Avatar | Logga ut
-- NavLink-styling: alla länkar identiska – ingen aktiv bakgrund, enbart vit textfärg på aktiv/hover vs #6b7280 inaktiv
+- SIDOMENY (Layout.jsx): mörk, 240 px, fast till vänster på desktop (≥1024 px) med logga +
+  "Intervjucoach", menyval, och avatar + "Logga ut" längst ned (nås utan meny). Under 1024 px:
+  app bar 56 px + utfällbar meny. Aktivt val: lila text på lila-tonad yta (aria-current="page").
+  Utloggad: bara tool header med logga, och HELA utloggade startsidan är MÖRK (data-theme="dark"
+  på Layouts yta) – inloggat läge är ljust. JobPage-breddtricket räknar av sidomenyn (desktop:w-[…]).
 - /om (OmPage): synlig för alla inloggade, RequireAuth, innehåller Varför/Techstack/Byggt av
 
 ### Säljare-flöde

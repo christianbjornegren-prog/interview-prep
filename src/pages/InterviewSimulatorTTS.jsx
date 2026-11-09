@@ -610,7 +610,7 @@ export default function InterviewSimulatorTTS() {
 
   if (loadingJob) {
     return (
-      <p className="text-sm py-8" style={{ color: '#6b7280' }}>
+      <p className="text-sm py-8" style={{ color: 'var(--color-text-secondary)' }}>
         {copy.loadingJob}
       </p>
     )
@@ -622,9 +622,9 @@ export default function InterviewSimulatorTTS() {
         <button
           onClick={() => navigate(`/jobb/${jobId}`)}
           className="text-sm transition-colors"
-          style={{ color: '#6b7280' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          style={{ color: 'var(--color-text-secondary)' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
         >
           {copy.back}
         </button>
@@ -632,19 +632,19 @@ export default function InterviewSimulatorTTS() {
           // Ingen krasch – en vägledning. Neutral inforuta, coach-ton.
           <div
             className="rounded-xl border p-5 space-y-3 max-w-xl"
-            style={{ backgroundColor: '#1a1626', borderColor: '#8064ad80' }}
+            style={{ backgroundColor: 'var(--color-action-secondary-background-hover)', borderColor: 'var(--color-action-secondary-border)' }}
           >
-            <p className="text-sm text-white">{copy.cvRequired}</p>
+            <p className="text-sm text-text-primary">{copy.cvRequired}</p>
             <button
               onClick={() => navigate(`/jobb/${jobId}`)}
               className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-              style={{ backgroundColor: 'transparent', border: '1px solid #8064ad', color: '#d8ccec' }}
+              style={{ backgroundColor: 'var(--color-action-secondary-background)', border: '1px solid var(--color-action-secondary-border)', color: 'var(--color-action-secondary-text)' }}
             >
               {copy.backToJob}
             </button>
           </div>
         ) : (
-          <p className="text-sm" style={{ color: '#f87171' }}>
+          <p className="text-sm" style={{ color: 'var(--color-feedback-error)' }}>
             {loadError || copy.notFound}
           </p>
         )}
@@ -680,10 +680,10 @@ export default function InterviewSimulatorTTS() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
+          <h1 className="text-2xl font-medium text-text-primary tracking-tight">
             {copy.title(interviewerName)}
           </h1>
-          <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             {(isEnglish(language) && job.jobTitleEn) || job.jobTitle}
             {job.company ? ` · ${job.company}` : ''}
           </p>
@@ -693,23 +693,23 @@ export default function InterviewSimulatorTTS() {
           <div className="shrink-0 pt-1">
             {showConfirmAbort ? (
               <div className="text-right space-y-2">
-                <p className="text-xs" style={{ color: '#9ca3af' }}>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                   {copy.confirmAbort}
                 </p>
                 <div className="flex items-center gap-2 justify-end">
                   <button
                     onClick={() => setShowConfirmAbort(false)}
                     className="text-xs px-3 py-1.5 rounded-md transition-colors"
-                    style={{ backgroundColor: '#404040', color: '#9ca3af' }}
-                    onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-                    onMouseOut={(e) => (e.currentTarget.style.color = '#9ca3af')}
+                    style={{ backgroundColor: 'var(--color-background-tertiary)', color: 'var(--color-text-secondary)' }}
+                    onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+                    onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
                   >
                     {copy.continueInterview}
                   </button>
                   <button
                     onClick={endInterview}
                     className="text-xs px-3 py-1.5 rounded-md font-semibold"
-                    style={{ backgroundColor: '#7f1d1d', color: '#f87171' }}
+                    style={{ backgroundColor: 'var(--color-feedback-error-background)', color: 'var(--color-feedback-error)' }}
                   >
                     {copy.confirmEnd}
                   </button>
@@ -719,9 +719,9 @@ export default function InterviewSimulatorTTS() {
               <button
                 onClick={() => setShowConfirmAbort(true)}
                 className="text-xs font-medium transition-colors"
-                style={{ color: '#ef4444' }}
-                onMouseOver={(e) => (e.currentTarget.style.color = '#fca5a5')}
-                onMouseOut={(e) => (e.currentTarget.style.color = '#ef4444')}
+                style={{ color: 'var(--color-feedback-error)' }}
+                onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-action-danger-background-hover)')}
+                onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-feedback-error)')}
               >
                 {copy.endInterview}
               </button>
@@ -744,7 +744,7 @@ export default function InterviewSimulatorTTS() {
         <StatusCircle state={interviewState} />
         {btnState.showSpinner ? (
           <p
-            className="text-lg font-semibold text-white text-center"
+            className="text-lg font-semibold text-text-primary text-center"
             style={{ animation: 'ttsTextPulse 1.4s ease-in-out infinite' }}
           >
             {btnState.subLabel}
@@ -752,7 +752,7 @@ export default function InterviewSimulatorTTS() {
         ) : (
           <p
             className="text-sm font-medium"
-            style={{ color: interviewState === STATES.WAITING_FOR_USER ? '#22c55e' : '#9ca3af' }}
+            style={{ color: interviewState === STATES.WAITING_FOR_USER ? 'var(--color-feedback-success)' : 'var(--color-text-secondary)' }}
           >
             {btnState.subLabel}
           </p>
@@ -765,19 +765,19 @@ export default function InterviewSimulatorTTS() {
         currentQuestionIndex === 0 && (
         <div
           className="flex items-start gap-3 rounded-xl border px-5 py-4"
-          style={{ backgroundColor: '#141414', borderColor: '#323232' }}
+          style={{ backgroundColor: 'var(--color-background-tertiary)', borderColor: 'var(--color-border-default)' }}
         >
-          <p className="flex-1 text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
-            <span className="font-semibold text-white">{copy.introLead}</span>
+          <p className="flex-1 text-sm leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+            <span className="font-semibold text-text-primary">{copy.introLead}</span>
             {copy.introBody}
           </p>
           <button
             onClick={dismissIntroHint}
             aria-label={copy.closeHint}
             className="shrink-0 mt-0.5 text-xs transition-colors"
-            style={{ color: '#6b7280' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+            style={{ color: 'var(--color-text-secondary)' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+            onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
           >
             ✕
           </button>
@@ -788,15 +788,15 @@ export default function InterviewSimulatorTTS() {
       {showQuestion && (
         <div
           className="rounded-xl border p-5 space-y-2"
-          style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+          style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
         >
           <p
             className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: '#8064ad' }}
+            style={{ color: 'var(--color-accent-purple)' }}
           >
             {copy.questionCounter(currentQuestionIndex + 1, totalQuestions)}
           </p>
-          <p className="text-sm leading-relaxed text-white">
+          <p className="text-sm leading-relaxed text-text-primary">
             {currentQuestion.question}
           </p>
         </div>
@@ -809,26 +809,26 @@ export default function InterviewSimulatorTTS() {
       {interviewState === STATES.FINISHED && errorMsg && (
         <div
           className="rounded-xl border p-5 space-y-3"
-          style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+          style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
         >
-          <p className="text-sm font-semibold text-white">
+          <p className="text-sm font-semibold text-text-primary">
             {copy.saveFailed}
           </p>
-          <p className="text-sm" style={{ color: '#f87171' }}>
+          <p className="text-sm" style={{ color: 'var(--color-feedback-error)' }}>
             {errorMsg}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={retrySaveSession}
-              className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors"
-              style={{ backgroundColor: '#8064ad' }}
+              className="px-4 py-2 rounded-lg text-action-primary-text text-sm font-semibold transition-colors"
+              style={{ backgroundColor: 'var(--color-action-primary-background)' }}
             >
               {copy.retry}
             </button>
             <button
               onClick={() => navigate(`/jobb/${jobId}`)}
               className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              style={{ backgroundColor: '#404040', color: '#d1d5db' }}
+              style={{ backgroundColor: 'var(--color-background-tertiary)', color: 'var(--color-text-primary)' }}
             >
               {copy.backToJob}
             </button>
@@ -843,9 +843,9 @@ export default function InterviewSimulatorTTS() {
             onClick={handleRecordingToggle}
             disabled={!btnState.enabled}
             aria-label={buttonLabel}
-            className="px-8 py-4 rounded-full text-white text-base font-semibold select-none transition-colors disabled:opacity-50"
+            className="px-8 py-4 rounded-full text-action-primary-text text-base font-semibold select-none transition-colors disabled:opacity-50"
             style={{
-              backgroundColor: btnState.recording ? '#c0392b' : '#22c55e',
+              backgroundColor: btnState.recording ? 'var(--color-action-danger-background)' : 'var(--color-feedback-success)',
               minWidth: '260px',
               animation: btnState.enabled && !btnState.recording
                 ? 'waitingPulse 2s ease-in-out infinite'
@@ -859,7 +859,7 @@ export default function InterviewSimulatorTTS() {
 
       {/* Error (the FINISHED state has its own recovery card above) */}
       {errorMsg && interviewState !== STATES.FINISHED && (
-        <p className="text-sm text-center" style={{ color: '#f87171' }}>
+        <p className="text-sm text-center" style={{ color: 'var(--color-feedback-error)' }}>
           {errorMsg}
           {(interviewState === STATES.WAITING_FOR_USER) && (
             <button
@@ -906,15 +906,15 @@ function FinishedScreen({ copy }) {
               style={{
                 width: 28,
                 height: 28,
-                backgroundColor: '#22c55e20',
-                border: '2px solid #22c55e',
+                backgroundColor: 'var(--color-feedback-success-background)',
+                border: '2px solid var(--color-feedback-success)',
               }}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-feedback-success)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </span>
-            <span className="text-sm font-medium text-white">{step}</span>
+            <span className="text-sm font-medium text-text-primary">{step}</span>
           </li>
         ))}
       </ul>
@@ -929,14 +929,14 @@ function FinishedScreen({ copy }) {
               display: 'inline-block',
               width: 18,
               height: 18,
-              border: '2px solid #ffffff',
+              border: '2px solid var(--color-text-secondary)',
               borderTopColor: 'transparent',
               borderRadius: '50%',
               animation: 'ttsSpin 0.9s linear infinite',
               flexShrink: 0,
             }}
           />
-          <span className="text-sm font-semibold text-white">
+          <span className="text-sm font-semibold text-text-primary">
             {copy.creatingReport}
           </span>
         </div>
@@ -949,14 +949,14 @@ function FinishedScreen({ copy }) {
 
 function StatusCircle({ state }) {
   const config = {
-    [STATES.CONNECTING]:       { color: '#6b7280', pulse: false, spin: true },
-    [STATES.AI_SPEAKING]:      { color: '#8064ad', pulse: 'slow', spin: false },
-    [STATES.WAITING_FOR_USER]: { color: '#22c55e', pulse: false, spin: false },
-    [STATES.RECORDING]:        { color: '#c0392b', pulse: 'fast', spin: false },
-    [STATES.PROCESSING]:       { color: '#ffffff', pulse: false, spin: true },
-    [STATES.PREPARING_NEXT]:   { color: '#ffffff', pulse: false, spin: true },
-    [STATES.FINISHED]:         { color: '#2a9d8f', pulse: false, spin: false },
-  }[state] ?? { color: '#3a3d48', pulse: false, spin: false }
+    [STATES.CONNECTING]:       { color: 'var(--color-border-strong)', pulse: false, spin: true },
+    [STATES.AI_SPEAKING]:      { color: 'var(--color-feedback-info)', pulse: 'slow', spin: false },
+    [STATES.WAITING_FOR_USER]: { color: 'var(--color-feedback-success)', pulse: false, spin: false },
+    [STATES.RECORDING]:        { color: 'var(--color-feedback-error)', pulse: 'fast', spin: false },
+    [STATES.PROCESSING]:       { color: 'var(--color-text-secondary)', pulse: false, spin: true },
+    [STATES.PREPARING_NEXT]:   { color: 'var(--color-text-secondary)', pulse: false, spin: true },
+    [STATES.FINISHED]:         { color: 'var(--color-tag-teal-1)', pulse: false, spin: false },
+  }[state] ?? { color: 'var(--color-border-default)', pulse: false, spin: false }
 
   return (
     <div className="relative" style={{ width: 160, height: 160 }}>
@@ -1014,8 +1014,8 @@ function StatusCircle({ state }) {
           50%      { opacity: 0.4; }
         }
         @keyframes waitingPulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
-          60%      { box-shadow: 0 0 0 14px rgba(34, 197, 94, 0); }
+          0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-feedback-success) 50%, transparent); }
+          60%      { box-shadow: 0 0 0 14px color-mix(in srgb, var(--color-feedback-success) 0%, transparent); }
         }
       `}</style>
     </div>
@@ -1029,17 +1029,17 @@ function ProgressBar({ current, total, copy }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-accent-purple)' }}>
           {copy.questionCounter(current, total)}
         </p>
-        <p className="text-xs" style={{ color: '#6b7280' }}>
+        <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
           {pct}%
         </p>
       </div>
-      <div className="w-full rounded-full h-1.5" style={{ backgroundColor: '#404040' }}>
+      <div className="w-full rounded-full h-1.5" style={{ backgroundColor: 'var(--color-background-tertiary)' }}>
         <div
           className="h-1.5 rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, backgroundColor: '#8064ad' }}
+          style={{ width: `${pct}%`, backgroundColor: 'var(--color-accent-purple)' }}
         />
       </div>
     </div>

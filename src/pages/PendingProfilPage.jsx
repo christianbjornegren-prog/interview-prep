@@ -43,13 +43,13 @@ export default function PendingProfilPage() {
   }
 
   if (loading) {
-    return <p className="text-sm py-8" style={{ color: '#6b7280' }}>Laddar profil...</p>
+    return <p className="text-sm py-8" style={{ color: 'var(--color-text-secondary)' }}>Laddar profil...</p>
   }
   if (loadError) {
-    return <p className="text-sm py-8" style={{ color: '#f87171' }}>Kunde inte ladda profilen: {loadError}</p>
+    return <p className="text-sm py-8" style={{ color: 'var(--color-feedback-error)' }}>Kunde inte ladda profilen: {loadError}</p>
   }
   if (!profile) {
-    return <p className="text-sm py-8" style={{ color: '#f87171' }}>Profilen hittades inte.</p>
+    return <p className="text-sm py-8" style={{ color: 'var(--color-feedback-error)' }}>Profilen hittades inte.</p>
   }
 
   // Pending-uppdrag har sitt id i fältet `id`; CV-väljaren och JobPage
@@ -73,45 +73,45 @@ export default function PendingProfilPage() {
         <button
           onClick={() => navigate('/konsulter')}
           className="text-sm transition-colors shrink-0"
-          style={{ color: '#6b7280' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          style={{ color: 'var(--color-text-secondary)' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
         >
           ← Konsulter
         </button>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-white tracking-tight">
+            <h1 className="text-2xl font-medium text-text-primary tracking-tight">
               {profile.name ?? email}
             </h1>
-            <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: '#4d3e1a', color: '#f0d48a' }}>
+            <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--color-feedback-warning-background)', color: 'var(--color-feedback-warning)' }}>
               Väntande
             </span>
           </div>
-          <p className="text-sm mt-0.5" style={{ color: '#6b7280' }}>{email}</p>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>{email}</p>
         </div>
       </div>
 
       {/* Pending banner */}
       <div
         className="rounded-xl border px-5 py-4"
-        style={{ backgroundColor: '#1d1d1d', borderColor: '#4d3e1a' }}
+        style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-feedback-warning)' }}
       >
-        <p className="text-sm" style={{ color: '#f0d48a' }}>
+        <p className="text-sm" style={{ color: 'var(--color-feedback-warning)' }}>
           Konsulten har inte loggat in än. CV:n och uppdrag du lägger till här – och vilket CV som är kopplat till vilket uppdrag – följer automatiskt med till deras konto när de loggar in första gången.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b" style={{ borderColor: '#404040' }}>
+      <div className="flex border-b" style={{ borderColor: 'var(--color-border-default)' }}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className="px-5 py-2.5 text-sm font-medium transition-colors -mb-px"
             style={{
-              color: activeTab === tab.id ? '#fff' : '#6b7280',
-              borderBottom: activeTab === tab.id ? '2px solid #8064ad' : '2px solid transparent',
+              color: activeTab === tab.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+              borderBottom: activeTab === tab.id ? '2px solid var(--color-link-text)' : '2px solid transparent',
             }}
           >
             {tab.label}
@@ -124,11 +124,11 @@ export default function PendingProfilPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-accent-purple)' }}>
                 {jobs.length} uppdrag
               </p>
               {!loadingCvs && unlinkedCount > 0 && (
-                <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
                   {unlinkedCount} uppdrag saknar kopplat CV – konsulten kan inte träna på dem än.
                 </p>
               )}
@@ -142,20 +142,20 @@ export default function PendingProfilPage() {
                   },
                 })
               }
-              className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-colors"
-              style={{ backgroundColor: '#8064ad' }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+              className="px-3 py-1.5 rounded-lg text-sm font-semibold text-action-primary-text transition-colors"
+              style={{ backgroundColor: 'var(--color-action-primary-background)' }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}
             >
               + Skapa nytt uppdrag åt konsulten
             </button>
           </div>
 
-          {cvError && <p className="text-sm" style={{ color: '#f87171' }}>{cvError}</p>}
+          {cvError && <p className="text-sm" style={{ color: 'var(--color-feedback-error)' }}>{cvError}</p>}
 
           {jobs.length === 0 ? (
-            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: '#404040' }}>
-              <p className="text-sm" style={{ color: '#6b7280' }}>
+            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: 'var(--color-border-default)' }}>
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 Inga uppdrag ännu. Skapa ett uppdrag och koppla sedan det CV som gäller för det.
               </p>
             </div>

@@ -210,27 +210,27 @@ export function SignInScreen() {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center gap-8 px-6"
-      style={{ backgroundColor: '#000000' }}
+      style={{ backgroundColor: 'var(--color-background-secondary)' }}
     >
       <div className="flex items-center gap-3">
         <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold text-white"
-          style={{ backgroundColor: '#8064ad' }}
+          className="w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold text-action-primary-text"
+          style={{ backgroundColor: 'var(--color-action-primary-background)' }}
         >
           I
         </div>
-        <span className="text-white text-2xl font-bold tracking-tight">
+        <span className="text-text-primary text-2xl font-bold tracking-tight">
           Intervjucoach
         </span>
       </div>
 
       <div
         className="w-full max-w-sm rounded-2xl border p-8 flex flex-col items-center gap-6"
-        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+        style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       >
         <div className="text-center space-y-2">
-          <h1 className="text-white text-xl font-semibold">Välkommen</h1>
-          <p className="text-sm" style={{ color: '#6b7280' }}>
+          <h1 className="text-text-primary text-xl font-medium">Välkommen</h1>
+          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             Logga in för att komma igång
           </p>
         </div>
@@ -240,25 +240,25 @@ export function SignInScreen() {
           disabled={loading}
           className="w-full flex items-center justify-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold border transition-colors disabled:opacity-60"
           style={{
-            backgroundColor: '#fff',
-            color: '#111',
-            borderColor: '#e5e7eb',
+            backgroundColor: 'var(--color-background-primary)',
+            color: 'var(--color-text-primary)',
+            borderColor: 'var(--color-border-strong)',
           }}
-          onMouseOver={(e) => !loading && (e.currentTarget.style.backgroundColor = '#f3f4f6')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
+          onMouseOver={(e) => !loading && (e.currentTarget.style.backgroundColor = 'var(--color-action-ghost-background-hover)')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-background-primary)')}
         >
           <GoogleIcon />
           {loading ? 'Loggar in...' : 'Logga in med Google'}
         </button>
 
         {error && (
-          <p className="text-xs text-center leading-relaxed" style={{ color: '#f87171' }}>
+          <p className="text-xs text-center leading-relaxed" style={{ color: 'var(--color-feedback-error)' }}>
             {error}
           </p>
         )}
       </div>
 
-      <p className="text-xs" style={{ color: '#4b5563' }}>
+      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
         Ditt trygga utrymme för intervjuförberedelse
       </p>
     </div>
@@ -271,9 +271,9 @@ function CheckingScreen() {
   return (
     <div
       className="min-h-screen flex items-center justify-center"
-      style={{ backgroundColor: '#000000' }}
+      style={{ backgroundColor: 'var(--color-background-secondary)' }}
     >
-      <div className="flex items-center gap-3" style={{ color: '#6b7280' }}>
+      <div className="flex items-center gap-3" style={{ color: 'var(--color-text-secondary)' }}>
         <MiniSpinner />
         <span className="text-sm">Kontrollerar inloggning...</span>
       </div>

@@ -30,15 +30,15 @@ export default function CvLibrary({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-accent-purple)' }}>
           {cvs.length} CV
         </p>
         <button
           onClick={() => setShowUpload((v) => !v)}
           className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          style={{ backgroundColor: '#8064ad1f', border: '1px solid #8064ad', color: '#e4dbf2' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#9ca3af')}
+          style={{ backgroundColor: 'var(--color-action-secondary-background-hover)', border: '1px solid var(--color-action-secondary-border)', color: 'var(--color-action-secondary-text)' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-link-text-hover)')}
+          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-action-secondary-text)')}
           aria-expanded={showUpload}
         >
           {showUpload ? 'Stäng uppladdning' : uploadLabel}
@@ -46,19 +46,19 @@ export default function CvLibrary({
       </div>
 
       {showUpload && (
-        <div className="rounded-xl border p-5" style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}>
+        <div className="rounded-xl border p-5" style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}>
           <FileUpload store={store} showNextStep={showNextStep} onSuccess={() => onChanged?.()} />
         </div>
       )}
 
-      {error && <p className="text-sm" style={{ color: '#f87171' }}>{error}</p>}
+      {error && <p className="text-sm" style={{ color: 'var(--color-feedback-error)' }}>{error}</p>}
 
       {loading ? (
-        <p className="text-sm" style={{ color: '#6b7280' }}>Laddar CV:n...</p>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Laddar CV:n...</p>
       ) : cvs.length === 0 ? (
-        <div className="rounded-xl border-2 border-dashed p-10 text-center space-y-2" style={{ borderColor: '#404040' }}>
-          <p className="text-sm text-white">Inga CV:n uppladdade än.</p>
-          <p className="text-sm" style={{ color: '#6b7280' }}>
+        <div className="rounded-xl border-2 border-dashed p-10 text-center space-y-2" style={{ borderColor: 'var(--color-border-default)' }}>
+          <p className="text-sm text-text-primary">Inga CV:n uppladdade än.</p>
+          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             Ladda upp ett CV per profil du vill använda – t.ex. ett för arkitektroller och ett för
             projektledning. Sedan kopplar du rätt CV till varje uppdrag.
           </p>
@@ -121,7 +121,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
   }
 
   return (
-    <li className="rounded-xl border" style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}>
+    <li className="rounded-xl border" style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}>
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
@@ -136,32 +136,32 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
                   onChange={(e) => setLabel(e.target.value)}
                   onKeyDown={(e) => e.key === 'Escape' && (setLabel(name), setRenaming(false))}
                   aria-label="CV:ts namn"
-                  className="flex-1 min-w-0 rounded-lg border px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[#8064ad]"
-                  style={{ backgroundColor: '#141414', borderColor: '#404040' }}
+                  className="flex-1 min-w-0 rounded-lg border px-3 py-1.5 text-sm text-input-text focus:outline-none focus:border-focus-ring"
+                  style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)' }}
                 />
-                <button type="submit" disabled={busy || !label.trim()} className="text-xs font-semibold disabled:opacity-50" style={{ color: '#b19ae0' }}>
+                <button type="submit" disabled={busy || !label.trim()} className="text-xs font-semibold disabled:opacity-50" style={{ color: 'var(--color-link-text)' }}>
                   Spara
                 </button>
-                <button type="button" onClick={() => { setLabel(name); setRenaming(false) }} className="text-xs" style={{ color: '#6b7280' }}>
+                <button type="button" onClick={() => { setLabel(name); setRenaming(false) }} className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                   Avbryt
                 </button>
               </form>
             ) : (
               <div className="flex items-center gap-2 flex-wrap">
                 <DocIcon />
-                <h3 className="text-white font-semibold text-base leading-snug break-words">{name}</h3>
+                <h3 className="text-text-primary font-medium text-base leading-snug break-words">{name}</h3>
                 <button
                   onClick={() => setRenaming(true)}
                   className="text-xs transition-colors"
-                  style={{ color: '#6b7280' }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-                  onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+                  style={{ color: 'var(--color-text-secondary)' }}
+                  onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+                  onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
                 >
                   Byt namn
                 </button>
               </div>
             )}
-            <p className="text-xs mt-1" style={{ color: '#6b7280' }}>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
               {[
                 cv.fileName && cv.fileName !== name ? cv.fileName : null,
                 date ? `Uppladdat ${date}` : null,
@@ -174,9 +174,9 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
             <button
               onClick={() => { setConfirmDelete(true); setErr('') }}
               className="text-xs transition-colors shrink-0"
-              style={{ color: '#6b7280' }}
-              onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
-              onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+              style={{ color: 'var(--color-text-secondary)' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-feedback-error)')}
+              onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
             >
               Radera
             </button>
@@ -185,9 +185,9 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
 
         {/* Används i */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs" style={{ color: '#9ca3af' }}>Används i:</span>
+          <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Används i:</span>
           {usedBy.length === 0 ? (
-            <span className="text-xs" style={{ color: '#6b7280' }}>Inget uppdrag än</span>
+            <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Inget uppdrag än</span>
           ) : (
             usedBy.map((job) => (
               <button
@@ -195,7 +195,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
                 onClick={() => onOpenJob?.(job)}
                 disabled={!onOpenJob}
                 className="text-xs font-medium px-2 py-0.5 rounded-full transition-colors disabled:cursor-default"
-                style={{ backgroundColor: '#8064ad20', color: '#b9a5d6', border: '1px solid #8064ad40' }}
+                style={{ backgroundColor: 'var(--color-action-secondary-background-hover)', color: 'var(--color-text-primary)', border: '1px solid var(--color-action-secondary-background-pressed)' }}
               >
                 {job.jobTitle || 'Namnlöst uppdrag'}{job.company ? ` · ${job.company}` : ''}
               </button>
@@ -204,12 +204,12 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
         </div>
 
         {confirmDelete && (
-          <div className="rounded-lg border p-3 space-y-2" style={{ backgroundColor: '#2b0d0d', borderColor: '#4d1a1a' }}>
-            <p className="text-sm" style={{ color: '#f0a085' }}>
+          <div className="rounded-lg border p-3 space-y-2" style={{ backgroundColor: 'var(--color-feedback-error-background)', borderColor: 'var(--color-feedback-error)' }}>
+            <p className="text-sm" style={{ color: 'var(--color-feedback-error)' }}>
               Radera "{name}" och dess {competencies.length} kompetenser? Det går inte att ångra.
             </p>
             {usedBy.length > 0 && (
-              <p className="text-xs" style={{ color: '#d1d5db' }}>
+              <p className="text-xs" style={{ color: 'var(--color-text-primary)' }}>
                 CV:t används av {usedBy.length} uppdrag ({usedBy.map((j) => j.jobTitle || 'Namnlöst').join(', ')}).
                 De behåller sin historik men behöver ett nytt CV innan träning kan starta.
               </p>
@@ -218,7 +218,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
               <button
                 onClick={() => setConfirmDelete(false)}
                 className="px-2.5 py-1 rounded text-xs font-medium"
-                style={{ backgroundColor: '#404040', color: '#9ca3af' }}
+                style={{ backgroundColor: 'var(--color-background-tertiary)', color: 'var(--color-text-secondary)' }}
               >
                 Avbryt
               </button>
@@ -226,7 +226,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
                 onClick={() => run(() => store.remove(cv.id))}
                 disabled={busy}
                 className="px-2.5 py-1 rounded text-xs font-medium disabled:opacity-60"
-                style={{ backgroundColor: '#5b1a1a', color: '#f87171' }}
+                style={{ backgroundColor: 'var(--color-action-danger-background)', color: 'var(--color-action-danger-text)' }}
               >
                 {busy ? 'Raderar...' : 'Ja, radera CV:t'}
               </button>
@@ -234,16 +234,16 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
           </div>
         )}
 
-        {err && <p className="text-xs" style={{ color: '#f87171' }}>{err}</p>}
+        {err && <p className="text-xs" style={{ color: 'var(--color-feedback-error)' }}>{err}</p>}
 
         <div className="flex items-center gap-4">
           <button
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
             className="text-xs font-semibold transition-colors"
-            style={{ color: '#8064ad' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
+            style={{ color: 'var(--color-link-text)' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-link-text-hover)')}
+            onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-link-text)')}
           >
             {expanded ? 'Dölj kompetenser' : 'Visa kompetenser'}
           </button>
@@ -251,9 +251,9 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
             <button
               onClick={() => setShowAdd(true)}
               className="text-xs transition-colors"
-              style={{ color: '#6b7280' }}
-              onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-              onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+              style={{ color: 'var(--color-text-secondary)' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+              onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
             >
               + Lägg till kompetens
             </button>
@@ -262,7 +262,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
       </div>
 
       {expanded && (
-        <div className="border-t p-4" style={{ borderColor: '#323232' }}>
+        <div className="border-t p-4" style={{ borderColor: 'var(--color-border-default)' }}>
           <CompetencyList
             competencies={competencies}
             onDelete={(index) => run(() => store.removeCompetency(cv.id, index))}
@@ -286,7 +286,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
 
 function DocIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8064ad"
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-purple)"
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />

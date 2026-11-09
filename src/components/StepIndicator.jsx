@@ -12,8 +12,8 @@ export default function StepIndicator({ steps, currentStep }) {
     <div
       className="rounded-xl p-6 mx-auto"
       style={{
-        backgroundColor: '#1d1d1d',
-        border: '1px solid #404040',
+        backgroundColor: 'var(--color-background-primary)',
+        border: '1px solid var(--color-border-default)',
         maxWidth: '24rem',
       }}
     >
@@ -38,7 +38,7 @@ export default function StepIndicator({ steps, currentStep }) {
                     minHeight: 28,
                     marginTop: 4,
                     marginBottom: 4,
-                    backgroundColor: state === 'completed' ? '#22c55e' : '#404040',
+                    backgroundColor: state === 'completed' ? 'var(--color-feedback-success)' : 'var(--color-border-default)',
                     transition: 'background-color 0.4s ease',
                   }}
                 />
@@ -53,16 +53,16 @@ export default function StepIndicator({ steps, currentStep }) {
                   lineHeight: 1.4,
                   fontWeight: state === 'active' ? 600 : 400,
                   color:
-                    state === 'active' ? '#fff'
-                    : state === 'completed' ? '#6b7280'
-                    : '#4b5563',
+                    state === 'active' ? 'var(--color-text-primary)'
+                    : state === 'completed' ? 'var(--color-text-secondary)'
+                    : 'var(--color-text-secondary)',
                   transition: 'color 0.3s',
                 }}
               >
                 {step.label}
               </p>
               {state === 'active' && step.subtext && (
-                <p style={{ fontSize: 12, color: '#8064ad', marginTop: 3 }}>
+                <p style={{ fontSize: 12, color: 'var(--color-accent-purple)', marginTop: 3 }}>
                   {step.subtext}
                 </p>
               )}
@@ -87,7 +87,7 @@ function StepCircle({ number, state }) {
           width: SIZE,
           height: SIZE,
           borderRadius: '50%',
-          backgroundColor: '#22c55e',
+          backgroundColor: 'var(--color-feedback-success)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -100,7 +100,7 @@ function StepCircle({ number, state }) {
           height={12}
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#fff"
+          stroke="var(--color-white)"
           strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -125,12 +125,12 @@ function StepCircle({ number, state }) {
           style={{ position: 'absolute', inset: 0 }}
         >
           {/* Track */}
-          <circle cx={cx} cy={cy} r={R} fill="none" stroke="#404040" strokeWidth="2.5" />
+          <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--color-border-default)" strokeWidth="2.5" />
           {/* ~90° accent arc (top → right) */}
           <path
             d={`M ${cx} ${cy - R} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`}
             fill="none"
-            stroke="#8064ad"
+            stroke="var(--color-accent-purple)"
             strokeWidth="2.5"
             strokeLinecap="round"
           />
@@ -144,7 +144,7 @@ function StepCircle({ number, state }) {
             justifyContent: 'center',
             fontSize: 11,
             fontWeight: 600,
-            color: '#8064ad',
+            color: 'var(--color-accent-purple)',
           }}
         >
           {number}
@@ -160,14 +160,14 @@ function StepCircle({ number, state }) {
         width: SIZE,
         height: SIZE,
         borderRadius: '50%',
-        border: '2px solid #404040',
+        border: '2px solid var(--color-border-default)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
       }}
     >
-      <span style={{ fontSize: 11, fontWeight: 500, color: '#4b5563' }}>
+      <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-text-secondary)' }}>
         {number}
       </span>
     </div>

@@ -59,7 +59,7 @@ export default function StartInterviewButton({
       disabled={isDisabled}
       className={
         'inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-lg ' +
-        'text-white text-sm font-semibold transition-all ' +
+        'text-action-primary-text text-sm font-semibold transition-all ' +
         'disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none ' +
         (fullWidth ? 'w-full ' : 'shrink-0 ') +
         className

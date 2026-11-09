@@ -143,8 +143,8 @@ export default function JobCreate() {
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Nytt uppdrag</h1>
-          <p className="mt-1 text-sm" style={{ color: '#6b7280' }}>
+          <h1 className="text-2xl font-medium text-text-primary tracking-tight">Nytt uppdrag</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             {ownerName
               ? `Klistra in en jobbannons för ${ownerName}.`
               : 'Klistra in en jobbannons och välj vilket CV som gäller – AI:n analyserar krav och matchning mot just det CV:t.'}
@@ -162,9 +162,9 @@ export default function JobCreate() {
               )
             }
             className="text-sm transition-colors shrink-0"
-            style={{ color: '#6b7280' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+            style={{ color: 'var(--color-text-secondary)' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+            onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
           >
             ← Tillbaka
           </button>
@@ -174,7 +174,7 @@ export default function JobCreate() {
       {isLoading ? (
         <div className="space-y-3">
           <StepIndicator steps={steps} currentStep={progress.index} />
-          <p className="text-xs text-center" style={{ color: '#6b7280' }}>
+          <p className="text-xs text-center" style={{ color: 'var(--color-text-secondary)' }}>
             {steps.length > 6
               ? 'CV och uppdrag analyseras i samma svep – det tar oftast 1–2 minuter, ibland längre.'
               : 'Det tar oftast runt en minut, ibland längre.'}{' '}
@@ -186,7 +186,7 @@ export default function JobCreate() {
           <div className="space-y-2">
             <label
               className="text-xs font-semibold uppercase tracking-wider"
-              style={{ color: '#8064ad' }}
+              style={{ color: 'var(--color-accent-purple)' }}
             >
               Klistra in jobbannonsen
             </label>
@@ -195,26 +195,26 @@ export default function JobCreate() {
               onChange={(e) => setJobText(e.target.value)}
               placeholder="Klistra in hela jobbannonsen här – titel, beskrivning, krav och meriter."
               rows={12}
-              className="w-full rounded-lg border p-4 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#8064ad]"
-              style={{ backgroundColor: '#1d1d1d', borderColor: '#404040', resize: 'vertical' }}
+              className="w-full rounded-lg border p-4 text-sm text-input-text placeholder:text-input-placeholder focus:outline-none focus:border-focus-ring"
+              style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)', resize: 'vertical' }}
             />
           </div>
 
           <div className="space-y-2">
             <label
               className="text-xs font-semibold uppercase tracking-wider"
-              style={{ color: '#8064ad' }}
+              style={{ color: 'var(--color-accent-purple)' }}
             >
               Om företaget{' '}
-              <span className="lowercase" style={{ color: '#6b7280' }}>– valfritt</span>
+              <span className="lowercase" style={{ color: 'var(--color-text-secondary)' }}>– valfritt</span>
             </label>
             <textarea
               value={companyInfo}
               onChange={(e) => setCompanyInfo(e.target.value)}
               placeholder="Fritext om bolaget – bransch, storlek, kultur, utmaningar du vet om."
               rows={4}
-              className="w-full rounded-lg border p-4 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#8064ad]"
-              style={{ backgroundColor: '#1d1d1d', borderColor: '#404040', resize: 'vertical' }}
+              className="w-full rounded-lg border p-4 text-sm text-input-text placeholder:text-input-placeholder focus:outline-none focus:border-focus-ring"
+              style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)', resize: 'vertical' }}
             />
           </div>
 
@@ -222,12 +222,12 @@ export default function JobCreate() {
             <label
               htmlFor="job-cv"
               className="text-xs font-semibold uppercase tracking-wider"
-              style={{ color: '#8064ad' }}
+              style={{ color: 'var(--color-accent-purple)' }}
             >
               CV för uppdraget
             </label>
             {loadingCvs ? (
-              <p className="text-sm" style={{ color: '#6b7280' }}>Laddar CV:n...</p>
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Laddar CV:n...</p>
             ) : (
               <>
                 <div className="flex gap-2 flex-wrap sm:flex-nowrap">
@@ -235,8 +235,8 @@ export default function JobCreate() {
                     id="job-cv"
                     value={selectedCvId}
                     onChange={(e) => { setSelectedCvId(e.target.value); setCvTouched(true) }}
-                    className="flex-1 min-w-0 rounded-lg border px-4 py-3 text-sm text-white focus:outline-none focus:border-[#8064ad]"
-                    style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+                    className="flex-1 min-w-0 rounded-lg border px-4 py-3 text-sm text-input-text focus:outline-none focus:border-focus-ring"
+                    style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)' }}
                   >
                     <option value="">Koppla CV senare</option>
                     {cvFile && <option value={NEW_CV}>Nytt CV: {cvFile.name}</option>}
@@ -260,9 +260,9 @@ export default function JobCreate() {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold transition-colors shrink-0"
-                    style={{ backgroundColor: '#8064ad1f', border: '1px solid #8064ad', color: '#e4dbf2' }}
-                    onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-                    onMouseOut={(e) => (e.currentTarget.style.color = '#e4dbf2')}
+                    style={{ backgroundColor: 'var(--color-action-secondary-background)', border: '1px solid var(--color-action-secondary-border)', color: 'var(--color-action-secondary-text)' }}
+                    onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-link-text-hover)')}
+                    onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-action-secondary-text)')}
                   >
                     <UploadIcon />
                     {cvFile ? 'Välj annan fil' : 'Ladda upp CV'}
@@ -272,13 +272,13 @@ export default function JobCreate() {
                 {hasNewFile && (
                   <div
                     className="flex items-center justify-between gap-3 rounded-lg border px-4 py-3"
-                    style={{ backgroundColor: '#1a1626', borderColor: '#8064ad80' }}
+                    style={{ backgroundColor: 'var(--color-action-secondary-background-hover)', borderColor: 'var(--color-action-secondary-border)' }}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <FileIcon />
                       <div className="min-w-0">
-                        <p className="text-sm text-white truncate">{cvFile.name}</p>
-                        <p className="text-xs" style={{ color: '#9ca3af' }}>
+                        <p className="text-sm text-text-primary truncate">{cvFile.name}</p>
+                        <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                           Sparas {ownerName ? 'bland konsultens CV:n' : 'bland dina CV:n'} och kopplas till uppdraget när du klickar Analysera.
                         </p>
                       </div>
@@ -287,19 +287,19 @@ export default function JobCreate() {
                       type="button"
                       onClick={removeNewCv}
                       className="text-xs shrink-0 transition-colors"
-                      style={{ color: '#6b7280' }}
-                      onMouseOver={(e) => (e.currentTarget.style.color = '#f87171')}
-                      onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+                      style={{ color: 'var(--color-text-secondary)' }}
+                      onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-feedback-error)')}
+                      onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
                     >
                       Ta bort
                     </button>
                   </div>
                 )}
 
-                {fileError && <p className="text-xs" style={{ color: '#f87171' }}>{fileError}</p>}
+                {fileError && <p className="text-xs" style={{ color: 'var(--color-feedback-error)' }}>{fileError}</p>}
 
                 {!hasNewFile && (
-                  <p className="text-xs" style={{ color: '#6b7280' }}>
+                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                     {cvs.length === 0
                       ? 'Inga CV:n uppladdade än – ladda upp det CV som gäller för uppdraget, eller koppla ett senare.'
                       : selectedCvId
@@ -314,10 +314,10 @@ export default function JobCreate() {
           <button
             onClick={handleAnalyze}
             disabled={loadingCvs}
-            className="w-full py-3 disabled:opacity-60 rounded-lg text-white text-sm font-semibold transition-colors"
-            style={{ backgroundColor: '#8064ad' }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+            className="w-full py-3 disabled:opacity-60 rounded-lg text-action-primary-text text-sm font-semibold transition-colors"
+            style={{ backgroundColor: 'var(--color-action-primary-background)' }}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}
           >
             {hasNewFile ? 'Analysera CV och uppdrag' : 'Analysera och generera frågor'}
           </button>
@@ -326,9 +326,9 @@ export default function JobCreate() {
             <div
               className="rounded-lg px-4 py-3 text-sm"
               style={{
-                backgroundColor: '#2b0d0d',
-                border: '1px solid #4d1a1a',
-                color: '#f87171',
+                backgroundColor: 'var(--color-feedback-error-background)',
+                border: '1px solid color-mix(in srgb, var(--color-feedback-error) 30%, transparent)',
+                color: 'var(--color-feedback-error)',
               }}
             >
               {errorMsg}
@@ -353,7 +353,7 @@ function UploadIcon() {
 
 function FileIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8064ad"
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-purple)"
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />

@@ -118,8 +118,8 @@ export default function FileUpload({ store, onSuccess, showNextStep = false, onB
             'flex flex-col items-center justify-center gap-3',
             'border-2 border-dashed rounded-xl p-10 transition-colors select-none cursor-pointer',
             dragging
-              ? 'border-[#8064ad] bg-[#8064ad]/5'
-              : 'border-[#404040] hover:border-[#8064ad]/50',
+              ? 'border-link-text bg-action-secondary-background-hover'
+              : 'border-border-default hover:border-action-secondary-border',
           ].join(' ')}
         >
           <input
@@ -134,8 +134,8 @@ export default function FileUpload({ store, onSuccess, showNextStep = false, onB
             <>
               <FileIcon />
               <div className="text-center">
-                <p className="text-white text-sm font-semibold">{selectedFile.name}</p>
-                <p className="text-[#6b7280] text-xs mt-1">
+                <p className="text-text-primary text-sm font-semibold">{selectedFile.name}</p>
+                <p className="text-text-secondary text-xs mt-1">
                   Klicka för att välja en annan fil
                 </p>
               </div>
@@ -144,10 +144,10 @@ export default function FileUpload({ store, onSuccess, showNextStep = false, onB
             <>
               <UploadIcon />
               <div className="text-center">
-                <p className="text-white text-sm font-medium">
+                <p className="text-text-primary text-sm font-medium">
                   Dra och släpp ditt CV här
                 </p>
-                <p className="text-[#6b7280] text-xs mt-1">
+                <p className="text-text-secondary text-xs mt-1">
                   eller klicka för att välja fil &mdash; PDF eller DOCX
                 </p>
               </div>
@@ -160,10 +160,10 @@ export default function FileUpload({ store, onSuccess, showNextStep = false, onB
       {selectedFile && !isLoading && (
         <button
           onClick={handleAnalyze}
-          className="w-full py-3 rounded-lg text-white text-sm font-semibold transition-colors"
-          style={{ backgroundColor: '#8064ad' }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+          className="w-full py-3 rounded-lg text-action-primary-text text-sm font-semibold transition-colors"
+          style={{ backgroundColor: 'var(--color-action-primary-background)' }}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}
         >
           Analysera dokument
         </button>
@@ -173,15 +173,15 @@ export default function FileUpload({ store, onSuccess, showNextStep = false, onB
       {status === 'success' && (
         <div
           className="rounded-xl p-5 space-y-3"
-          style={{ backgroundColor: '#0d2b1a', border: '1px solid #1a4d2e' }}
+          style={{ backgroundColor: 'var(--color-feedback-success-background)', border: '1px solid var(--color-feedback-success)' }}
         >
           <div className="flex items-center gap-2">
-            <span style={{ color: '#4ade80' }}><CheckIcon /></span>
-            <p className="text-base font-semibold" style={{ color: '#4ade80' }}>
+            <span style={{ color: 'var(--color-feedback-success)' }}><CheckIcon /></span>
+            <p className="text-base font-semibold" style={{ color: 'var(--color-feedback-success)' }}>
               CV:t "{cvDisplayName(savedCv)}" är sparat
             </p>
           </div>
-          <p className="text-xs" style={{ color: '#6b9a7a' }}>
+          <p className="text-xs" style={{ color: 'var(--color-feedback-success)' }}>
             {savedCv?.competencyCount ?? 0} kompetens{savedCv?.competencyCount === 1 ? '' : 'er'} hittades.
             Koppla CV:t till de uppdrag det är skrivet för.
           </p>
@@ -191,9 +191,9 @@ export default function FileUpload({ store, onSuccess, showNextStep = false, onB
             <Link
               to="/"
               className="inline-flex items-center gap-1 text-sm font-semibold transition-colors"
-              style={{ color: '#8064ad' }}
-              onMouseOver={(e) => (e.currentTarget.style.color = '#b19ae0')}
-              onMouseOut={(e) => (e.currentTarget.style.color = '#8064ad')}
+              style={{ color: 'var(--color-link-text)' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-link-text-hover)')}
+              onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-link-text)')}
             >
               Nästa steg: koppla CV:t till ett uppdrag →
             </Link>
@@ -203,9 +203,9 @@ export default function FileUpload({ store, onSuccess, showNextStep = false, onB
             <button
               onClick={resetForAnotherUpload}
               className="text-xs transition-colors"
-              style={{ color: '#6b7280' }}
-              onMouseOver={(e) => (e.currentTarget.style.color = '#9ca3af')}
-              onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+              style={{ color: 'var(--color-text-secondary)' }}
+              onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+              onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
             >
               Ladda upp ett till CV
             </button>
@@ -218,9 +218,9 @@ export default function FileUpload({ store, onSuccess, showNextStep = false, onB
         <div
           className="flex items-start gap-3 rounded-lg px-4 py-3 text-sm"
           style={{
-            backgroundColor: '#2b0d0d',
-            border: '1px solid #4d1a1a',
-            color: '#f87171',
+            backgroundColor: 'var(--color-feedback-error-background)',
+            border: '1px solid var(--color-feedback-error)',
+            color: 'var(--color-feedback-error)',
           }}
         >
           <ErrorIcon />
@@ -240,7 +240,7 @@ function UploadIcon() {
       height="36"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#8064ad"
+      stroke="var(--color-accent-purple)"
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -259,7 +259,7 @@ function FileIcon() {
       height="36"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#8064ad"
+      stroke="var(--color-accent-purple)"
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"

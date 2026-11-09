@@ -64,13 +64,13 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-white tracking-tight">Användarhantering</h1>
+      <h1 className="text-2xl font-medium text-text-primary tracking-tight">Användarhantering</h1>
 
       {/* Confirmation toast */}
       {confirmation && (
         <div
           className="rounded-lg border px-4 py-3 flex items-center gap-2 text-sm"
-          style={{ backgroundColor: '#052e16', borderColor: '#166534', color: '#86efac' }}
+          style={{ backgroundColor: 'var(--color-feedback-success-background)', borderColor: 'var(--color-feedback-success)', color: 'var(--color-feedback-success)' }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
@@ -83,7 +83,7 @@ export default function AdminPage() {
       {actionError && (
         <div
           className="rounded-lg border px-4 py-3 text-sm"
-          style={{ backgroundColor: '#2b0d0d', borderColor: '#4d1a1a', color: '#f87171' }}
+          style={{ backgroundColor: 'var(--color-feedback-error-background)', borderColor: 'var(--color-feedback-error)', color: 'var(--color-feedback-error)' }}
         >
           {actionError}
         </div>
@@ -97,27 +97,27 @@ export default function AdminPage() {
         onChange={(e) => setSearch(e.target.value)}
         className="w-full max-w-sm rounded-lg px-4 py-2 text-sm outline-none"
         style={{
-          backgroundColor: '#1d1d1d',
-          border: '1px solid #404040',
-          color: '#fff',
+          backgroundColor: 'var(--color-input-background)',
+          border: '1px solid var(--color-input-border)',
+          color: 'var(--color-input-text)',
         }}
       />
 
       {/* Table */}
       {loading ? (
-        <p className="text-sm py-4" style={{ color: '#6b7280' }}>Laddar användare...</p>
+        <p className="text-sm py-4" style={{ color: 'var(--color-text-secondary)' }}>Laddar användare...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm py-4" style={{ color: '#6b7280' }}>Inga användare hittades.</p>
+        <p className="text-sm py-4" style={{ color: 'var(--color-text-secondary)' }}>Inga användare hittades.</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border" style={{ borderColor: '#404040' }}>
+        <div className="overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--color-border-default)' }}>
           <table className="w-full text-sm">
             <thead>
-              <tr style={{ backgroundColor: '#1d1d1d', borderBottom: '1px solid #404040' }}>
+              <tr style={{ backgroundColor: 'var(--color-background-tertiary)', borderBottom: '1px solid var(--color-border-default)' }}>
                 {['Namn', 'E-post', 'Roll', 'Ändrad'].map((col) => (
                   <th
                     key={col}
                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest"
-                    style={{ color: '#6b7280' }}
+                    style={{ color: 'var(--color-text-secondary)' }}
                   >
                     {col}
                   </th>
@@ -129,14 +129,14 @@ export default function AdminPage() {
                 <tr
                   key={u.uid}
                   style={{
-                    backgroundColor: i % 2 === 0 ? '#141414' : '#000000',
-                    borderBottom: i < filtered.length - 1 ? '1px solid #1e2130' : 'none',
+                    backgroundColor: i % 2 === 0 ? 'var(--color-background-primary)' : 'var(--color-background-secondary)',
+                    borderBottom: i < filtered.length - 1 ? '1px solid var(--color-border-default)' : 'none',
                   }}
                 >
-                  <td className="px-4 py-3 font-medium text-white">
+                  <td className="px-4 py-3 font-medium text-text-primary">
                     {u.name ?? '–'}
                   </td>
-                  <td className="px-4 py-3" style={{ color: '#9ca3af' }}>
+                  <td className="px-4 py-3" style={{ color: 'var(--color-text-secondary)' }}>
                     {u.email ?? '–'}
                   </td>
                   <td className="px-4 py-3">
@@ -145,9 +145,9 @@ export default function AdminPage() {
                       onChange={(e) => handleRoleChange(u.uid, e.target.value)}
                       className="rounded-md px-2 py-1 text-xs font-medium outline-none cursor-pointer"
                       style={{
-                        backgroundColor: '#404040',
-                        border: '1px solid #3a3d4a',
-                        color: '#e5e7eb',
+                        backgroundColor: 'var(--color-input-background)',
+                        border: '1px solid var(--color-input-border)',
+                        color: 'var(--color-input-text)',
                       }}
                     >
                       {ROLES.map((r) => (
@@ -157,7 +157,7 @@ export default function AdminPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: '#6b7280' }}>
+                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                     {formatDate(u.updatedAt ?? u.createdAt)}
                   </td>
                 </tr>

@@ -37,7 +37,7 @@ export default function LoadingState({
   return (
     <div
       className="flex flex-col items-center justify-center gap-5 rounded-xl px-8 py-12 text-center"
-      style={{ backgroundColor: '#1d1d1d', border: '1px solid #404040' }}
+      style={{ backgroundColor: 'var(--color-background-primary)', border: '1px solid var(--color-border-default)' }}
     >
       {/* Hero emoji */}
       <span style={{ fontSize: 64, lineHeight: 1 }} role="img" aria-label="Kaffe">
@@ -45,7 +45,7 @@ export default function LoadingState({
       </span>
 
       {/* Headline */}
-      <h2 className="text-white text-lg font-semibold tracking-tight">{title}</h2>
+      <h2 className="text-text-primary text-lg font-medium tracking-tight">{title}</h2>
 
       {/* Spinning progress ring */}
       <ProgressRing />
@@ -55,7 +55,7 @@ export default function LoadingState({
         <p
           className="text-sm font-medium max-w-xs"
           style={{
-            color: '#d1d5db',
+            color: 'var(--color-text-primary)',
             opacity: textVisible ? 1 : 0,
             transition: 'opacity 0.35s ease',
             minHeight: '1.25rem',
@@ -66,7 +66,7 @@ export default function LoadingState({
       )}
 
       {/* Subtitle */}
-      <p className="text-xs" style={{ color: '#6b7280' }}>
+      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
         {subtitle}
       </p>
     </div>
@@ -99,7 +99,7 @@ function ProgressRing() {
         cy="32"
         r={RADIUS}
         fill="none"
-        stroke="#404040"
+        stroke="var(--color-background-tertiary)"
         strokeWidth="4"
       />
 
@@ -109,7 +109,7 @@ function ProgressRing() {
         cy="32"
         r={RADIUS}
         fill="none"
-        stroke="#8064ad"
+        stroke="var(--color-accent-purple)"
         strokeWidth="4"
         strokeLinecap="round"
         strokeDasharray={`${ARC} ${CIRCUMFERENCE - ARC}`}

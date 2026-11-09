@@ -30,8 +30,8 @@ export default function CompetencyBank() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Mina CV</h1>
-        <p className="mt-1 text-sm leading-relaxed max-w-2xl" style={{ color: '#6b7280' }}>
+        <h1 className="text-2xl font-medium text-text-primary tracking-tight">Mina CV</h1>
+        <p className="mt-1 text-sm leading-relaxed max-w-2xl" style={{ color: 'var(--color-text-secondary)' }}>
           Ett CV per profil du använder. Varje uppdrag kopplas till det CV som gäller för just
           det uppdraget – kravmatchningen, intervjufrågorna och feedbacken bygger på det CV:t.
         </p>

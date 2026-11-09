@@ -82,29 +82,29 @@ export default function JobCvPicker({ job, cvs, store, onChanged, variant = 'car
   // Ingen-CV-läget är en tydlig men NEUTRAL inforuta (lila kant). Amber är
   // reserverat för "Prioritera dessa".
   const containerStyle = needsCv
-    ? { backgroundColor: '#1a1626', borderColor: '#8064ad80' }
-    : { backgroundColor: isBanner ? '#1d1d1d' : '#141414', borderColor: '#323232' }
+    ? { backgroundColor: 'var(--color-action-secondary-background-hover)', borderColor: 'var(--color-action-secondary-border)' }
+    : { backgroundColor: isBanner ? 'var(--color-background-primary)' : 'var(--color-background-tertiary)', borderColor: 'var(--color-border-default)' }
 
   return (
     <div className="rounded-xl border p-4 space-y-3" style={containerStyle}>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-accent-purple)' }}>
             CV för uppdraget
           </p>
           {status === 'linked' ? (
-            <p className="text-sm text-white mt-1 break-words">
+            <p className="text-sm text-text-primary mt-1 break-words">
               {cvDisplayName(current)}
-              <span style={{ color: '#6b7280' }}>
+              <span style={{ color: 'var(--color-text-secondary)' }}>
                 {' '}· {cvCompetencies(current).length} kompetenser
               </span>
             </p>
           ) : (
             <>
-              <p className="text-sm font-semibold text-white mt-1">
+              <p className="text-sm font-semibold text-text-primary mt-1">
                 {status === 'missing' ? 'Det kopplade CV:t finns inte längre' : 'Inget CV kopplat än'}
               </p>
-              <p className="text-sm mt-1 max-w-xl" style={{ color: '#9ca3af' }}>
+              <p className="text-sm mt-1 max-w-xl" style={{ color: 'var(--color-text-secondary)' }}>
                 {status === 'missing'
                   ? 'Välj ett annat CV för att kunna träna.'
                   : cvs.length === 0
@@ -123,8 +123,8 @@ export default function JobCvPicker({ job, cvs, store, onChanged, variant = 'car
                 <select
                   value={pendingCvId || current?.id || ''}
                   onChange={(e) => handleSelect(e.target.value)}
-                  className="rounded-lg border px-3 py-2 text-sm text-white focus:outline-none focus:border-[#8064ad] max-w-[18rem]"
-                  style={{ backgroundColor: '#141414', borderColor: needsCv ? '#8064ad' : '#404040' }}
+                  className="rounded-lg border px-3 py-2 text-sm text-input-text focus:outline-none focus:border-focus-ring max-w-[18rem]"
+                  style={{ backgroundColor: 'var(--color-input-background)', borderColor: needsCv ? 'var(--color-focus-ring)' : 'var(--color-input-border)' }}
                 >
                   {!current && <option value="">Välj CV…</option>}
                   {cvs.map((cv) => (
@@ -146,11 +146,11 @@ export default function JobCvPicker({ job, cvs, store, onChanged, variant = 'car
       </div>
 
       {pendingCv && !linking && (
-        <div className="rounded-lg border p-3 space-y-2" style={{ backgroundColor: '#141414', borderColor: '#404040' }}>
-          <p className="text-sm text-white">
+        <div className="rounded-lg border p-3 space-y-2" style={{ backgroundColor: 'var(--color-background-tertiary)', borderColor: 'var(--color-border-default)' }}>
+          <p className="text-sm text-text-primary">
             Byta till "{cvDisplayName(pendingCv)}"?
           </p>
-          <p className="text-xs" style={{ color: '#9ca3af' }}>
+          <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
             Kravmatchningen och intervjufrågorna görs om mot det nya CV:t. Tidigare
             träningar och feedback finns kvar.
           </p>
@@ -158,14 +158,14 @@ export default function JobCvPicker({ job, cvs, store, onChanged, variant = 'car
             <button
               onClick={() => setPendingCvId('')}
               className="px-3 py-1.5 rounded-lg text-xs font-medium"
-              style={{ backgroundColor: '#404040', color: '#d1d5db' }}
+              style={{ backgroundColor: 'var(--color-background-primary)', color: 'var(--color-text-primary)' }}
             >
               Avbryt
             </button>
             <button
               onClick={() => link(pendingCv)}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-              style={{ backgroundColor: 'transparent', border: '1px solid #8064ad', color: '#d8ccec' }}
+              style={{ backgroundColor: 'transparent', border: '1px solid var(--color-action-secondary-border)', color: 'var(--color-action-secondary-text)' }}
             >
               Byt CV
             </button>
@@ -178,12 +178,12 @@ export default function JobCvPicker({ job, cvs, store, onChanged, variant = 'car
       )}
 
       {error && !linking && (
-        <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>
+        <p className="text-xs" style={{ color: 'var(--color-feedback-error)' }}>{error}</p>
       )}
 
       {showUpload && !linking && (
         <div className="pt-1">
-          <p className="text-xs mb-2" style={{ color: '#9ca3af' }}>
+          <p className="text-xs mb-2" style={{ color: 'var(--color-text-secondary)' }}>
             CV:t sparas hos konsulten och kopplas direkt till det här uppdraget.
           </p>
           <FileUpload store={store} onSuccess={handleUploaded} />
@@ -195,15 +195,15 @@ export default function JobCvPicker({ job, cvs, store, onChanged, variant = 'car
 
 function UploadButton({ open, onClick, emphasized, label }) {
   const base = emphasized
-    ? { backgroundColor: '#8064ad1f', border: '1px solid #8064ad', color: '#e4dbf2' }
-    : { backgroundColor: 'transparent', border: '1px solid #404040', color: '#d1d5db' }
+    ? { backgroundColor: 'var(--color-action-secondary-background-hover)', border: '1px solid var(--color-action-secondary-border)', color: 'var(--color-action-secondary-text)' }
+    : { backgroundColor: 'transparent', border: '1px solid var(--color-border-strong)', color: 'var(--color-text-primary)' }
   return (
     <button
       onClick={onClick}
       aria-expanded={open}
       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
       style={base}
-      onMouseOver={(e) => { e.currentTarget.style.borderColor = '#9781be'; e.currentTarget.style.color = '#fff' }}
+      onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--color-action-secondary-border)'; e.currentTarget.style.color = 'var(--color-link-text-hover)' }}
       onMouseOut={(e) => { e.currentTarget.style.borderColor = base.border.split(' ').pop(); e.currentTarget.style.color = base.color }}
     >
       {open ? <CloseIcon /> : <UploadIcon />}
@@ -242,15 +242,15 @@ function LinkProgress({ cvName, index }) {
   const done = index >= LINK_CV_STEPS.length
   return (
     <div className="rounded-lg border p-3 space-y-2" role="status" aria-live="polite"
-      style={{ backgroundColor: '#141414', borderColor: '#323232' }}>
+      style={{ backgroundColor: 'var(--color-background-tertiary)', borderColor: 'var(--color-border-default)' }}>
       <div className="flex items-center gap-3">
         <Spinner />
         <div className="min-w-0">
-          <p className="text-sm text-white">
+          <p className="text-sm text-text-primary">
             {done ? 'Klart!' : step.label}
-            <span style={{ color: '#6b7280' }}> · {cvName}</span>
+            <span style={{ color: 'var(--color-text-secondary)' }}> · {cvName}</span>
           </p>
-          {!done && <p className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>{step.subtext}</p>}
+          {!done && <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>{step.subtext}</p>}
         </div>
       </div>
       <div className="flex gap-1" aria-hidden="true">
@@ -258,11 +258,11 @@ function LinkProgress({ cvName, index }) {
           <span
             key={s.label}
             className="h-1 flex-1 rounded-full transition-colors"
-            style={{ backgroundColor: i < index || done ? '#22c55e' : i === index ? '#8064ad' : '#323232' }}
+            style={{ backgroundColor: i < index || done ? 'var(--color-feedback-success)' : i === index ? 'var(--color-accent-purple)' : 'var(--color-border-default)' }}
           />
         ))}
       </div>
-      <p className="text-xs" style={{ color: '#6b7280' }}>
+      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
         Steg {Math.min(index + 1, LINK_CV_STEPS.length)} av {LINK_CV_STEPS.length} – tar oftast runt en minut, ibland längre.
       </p>
     </div>
@@ -281,7 +281,7 @@ function Spinner() {
   return (
     <span
       className="inline-block shrink-0 animate-spin rounded-full"
-      style={{ width: 16, height: 16, border: '2px solid #8064ad', borderTopColor: 'transparent' }}
+      style={{ width: 16, height: 16, border: '2px solid var(--color-accent-purple)', borderTopColor: 'transparent' }}
       aria-hidden="true"
     />
   )

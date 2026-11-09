@@ -73,8 +73,8 @@ export default function DriftPage() {
     <div className="space-y-8">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Driftöversikt</h1>
-          <p className="mt-1 text-sm" style={{ color: '#6b7280' }}>
+          <h1 className="text-2xl font-medium text-text-primary tracking-tight">Driftöversikt</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             Teknisk hälsa för intervjukedjan. Inga betyg eller feedbackinnehåll – endast driftdata.
           </p>
         </div>
@@ -82,27 +82,27 @@ export default function DriftPage() {
           onClick={load}
           disabled={loading}
           className="text-xs font-medium transition-colors disabled:opacity-40 shrink-0 pt-1"
-          style={{ color: '#6b7280' }}
-          onMouseOver={(e) => !loading && (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          style={{ color: 'var(--color-text-secondary)' }}
+          onMouseOver={(e) => !loading && (e.currentTarget.style.color = 'var(--color-text-primary)')}
+          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
         >
           🔄 Uppdatera
         </button>
       </div>
 
       {loading && (
-        <p className="text-sm" style={{ color: '#6b7280' }}>Laddar driftdata…</p>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Laddar driftdata…</p>
       )}
 
       {error && (
         <div
           className="rounded-xl border px-5 py-4 text-sm"
-          style={{ backgroundColor: '#1d1d1d', borderColor: '#5b1a1a', color: '#f87171' }}
+          style={{ backgroundColor: 'var(--color-feedback-error-background)', borderColor: 'var(--color-feedback-error)', color: 'var(--color-feedback-error)' }}
         >
           <p className="font-semibold mb-1">Kunde inte hämta driftdata</p>
-          <p style={{ color: '#9ca3af' }}>{error}</p>
+          <p style={{ color: 'var(--color-text-secondary)' }}>{error}</p>
           {error.includes('index') && (
-            <p className="mt-2" style={{ color: '#6b7280' }}>
+            <p className="mt-2" style={{ color: 'var(--color-text-secondary)' }}>
               Skapa ett Firestore-index för <code>systemEvents</code> på fältet{' '}
               <code>createdAt</code> (descending). Länken finns i konsolen ovan.
             </p>
@@ -118,36 +118,36 @@ export default function DriftPage() {
             <Kpi label="Senaste 7 dagarna" value={stats.completed7} />
             <Kpi label="Senaste 30 dagarna" value={stats.completed30} />
             <Kpi label="Aktiva konsulter" value={stats.activeConsultants} />
-            <Kpi label="Tekniska fel" value={stats.errorTotal} accent={stats.errorTotal > 0 ? '#f87171' : undefined} />
+            <Kpi label="Tekniska fel" value={stats.errorTotal} accent={stats.errorTotal > 0 ? 'var(--color-feedback-error)' : undefined} />
             <Kpi
               label="Felfrekvens"
               value={`${Math.round(stats.errorRate * 100)}%`}
               sub={`${stats.errorTotal} av ${stats.attempts} försök`}
-              accent={stats.errorRate >= 0.2 ? '#f87171' : stats.errorRate > 0 ? '#E9C46A' : '#4ade80'}
+              accent={stats.errorRate >= 0.2 ? 'var(--color-feedback-error)' : stats.errorRate > 0 ? 'var(--color-feedback-warning)' : 'var(--color-feedback-success)'}
             />
           </div>
 
           {/* Senaste fel */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#8064ad' }}>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--color-accent-purple)' }}>
               Senaste tekniska fel
             </p>
 
             {errorEvents.length === 0 ? (
               <div
                 className="rounded-xl border px-5 py-6 text-center"
-                style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+                style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
               >
-                <p className="text-sm" style={{ color: '#6b7280' }}>
+                <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                   Inga fel loggade. Kedjan Whisper → Claude → TTS → Firestore rapporterar rent.
                 </p>
               </div>
             ) : (
-              <div className="rounded-xl border overflow-hidden" style={{ borderColor: '#404040' }}>
+              <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--color-border-default)' }}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr style={{ backgroundColor: '#1a1a1a', borderBottom: '1px solid #323232' }}>
+                      <tr style={{ backgroundColor: 'var(--color-background-tertiary)', borderBottom: '1px solid var(--color-border-default)' }}>
                         <Th>Tid</Th>
                         <Th>Steg</Th>
                         <Th>Meddelande</Th>
@@ -159,8 +159,8 @@ export default function DriftPage() {
                         <tr
                           key={e.id}
                           style={{
-                            backgroundColor: i % 2 === 0 ? '#1d1d1d' : '#191919',
-                            borderBottom: '1px solid #2a2a2a',
+                            backgroundColor: i % 2 === 0 ? 'var(--color-background-primary)' : 'var(--color-background-secondary)',
+                            borderBottom: '1px solid var(--color-border-default)',
                           }}
                         >
                           <Td>
@@ -172,10 +172,10 @@ export default function DriftPage() {
                               : '—'}
                           </Td>
                           <Td>
-                            <span className="text-white">{STEP_LABEL[e.step] ?? e.step ?? '—'}</span>
+                            <span className="text-text-primary">{STEP_LABEL[e.step] ?? e.step ?? '—'}</span>
                           </Td>
                           <Td>
-                            <span style={{ color: '#f0a085' }}>{e.message || '—'}</span>
+                            <span style={{ color: 'var(--color-feedback-error)' }}>{e.message || '—'}</span>
                           </Td>
                           <Td>{e.uid ? (nameMap[e.uid] ?? e.uid) : '—'}</Td>
                         </tr>
@@ -194,17 +194,17 @@ export default function DriftPage() {
 
 function Kpi({ label, value, sub, accent }) {
   return (
-    <div className="rounded-xl border p-5" style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}>
-      <p className="text-xs font-medium" style={{ color: '#6b7280' }}>{label}</p>
-      <p className="text-3xl font-bold mt-2" style={{ color: accent ?? '#fff' }}>{value}</p>
-      {sub && <p className="text-xs mt-1" style={{ color: '#6b7280' }}>{sub}</p>}
+    <div className="rounded-xl border p-5" style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}>
+      <p className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>{label}</p>
+      <p className="text-3xl font-bold mt-2" style={{ color: accent ?? 'var(--color-text-primary)' }}>{value}</p>
+      {sub && <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>{sub}</p>}
     </div>
   )
 }
 
 function Th({ children }) {
   return (
-    <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-left" style={{ color: '#6b7280' }}>
+    <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-left" style={{ color: 'var(--color-text-secondary)' }}>
       {children}
     </th>
   )
@@ -212,7 +212,7 @@ function Th({ children }) {
 
 function Td({ children }) {
   return (
-    <td className="px-4 py-3 align-top" style={{ color: '#9ca3af' }}>
+    <td className="px-4 py-3 align-top" style={{ color: 'var(--color-text-secondary)' }}>
       {children}
     </td>
   )

@@ -114,15 +114,15 @@ export default function KonsultProfilPage() {
   }, [uid, jobIdsKey, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
-    return <p className="text-sm py-8" style={{ color: '#6b7280' }}>Laddar profil...</p>
+    return <p className="text-sm py-8" style={{ color: 'var(--color-text-secondary)' }}>Laddar profil...</p>
   }
 
   if (loadError) {
-    return <p className="text-sm py-8" style={{ color: '#f87171' }}>Kunde inte ladda profilen: {loadError}</p>
+    return <p className="text-sm py-8" style={{ color: 'var(--color-feedback-error)' }}>Kunde inte ladda profilen: {loadError}</p>
   }
 
   if (!konsult) {
-    return <p className="text-sm py-8" style={{ color: '#f87171' }}>Konsulten hittades inte.</p>
+    return <p className="text-sm py-8" style={{ color: 'var(--color-feedback-error)' }}>Konsulten hittades inte.</p>
   }
 
   const tabs = [
@@ -139,30 +139,30 @@ export default function KonsultProfilPage() {
         <button
           onClick={() => navigate('/konsulter')}
           className="text-sm transition-colors shrink-0"
-          style={{ color: '#6b7280' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          style={{ color: 'var(--color-text-secondary)' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
         >
           ← Konsulter
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
+          <h1 className="text-2xl font-medium text-text-primary tracking-tight">
             {konsult.name ?? konsult.email}
           </h1>
-          <p className="text-sm mt-0.5" style={{ color: '#6b7280' }}>{konsult.email}</p>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>{konsult.email}</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b" style={{ borderColor: '#404040' }}>
+      <div className="flex border-b" style={{ borderColor: 'var(--color-border-default)' }}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className="px-5 py-2.5 text-sm font-medium transition-colors -mb-px"
             style={{
-              color: activeTab === tab.id ? '#fff' : '#6b7280',
-              borderBottom: activeTab === tab.id ? '2px solid #8064ad' : '2px solid transparent',
+              color: activeTab === tab.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+              borderBottom: activeTab === tab.id ? '2px solid var(--color-link-text)' : '2px solid transparent',
             }}
           >
             {tab.label}
@@ -175,31 +175,31 @@ export default function KonsultProfilPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-accent-purple)' }}>
                 {jobs.length} uppdrag
               </p>
               {!loadingCvs && unlinkedCount > 0 && (
-                <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
                   {unlinkedCount} uppdrag saknar kopplat CV – konsulten kan inte träna på dem än.
                 </p>
               )}
             </div>
             <button
               onClick={() => navigate('/jobb/ny', { state: { targetUid: uid, targetName: konsult.name ?? konsult.email } })}
-              className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-colors"
-              style={{ backgroundColor: '#8064ad' }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+              className="px-3 py-1.5 rounded-lg text-sm font-semibold text-action-primary-text transition-colors"
+              style={{ backgroundColor: 'var(--color-action-primary-background)' }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}
             >
               + Skapa nytt uppdrag åt konsulten
             </button>
           </div>
 
-          {cvError && <p className="text-sm" style={{ color: '#f87171' }}>{cvError}</p>}
+          {cvError && <p className="text-sm" style={{ color: 'var(--color-feedback-error)' }}>{cvError}</p>}
 
           {jobs.length === 0 ? (
-            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: '#404040' }}>
-              <p className="text-sm" style={{ color: '#6b7280' }}>
+            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: 'var(--color-border-default)' }}>
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 Inga uppdrag ännu. Skapa ett uppdrag och koppla sedan det CV som gäller för det.
               </p>
             </div>
@@ -238,15 +238,15 @@ export default function KonsultProfilPage() {
       {/* Tab: Delad feedback */}
       {activeTab === 'feedback' && (
         <div className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-accent-purple)' }}>
             Sessioner konsulten delat
           </p>
 
           {loadingShared ? (
-            <p className="text-sm" style={{ color: '#6b7280' }}>Laddar delad feedback...</p>
+            <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Laddar delad feedback...</p>
           ) : sharedFeedback.length === 0 ? (
-            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: '#404040' }}>
-              <p className="text-sm" style={{ color: '#6b7280' }}>
+            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: 'var(--color-border-default)' }}>
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 Konsulten har inte delat någon feedback.
               </p>
             </div>
@@ -275,10 +275,10 @@ export default function KonsultProfilPage() {
 function SharedFeedbackItem({ feedback, onClick }) {
   const score = feedback.overallScore
   const scoreColor =
-    score == null ? '#6b7280'
-    : score >= 8 ? '#22c55e'
-    : score >= 6 ? '#E9C46A'
-    : '#ef4444'
+    score == null ? 'var(--color-text-secondary)'
+    : score >= 8 ? 'var(--color-feedback-success)'
+    : score >= 6 ? 'var(--color-feedback-warning)'
+    : 'var(--color-feedback-error)'
 
   const dateStr = feedback.createdAt?.toDate
     ? feedback.createdAt.toDate().toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -289,21 +289,21 @@ function SharedFeedbackItem({ feedback, onClick }) {
       <button
         onClick={onClick}
         className="w-full text-left rounded-xl border p-4 transition-colors flex items-center justify-between gap-4"
-        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
-        onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
-        onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
+        style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
+        onMouseOver={(e) => (e.currentTarget.style.borderColor = 'var(--color-link-text)')}
+        onMouseOut={(e) => (e.currentTarget.style.borderColor = 'var(--color-border-default)')}
       >
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-white truncate">
+          <p className="text-sm text-text-primary truncate">
             {feedback.jobTitle}
-            {feedback.company && <span style={{ color: '#6b7280' }}> · {feedback.company}</span>}
+            {feedback.company && <span style={{ color: 'var(--color-text-secondary)' }}> · {feedback.company}</span>}
           </p>
           <div className="flex items-center gap-2 mt-1">
-            <p className="text-xs" style={{ color: '#9ca3af' }}>{dateStr}</p>
+            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{dateStr}</p>
             {isEnglish(feedback.language) && (
               <span
                 className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
-                style={{ backgroundColor: '#8064ad20', color: '#b9a5d6', border: '1px solid #8064ad40' }}
+                style={{ backgroundColor: 'var(--color-action-secondary-background-hover)', color: 'var(--color-text-primary)', border: '1px solid var(--color-action-secondary-background-pressed)' }}
                 title="Intervjun hölls på engelska"
               >
                 EN

@@ -68,31 +68,31 @@ export default function SäljarePage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white tracking-tight">Konsulter</h1>
+        <h1 className="text-2xl font-medium text-text-primary tracking-tight">Konsulter</h1>
         <button
           onClick={() => setShowModal(true)}
-          className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors"
-          style={{ backgroundColor: '#8064ad' }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+          className="px-4 py-2 rounded-lg text-action-primary-text text-sm font-semibold transition-colors"
+          style={{ backgroundColor: 'var(--color-action-primary-background)' }}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}
         >
           + Förbered ny konsult
         </button>
       </div>
 
       {loading ? (
-        <p className="text-sm py-8" style={{ color: '#6b7280' }}>Laddar konsulter...</p>
+        <p className="text-sm py-8" style={{ color: 'var(--color-text-secondary)' }}>Laddar konsulter...</p>
       ) : loadError ? (
-        <p className="text-sm py-8" style={{ color: '#f87171' }}>Kunde inte ladda konsulter: {loadError}</p>
+        <p className="text-sm py-8" style={{ color: 'var(--color-feedback-error)' }}>Kunde inte ladda konsulter: {loadError}</p>
       ) : (
         <>
           {/* Active consultants */}
           <section className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+            <h2 className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--color-accent-purple)' }}>
               Aktiva konsulter ({konsulter.length})
             </h2>
             {konsulter.length === 0 ? (
-              <p className="text-sm" style={{ color: '#6b7280' }}>Inga aktiva konsulter än.</p>
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Inga aktiva konsulter än.</p>
             ) : (
               <ul className="grid gap-4 sm:grid-cols-2">
                 {konsulter.map((k) => (
@@ -112,7 +112,7 @@ export default function SäljarePage() {
           {/* Pending profiles */}
           {pending.length > 0 && (
             <section className="space-y-3">
-              <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6b7280' }}>
+              <h2 className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--color-text-secondary)' }}>
                 Förberedda profiler – inväntar inloggning ({pending.length})
               </h2>
               <ul className="grid gap-4 sm:grid-cols-2">
@@ -161,27 +161,27 @@ function KonsultCard({ name, email, cvCount, jobCount, pending, onClick }) {
       <button
         onClick={onClick}
         className="w-full text-left rounded-xl border p-5 space-y-4 transition-colors"
-        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
-        onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
-        onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
+        style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
+        onMouseOver={(e) => (e.currentTarget.style.borderColor = 'var(--color-link-text)')}
+        onMouseOut={(e) => (e.currentTarget.style.borderColor = 'var(--color-border-default)')}
       >
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
-            style={{ backgroundColor: pending ? '#4d3e1a' : '#8064ad' }}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-tag-text shrink-0"
+            style={{ backgroundColor: pending ? 'var(--color-tag-orange-1)' : 'var(--color-tag-purple-1)' }}
           >
             {initials}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <p className="text-white font-semibold truncate">{name ?? '–'}</p>
+              <p className="text-text-primary font-semibold truncate">{name ?? '–'}</p>
               {pending && (
-                <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: '#4d3e1a', color: '#f0d48a' }}>
+                <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: 'var(--color-feedback-warning-background)', color: 'var(--color-feedback-warning)' }}>
                   Väntande
                 </span>
               )}
             </div>
-            <p className="text-xs truncate" style={{ color: '#6b7280' }}>{email ?? '–'}</p>
+            <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>{email ?? '–'}</p>
           </div>
         </div>
 
@@ -197,8 +197,8 @@ function KonsultCard({ name, email, cvCount, jobCount, pending, onClick }) {
 function Stat({ label, value }) {
   return (
     <div>
-      <p className="text-xl font-bold text-white">{value == null ? '–' : value}</p>
-      <p className="text-xs" style={{ color: '#6b7280' }}>{label}</p>
+      <p className="text-xl font-bold text-text-primary">{value == null ? '–' : value}</p>
+      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{label}</p>
     </div>
   )
 }
@@ -247,23 +247,23 @@ function NewKonsultModal({ onClose, onCreated }) {
     >
       <div
         className="w-full max-w-sm rounded-2xl border p-6 space-y-5"
-        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+        style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-white font-semibold text-lg">Förbered ny konsult</h2>
-          <button onClick={onClose} className="text-sm transition-colors" style={{ color: '#6b7280' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          <h2 className="text-text-primary font-medium text-lg">Förbered ny konsult</h2>
+          <button onClick={onClose} className="text-sm transition-colors" style={{ color: 'var(--color-text-secondary)' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+            onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
           >✕</button>
         </div>
 
-        <p className="text-sm" style={{ color: '#9ca3af' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           Profilen blir aktiv när konsulten loggar in första gången.
         </p>
 
         <div className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#8064ad' }}>
+            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-accent-purple)' }}>
               Namn *
             </label>
             <input
@@ -271,12 +271,12 @@ function NewKonsultModal({ onClose, onCreated }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="T.ex. Anna Svensson"
-              className="w-full rounded-lg border px-3 py-2 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#8064ad]"
-              style={{ backgroundColor: '#141414', borderColor: '#404040' }}
+              className="w-full rounded-lg border px-3 py-2 text-sm text-input-text placeholder:text-input-placeholder focus:outline-none focus:border-focus-ring"
+              style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)' }}
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#8064ad' }}>
+            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-accent-purple)' }}>
               E-post (@boulder.se) *
             </label>
             <input
@@ -284,29 +284,29 @@ function NewKonsultModal({ onClose, onCreated }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="anna.svensson@boulder.se"
-              className="w-full rounded-lg border px-3 py-2 text-sm text-white placeholder:text-[#6b7280] focus:outline-none focus:border-[#8064ad]"
-              style={{ backgroundColor: '#141414', borderColor: '#404040' }}
+              className="w-full rounded-lg border px-3 py-2 text-sm text-input-text placeholder:text-input-placeholder focus:outline-none focus:border-focus-ring"
+              style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)' }}
             />
           </div>
         </div>
 
-        {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+        {error && <p className="text-xs" style={{ color: 'var(--color-feedback-error)' }}>{error}</p>}
 
         <div className="flex gap-3">
           <button
             onClick={onClose}
             className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors"
-            style={{ backgroundColor: '#404040', color: '#9ca3af' }}
+            style={{ backgroundColor: 'var(--color-background-tertiary)', color: 'var(--color-text-secondary)' }}
           >
             Avbryt
           </button>
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-60"
-            style={{ backgroundColor: '#8064ad' }}
-            onMouseOver={(e) => !saving && (e.currentTarget.style.backgroundColor = '#9781be')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-action-primary-text transition-colors disabled:opacity-60"
+            style={{ backgroundColor: 'var(--color-action-primary-background)' }}
+            onMouseOver={(e) => !saving && (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}
           >
             {saving ? 'Skapar...' : 'Skapa profil'}
           </button>

@@ -63,16 +63,16 @@ function Onboarding() {
       <div className="space-y-4">
         <div
           className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border"
-          style={{ borderColor: '#8064ad', color: '#b19ae0', backgroundColor: '#1a1229' }}
+          style={{ borderColor: 'var(--color-accent-purple)', color: 'var(--color-accent-purple)', backgroundColor: 'var(--color-action-secondary-background-hover)' }}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-current" />
           AI-driven intervjuträning
         </div>
-        <h1 className="text-4xl font-bold text-white leading-tight tracking-tight">
+        <h1 className="text-4xl font-medium text-text-primary leading-tight tracking-tight">
           Träna inför rätt uppdrag,{' '}
-          <span style={{ color: '#8064ad' }}>med dina egna kompetenser</span>
+          <span style={{ color: 'var(--color-accent-purple)' }}>med dina egna kompetenser</span>
         </h1>
-        <p className="text-gray-400 text-lg leading-relaxed">
+        <p className="text-text-secondary text-lg leading-relaxed">
           Ladda upp ditt CV, lägg till jobbannonser och träna med en AI-intervjuare
           anpassad efter just din profil.
         </p>
@@ -84,16 +84,16 @@ function Onboarding() {
           <div
             key={i}
             className="rounded-xl border p-5 text-left space-y-3"
-            style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+            style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
           >
             <div
-              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-              style={{ backgroundColor: '#8064ad' }}
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-tag-text"
+              style={{ backgroundColor: 'var(--color-tag-purple-1)' }}
             >
               {i + 1}
             </div>
-            <h3 className="text-white font-semibold text-sm">{step.title}</h3>
-            <p className="text-gray-500 text-xs leading-relaxed">{step.desc}</p>
+            <h3 className="text-text-primary font-medium text-sm">{step.title}</h3>
+            <p className="text-text-secondary text-xs leading-relaxed">{step.desc}</p>
           </div>
         ))}
       </div>
@@ -104,15 +104,15 @@ function Onboarding() {
           onClick={handleSignIn}
           disabled={loading}
           className="flex items-center gap-3 px-6 py-3 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-60"
-          style={{ backgroundColor: '#fff', color: '#111', borderColor: '#e5e7eb' }}
-          onMouseOver={(e) => !loading && (e.currentTarget.style.backgroundColor = '#f3f4f6')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
+          style={{ backgroundColor: 'var(--color-background-primary)', color: 'var(--color-text-primary)', borderColor: 'var(--color-border-strong)' }}
+          onMouseOver={(e) => !loading && (e.currentTarget.style.backgroundColor = 'var(--color-action-ghost-background-hover)')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-background-primary)')}
         >
           <GoogleIcon />
           {loading ? 'Loggar in...' : 'Logga in med Google'}
         </button>
         {error && (
-          <p className="text-xs" style={{ color: '#f87171' }}>
+          <p className="text-xs" style={{ color: 'var(--color-feedback-error)' }}>
             {error}
           </p>
         )}
@@ -245,17 +245,17 @@ function Dashboard({ user }) {
       {cvs !== null && cvs.length === 0 && (
         <div
           className="rounded-xl border px-5 py-4 flex items-center justify-between gap-4"
-          style={{ backgroundColor: '#2b2414', borderColor: '#4d3e1a' }}
+          style={{ backgroundColor: 'var(--color-feedback-warning-background)', borderColor: 'color-mix(in srgb, var(--color-feedback-warning) 30%, transparent)' }}
         >
-          <p className="text-sm" style={{ color: '#f0d48a' }}>
+          <p className="text-sm" style={{ color: 'var(--color-feedback-warning)' }}>
             Du har inga CV:n än – ladda upp ett CV och koppla det till dina uppdrag
           </p>
           <Link
             to="/kompetensbank"
             className="text-sm font-semibold shrink-0 transition-colors"
-            style={{ color: '#E9C46A' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#E9C46A')}
+            style={{ color: 'var(--color-feedback-warning)' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+            onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-feedback-warning)')}
           >
             Ladda upp →
           </Link>
@@ -264,7 +264,7 @@ function Dashboard({ user }) {
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white tracking-tight">
+        <h1 className="text-2xl font-medium text-text-primary tracking-tight">
           Hej {firstName} 👋
         </h1>
         <button
@@ -273,14 +273,14 @@ function Dashboard({ user }) {
           // Nedtonad till kontur. Den delade tidigare lila yta med den primära
           // åtgärden, och två lika starka knappar bredvid varandra betyder att
           // ingen av dem framhävs.
-          style={{ backgroundColor: 'transparent', borderColor: '#404040', color: '#9ca3af' }}
+          style={{ backgroundColor: 'transparent', borderColor: 'var(--color-border-strong)', color: 'var(--color-text-secondary)' }}
           onMouseOver={(e) => {
-            e.currentTarget.style.borderColor = '#8064ad'
-            e.currentTarget.style.color = '#fff'
+            e.currentTarget.style.borderColor = 'var(--color-action-secondary-border)'
+            e.currentTarget.style.color = 'var(--color-action-secondary-text)'
           }}
           onMouseOut={(e) => {
-            e.currentTarget.style.borderColor = '#404040'
-            e.currentTarget.style.color = '#9ca3af'
+            e.currentTarget.style.borderColor = 'var(--color-border-strong)'
+            e.currentTarget.style.color = 'var(--color-text-secondary)'
           }}
         >
           + Lägg till nytt uppdrag
@@ -294,7 +294,7 @@ function Dashboard({ user }) {
 
       {/* Uppdrag + vägledande tomma states */}
       {loadingJobs ? (
-        <p className="text-sm py-8" style={{ color: '#6b7280' }}>
+        <p className="text-sm py-8" style={{ color: 'var(--color-text-secondary)' }}>
           Laddar dina uppdrag...
         </p>
       ) : emptyState === 'no-jobs' ? (
@@ -334,9 +334,9 @@ function Dashboard({ user }) {
           <button
             onClick={() => setShowArchived((v) => !v)}
             className="flex items-center gap-2 text-sm font-medium transition-colors"
-            style={{ color: '#6b7280' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#9ca3af')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+            style={{ color: 'var(--color-text-secondary)' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+            onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
           >
             <ChevronIcon expanded={showArchived} />
             Arkiverade uppdrag ({archivedJobs.length})
@@ -384,18 +384,18 @@ function OnboardingChecklist({ checklist, onDismiss }) {
   return (
     <div
       className="rounded-xl border px-5 py-4"
-      style={{ backgroundColor: '#052e16', borderColor: '#166534' }}
+      style={{ backgroundColor: 'var(--color-feedback-success-background)', borderColor: 'color-mix(in srgb, var(--color-feedback-success) 35%, transparent)' }}
     >
       <div className="flex items-start justify-between gap-4">
-        <p className="text-sm font-semibold" style={{ color: '#86efac' }}>
+        <p className="text-sm font-semibold" style={{ color: 'var(--color-feedback-success)' }}>
           🎉 Din profil är redo – tre steg till din första träning
         </p>
         <button
           onClick={onDismiss}
           className="text-xs shrink-0 transition-colors"
-          style={{ color: '#4ade80' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#4ade80')}
+          style={{ color: 'var(--color-feedback-success)' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-feedback-success)')}
           aria-label="Stäng checklista"
         >
           ✕
@@ -408,7 +408,7 @@ function OnboardingChecklist({ checklist, onDismiss }) {
             <span
               className="text-sm"
               style={{
-                color: item.done ? '#86efac' : '#9ca3af',
+                color: item.done ? 'var(--color-feedback-success)' : 'var(--color-text-secondary)',
                 textDecoration: item.done ? 'line-through' : 'none',
               }}
             >
@@ -426,9 +426,9 @@ function ChecklistBox({ done }) {
     return (
       <span
         className="flex items-center justify-center rounded-md shrink-0"
-        style={{ width: 20, height: 20, backgroundColor: '#16a34a' }}
+        style={{ width: 20, height: 20, backgroundColor: 'var(--color-feedback-success)' }}
       >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-white)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12" />
         </svg>
       </span>
@@ -437,7 +437,7 @@ function ChecklistBox({ done }) {
   return (
     <span
       className="rounded-md shrink-0"
-      style={{ width: 20, height: 20, border: '2px solid #4d7c5a' }}
+      style={{ width: 20, height: 20, border: '2px solid var(--color-feedback-success)' }}
     />
   )
 }
@@ -452,17 +452,17 @@ function NoJobsCard({ onAdd }) {
   return (
     <div
       className="rounded-xl border-2 border-dashed p-12 text-center space-y-4"
-      style={{ borderColor: '#404040' }}
+      style={{ borderColor: 'var(--color-border-strong)' }}
     >
-      <p className="text-sm" style={{ color: '#9ca3af' }}>
+      <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
         Lägg till ditt första uppdrag för att komma igång
       </p>
       <button
         onClick={onAdd}
-        className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-white text-sm font-semibold transition-colors"
-        style={{ backgroundColor: '#8064ad' }}
-        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#9781be')}
-        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#8064ad')}
+        className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-action-primary-text text-sm font-semibold transition-colors"
+        style={{ backgroundColor: 'var(--color-action-primary-background)' }}
+        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
+        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}
       >
         Lägg till uppdrag
       </button>
@@ -474,11 +474,11 @@ function ReadyToTrainCard({ onStart }) {
   return (
     <div
       className="rounded-xl border p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-      style={{ backgroundColor: '#1a1229', borderColor: '#8064ad' }}
+      style={{ backgroundColor: 'var(--color-action-secondary-background-hover)', borderColor: 'var(--color-accent-purple)' }}
     >
       <div>
-        <h2 className="text-white font-semibold text-base">Du är redo – starta din första träning</h2>
-        <p className="text-sm mt-1" style={{ color: '#9ca3af' }}>
+        <h2 className="text-text-primary font-medium text-base">Du är redo – starta din första träning</h2>
+        <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
           Dina uppdrag är på plats. Kör en AI-intervju för att se hur du står dig.
         </p>
       </div>
@@ -498,16 +498,16 @@ function JobPickerModal({ jobs, onPick, onClose }) {
     >
       <div
         className="w-full max-w-md rounded-2xl border p-6 space-y-4"
-        style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+        style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-white font-semibold text-lg">Välj uppdrag att träna på</h2>
+          <h2 className="text-text-primary font-medium text-lg">Välj uppdrag att träna på</h2>
           <button
             onClick={onClose}
             className="text-sm transition-colors"
-            style={{ color: '#6b7280' }}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+            style={{ color: 'var(--color-text-secondary)' }}
+            onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+            onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
             aria-label="Stäng"
           >
             ✕
@@ -519,15 +519,15 @@ function JobPickerModal({ jobs, onPick, onClose }) {
               <button
                 onClick={() => onPick(job.docId)}
                 className="w-full text-left rounded-xl border p-4 transition-colors"
-                style={{ backgroundColor: '#141414', borderColor: '#404040' }}
-                onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
-                onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
+                style={{ backgroundColor: 'var(--color-background-tertiary)', borderColor: 'var(--color-border-default)' }}
+                onMouseOver={(e) => (e.currentTarget.style.borderColor = 'var(--color-link-text)')}
+                onMouseOut={(e) => (e.currentTarget.style.borderColor = 'var(--color-border-default)')}
               >
-                <p className="text-sm text-white font-medium">
+                <p className="text-sm text-text-primary font-medium">
                   {job.jobTitle || 'Namnlös jobbannons'}
                 </p>
                 {job.company && (
-                  <p className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>{job.company}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>{job.company}</p>
                 )}
               </button>
             </li>
@@ -548,12 +548,12 @@ function JobCard({ job, feedback, cvs, onClick, dimmed }) {
   const scoreRatio = cvStatus === 'linked' && total > 0 ? covered / total : null
   const matchColor =
     scoreRatio === null
-      ? '#6b7280'
+      ? 'var(--color-text-secondary)'
       : scoreRatio >= 0.7
-      ? '#22c55e'
+      ? 'var(--color-feedback-success)'
       : scoreRatio >= 0.4
-      ? '#E9C46A'
-      : '#ef4444'
+      ? 'var(--color-feedback-warning)'
+      : 'var(--color-feedback-error)'
 
   // feedback.date can be undefined while a serverTimestamp is still resolving
   // → guard against "Invalid Date" / "Betyg undefined/10".
@@ -573,20 +573,20 @@ function JobCard({ job, feedback, cvs, onClick, dimmed }) {
         onClick={onClick}
         className="w-full text-left rounded-xl border p-4 space-y-2 transition-colors"
         style={{
-          backgroundColor: '#1d1d1d',
-          borderColor: '#404040',
+          backgroundColor: 'var(--color-background-primary)',
+          borderColor: 'var(--color-border-default)',
           opacity: dimmed ? 0.6 : 1,
         }}
-        onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
-        onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
+        onMouseOver={(e) => (e.currentTarget.style.borderColor = 'var(--color-link-text)')}
+        onMouseOut={(e) => (e.currentTarget.style.borderColor = 'var(--color-border-default)')}
       >
         {/* Row 1: title + company */}
         <div>
-          <h3 className="text-white font-semibold text-base leading-snug line-clamp-2">
+          <h3 className="text-text-primary font-medium text-base leading-snug line-clamp-2">
             {job.jobTitle || 'Namnlös jobbannons'}
           </h3>
           {job.company && (
-            <p className="text-sm mt-0.5" style={{ color: '#9ca3af' }}>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
               {job.company}
             </p>
           )}
@@ -598,9 +598,9 @@ function JobCard({ job, feedback, cvs, onClick, dimmed }) {
             <span
               className="text-xs font-semibold px-2 py-1 rounded-full"
               style={{
-                backgroundColor: matchColor + '20',
+                backgroundColor: `color-mix(in srgb, ${matchColor} 10%, transparent)`,
                 color: matchColor,
-                border: `1px solid ${matchColor}40`,
+                border: `1px solid color-mix(in srgb, ${matchColor} 30%, transparent)`,
               }}
             >
               Matchning: {covered} av {total} krav
@@ -612,7 +612,7 @@ function JobCard({ job, feedback, cvs, onClick, dimmed }) {
           <div>
             <span
               className="text-xs font-medium px-2 py-1 rounded-full"
-              style={{ backgroundColor: '#8064ad20', color: '#b9a5d6', border: '1px solid #8064ad40' }}
+              style={{ backgroundColor: 'var(--color-action-secondary-background-hover)', color: 'var(--color-accent-purple)', border: '1px solid var(--color-action-secondary-background-pressed)' }}
             >
               {cvStatus === 'missing' ? 'Välj ett nytt CV' : 'Koppla CV för att träna'}
             </span>
@@ -620,7 +620,7 @@ function JobCard({ job, feedback, cvs, onClick, dimmed }) {
         )}
 
         {/* Row 3: last training */}
-        <p className="text-xs" style={{ color: lastTraining ? '#9ca3af' : '#6b7280' }}>
+        <p className="text-xs" style={{ color: lastTraining ? 'var(--color-text-secondary)' : 'var(--color-text-secondary)' }}>
           {lastTraining ?? 'Ingen träning ännu'}
         </p>
       </button>

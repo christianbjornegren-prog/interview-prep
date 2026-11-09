@@ -139,7 +139,7 @@ export default function JobPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <p className="text-sm" style={{ color: '#6b7280' }}>Laddar uppdrag...</p>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Laddar uppdrag...</p>
       </div>
     )
   }
@@ -150,13 +150,13 @@ export default function JobPage() {
         <button
           onClick={() => navigate('/')}
           className="text-sm transition-colors"
-          style={{ color: '#6b7280' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          style={{ color: 'var(--color-text-secondary)' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
         >
           ← Tillbaka till alla uppdrag
         </button>
-        <p className="text-sm" style={{ color: '#f87171' }}>
+        <p className="text-sm" style={{ color: 'var(--color-feedback-error)' }}>
           Uppdraget hittades inte.
         </p>
       </div>
@@ -286,15 +286,15 @@ export default function JobPage() {
   return (
     // Desktop-first executive briefing: bryt ut ur appens smala max-w-5xl och
     // bli bredare (~1200px), centrerad. Gäller ENBART uppdragsvyn.
-    <div className="relative left-1/2 -translate-x-1/2 w-[min(1200px,100vw-2rem)] space-y-6">
+    <div className="relative left-1/2 -translate-x-1/2 w-[min(1200px,100vw-2rem)] desktop:w-[min(1200px,100vw-320px)] space-y-6">
       {/* Back – dold i konfigurationsläget, som har sin egen */}
       {!inConfig && (
         <button
           onClick={() => navigate(backPath)}
           className="text-sm transition-colors"
-          style={{ color: '#6b7280' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+          style={{ color: 'var(--color-text-secondary)' }}
+          onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
         >
           {backLabel}
         </button>
@@ -303,11 +303,11 @@ export default function JobPage() {
       {/* Header: titel + kund vänster, Starta höger */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
+          <h1 className="text-2xl font-medium text-text-primary tracking-tight">
             {job.jobTitle || 'Namnlös roll'}
           </h1>
           {job.company && (
-            <p className="text-sm mt-1" style={{ color: '#9ca3af' }}>
+            <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
               {job.company}
             </p>
           )}
@@ -320,7 +320,7 @@ export default function JobPage() {
               disabled={!canStart}
             />
             {!loadingCvs && !readiness.ready && (
-              <p className="text-xs max-w-[16rem] text-right" style={{ color: '#9ca3af' }}>
+              <p className="text-xs max-w-[16rem] text-right" style={{ color: 'var(--color-text-secondary)' }}>
                 {readiness.reason === 'no-questions'
                   ? READINESS_MESSAGE['no-questions']
                   : 'Koppla ett CV nedan för att kunna starta.'}
@@ -334,7 +334,7 @@ export default function JobPage() {
           Dold i konfigurationsläget, där valet redan är gjort. */}
       {!inConfig && (
         loadingCvs ? (
-          <p className="text-xs" style={{ color: '#6b7280' }}>Laddar CV...</p>
+          <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Laddar CV...</p>
         ) : (
           <JobCvPicker
             job={job}
@@ -362,7 +362,7 @@ export default function JobPage() {
         <>
           {/* Tabs – only for konsult/admin */}
           {!isReadOnly && (
-            <div className="border-b" style={{ borderColor: '#404040' }}>
+            <div className="border-b" style={{ borderColor: 'var(--color-border-default)' }}>
               <div className="flex gap-1">
                 {TABS.map((tab) => (
                   <button
@@ -370,10 +370,10 @@ export default function JobPage() {
                     onClick={() => setActiveTab(tab.key)}
                     className="px-4 py-2.5 text-sm font-medium transition-colors"
                     style={{
-                      color: activeTab === tab.key ? '#fff' : '#6b7280',
+                      color: activeTab === tab.key ? 'var(--color-link-text)' : 'var(--color-text-secondary)',
                       borderBottom:
                         activeTab === tab.key
-                          ? '2px solid #8064ad'
+                          ? '2px solid var(--color-link-text)'
                           : '2px solid transparent',
                     }}
                   >
@@ -411,14 +411,14 @@ export default function JobPage() {
 
           {/* Archive link – only for the job owner */}
           {!isReadOnly && (
-            <div className="pt-6 border-t" style={{ borderColor: '#323232' }}>
+            <div className="pt-6 border-t" style={{ borderColor: 'var(--color-border-default)' }}>
               <button
                 onClick={handleArchive}
                 disabled={archiving}
                 className="text-xs transition-colors disabled:opacity-40"
-                style={{ color: '#4b5563' }}
-                onMouseOver={(e) => (e.currentTarget.style.color = '#9ca3af')}
-                onMouseOut={(e) => (e.currentTarget.style.color = '#4b5563')}
+                style={{ color: 'var(--color-text-secondary)' }}
+                onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+                onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
               >
                 {archiving
                   ? 'Sparar...'
@@ -439,13 +439,13 @@ export default function JobPage() {
 
 // ── Wayfinding (ikon + färg per metric/sektion) ───────────────────────────
 // Ikonbrickor: ljus bakgrund + mörk ikon (läsbart). Stora siffervärden i vyn
-// använder LJUSA semantiska färger (CSS-vars / #8064ad) – aldrig dessa mörka hex.
+// använder semantiska feedback-tokens (--color-feedback-*), aldrig hårdkodade hex.
 
 const WF = {
-  coverage:   { badgeBg: '#EEEDFE', iconColor: '#26215C', icon: (s) => <TiChartPie size={s} /> },
-  prioritera: { badgeBg: '#FAEEDA', iconColor: '#854F0B', icon: (s) => <TiFlag size={s} /> },
-  forbered:   { badgeBg: '#F1EFE8', iconColor: '#444441', icon: (s) => <TiListCheck size={s} /> },
-  styrkor:    { badgeBg: '#EAF3DE', iconColor: '#27500A', icon: (s) => <TiStar size={s} /> },
+  coverage:   { badgeBg: 'var(--color-action-secondary-background-pressed)', iconColor: 'var(--color-accent-purple)', icon: (s) => <TiChartPie size={s} /> },
+  prioritera: { badgeBg: 'var(--color-feedback-warning-background)', iconColor: 'var(--color-feedback-warning)', icon: (s) => <TiFlag size={s} /> },
+  forbered:   { badgeBg: 'var(--color-background-tertiary)', iconColor: 'var(--color-text-secondary)', icon: (s) => <TiListCheck size={s} /> },
+  styrkor:    { badgeBg: 'var(--color-feedback-success-background)', iconColor: 'var(--color-feedback-success)', icon: (s) => <TiStar size={s} /> },
 }
 
 function IconBadge({ bg, color, size = 32, children }) {
@@ -463,9 +463,9 @@ function SectionHeading({ wf, title, count, titleColor }) {
   return (
     <div className="flex items-center gap-2.5 mb-3">
       <IconBadge bg={wf.badgeBg} color={wf.iconColor} size={28}>{wf.icon(16)}</IconBadge>
-      <h3 className="text-sm font-semibold" style={{ color: titleColor }}>
+      <h3 className="text-sm font-medium" style={{ color: titleColor }}>
         {title}
-        {count != null && <span className="font-normal" style={{ color: '#6b7280' }}> · {count}</span>}
+        {count != null && <span className="font-normal" style={{ color: 'var(--color-text-secondary)' }}> · {count}</span>}
       </h3>
     </div>
   )
@@ -488,14 +488,14 @@ function DescriptionView({ blocks }) {
     <div className="space-y-2">
       {blocks.map((b, i) => {
         if (b.type === 'heading') {
-          return <p key={i} className="text-sm font-semibold text-white mt-4 mb-1">{b.text}</p>
+          return <p key={i} className="text-sm font-semibold text-text-primary mt-4 mb-1">{b.text}</p>
         }
         if (b.type === 'list') {
           return (
             <ul key={i} className="space-y-0.5 my-1">
               {b.items.map((it, j) => (
-                <li key={j} className="flex gap-2 text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
-                  <span className="shrink-0 mt-0.5" style={{ color: '#8064ad' }}>•</span>
+                <li key={j} className="flex gap-2 text-sm leading-relaxed" style={{ color: 'var(--color-text-primary)' }}>
+                  <span className="shrink-0 mt-0.5" style={{ color: 'var(--color-accent-purple)' }}>•</span>
                   {it}
                 </li>
               ))}
@@ -503,7 +503,7 @@ function DescriptionView({ blocks }) {
           )
         }
         return (
-          <p key={i} className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#d1d5db' }}>
+          <p key={i} className="text-sm leading-relaxed whitespace-pre-line" style={{ color: 'var(--color-text-primary)' }}>
             {b.text}
           </p>
         )
@@ -541,16 +541,16 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError, cvLinked, loa
       {/* b. AI-summering + refresh */}
       <div className="flex items-start justify-between gap-6">
         {summary
-          ? <p className="text-sm leading-relaxed max-w-3xl" style={{ color: '#d1d5db' }}>{summary}</p>
+          ? <p className="text-sm leading-relaxed max-w-3xl" style={{ color: 'var(--color-text-primary)' }}>{summary}</p>
           : <span />}
         {onRefreshGap && (
           <button
             onClick={onRefreshGap}
             disabled={refreshingGap}
             className="text-xs transition-colors disabled:opacity-40 shrink-0"
-            style={{ color: '#6b7280' }}
-            onMouseOver={(e) => !refreshingGap && (e.currentTarget.style.color = '#fff')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+            style={{ color: 'var(--color-text-secondary)' }}
+            onMouseOver={(e) => !refreshingGap && (e.currentTarget.style.color = 'var(--color-text-primary)')}
+            onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
           >
             🔄 Uppdatera analys
           </button>
@@ -558,7 +558,7 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError, cvLinked, loa
       </div>
 
       {refreshError && !refreshingGap && (
-        <p className="text-xs" style={{ color: '#f87171' }}>
+        <p className="text-xs" style={{ color: 'var(--color-feedback-error)' }}>
           {refreshError}
         </p>
       )}
@@ -566,12 +566,12 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError, cvLinked, loa
       {cvLinked && invalidValues.length > 0 && !refreshingGap && (
         <div
           className="rounded-xl border p-4"
-          style={{ backgroundColor: '#2b1a0d', borderColor: '#7c5a1a' }}
+          style={{ backgroundColor: 'var(--color-feedback-warning-background)', borderColor: 'color-mix(in srgb, var(--color-feedback-warning) 40%, transparent)' }}
         >
-          <p className="text-sm font-semibold" style={{ color: 'var(--color-text-warning)' }}>
+          <p className="text-sm font-semibold" style={{ color: 'var(--color-feedback-warning)' }}>
             Analysen kunde inte tolkas korrekt
           </p>
-          <p className="text-sm mt-1" style={{ color: '#d1d5db' }}>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-primary)' }}>
             {invalidValues.length} värde{invalidValues.length === 1 ? '' : 'n'} i
             kravanalysen känns inte igen, vilket gör siffrorna nedan
             missvisande. Kör “🔄 Uppdatera analys” för att generera om den.
@@ -580,7 +580,7 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError, cvLinked, loa
       )}
 
       {refreshingGap && (
-        <p className="text-xs" style={{ color: '#9ca3af' }}>
+        <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
           Analyserar mot det kopplade CV:t...
         </p>
       )}
@@ -592,7 +592,7 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError, cvLinked, loa
         // Matchningen är personlig – utan CV finns inget att matcha mot.
         // (Äldre uppdrag kan ha en analys mot den gamla samlade banken; den
         // visas inte, eftersom den inte gäller något specifikt CV.)
-        <p className="text-sm" style={{ color: '#6b7280' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           Kravtäckning, styrkor och vad du ska förbereda visas så snart ett CV är kopplat.
         </p>
       ) : hasReqs ? (
@@ -612,14 +612,14 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError, cvLinked, loa
           </section>
         </>
       ) : !refreshingGap ? (
-        <p className="text-sm" style={{ color: '#6b7280' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           Ingen analys tillgänglig än.
         </p>
       ) : null}
 
       {/* h. hela uppdragsbeskrivningen längst ned */}
       {hasDescription && (
-        <section id="sec-beskrivning" className="scroll-mt-4 pt-6 border-t" style={{ borderColor: '#323232' }}>
+        <section id="sec-beskrivning" className="scroll-mt-4 pt-6 border-t" style={{ borderColor: 'var(--color-border-default)' }}>
           <SectionLabel>Hela uppdragsbeskrivningen</SectionLabel>
           {sections.length > 0 ? (
             <StructuredSections sections={sections} />
@@ -640,26 +640,26 @@ function MetricRow({ metrics, onJump }) {
     <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
       <MetricCard
         wf={WF.coverage} label="Kravtäckning" value={`${coveragePct}%`}
-        valueColor="#8064ad" sub={`${strong} av ${total} krav starkt matchade`}
+        valueColor="var(--color-accent-purple)" sub={`${strong} av ${total} krav starkt matchade`}
         onActivate={() => onJump('sec-beskrivning')}
       >
-        <div className="mt-2 w-full rounded-full h-1.5" style={{ backgroundColor: '#404040' }}>
-          <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${coveragePct}%`, backgroundColor: '#8064ad' }} />
+        <div className="mt-2 w-full rounded-full h-1.5" style={{ backgroundColor: 'var(--color-background-tertiary)' }}>
+          <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${coveragePct}%`, backgroundColor: 'var(--color-accent-purple)' }} />
         </div>
       </MetricCard>
       <MetricCard
         wf={WF.prioritera} label="Att prioritera" value={prioritize}
-        valueColor="var(--color-text-warning)" sub="svag matchning på viktiga krav"
+        valueColor="var(--color-feedback-warning)" sub="svag matchning på viktiga krav"
         onActivate={() => onJump('sec-prioritera')}
       />
       <MetricCard
         wf={WF.forbered} label="Att förbereda" value={prepare}
-        valueColor="#fff" sub="delvis matchning"
+        valueColor="var(--color-text-primary)" sub="delvis matchning"
         onActivate={() => onJump('sec-forbered')}
       />
       <MetricCard
         wf={WF.styrkor} label="Dina styrkor" value={strengths}
-        valueColor="var(--color-text-success)" sub="stark matchning"
+        valueColor="var(--color-feedback-success)" sub="stark matchning"
         onActivate={() => onJump('sec-styrkor')}
       />
     </div>
@@ -674,19 +674,19 @@ function MetricCard({ wf, label, value, valueColor, sub, onActivate, children })
       aria-label={`${label}: ${value}. Hoppa till sektionen.`}
       onClick={onActivate}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivate() } }}
-      className="rounded-xl border p-4 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[#8064ad]"
-      style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
-      onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
-      onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
+      className="rounded-xl border p-4 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-focus-ring"
+      style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
+      onMouseOver={(e) => (e.currentTarget.style.borderColor = 'var(--color-link-text)')}
+      onMouseOut={(e) => (e.currentTarget.style.borderColor = 'var(--color-border-default)')}
     >
       <div className="flex items-start justify-between">
         <IconBadge bg={wf.badgeBg} color={wf.iconColor} size={32}>{wf.icon(18)}</IconBadge>
-        <TiChevronDown size={16} color="#6b7280" />
+        <TiChevronDown size={16} color="var(--color-text-secondary)" />
       </div>
-      <p className="text-xs font-medium mt-3" style={{ color: '#6b7280' }}>{label}</p>
+      <p className="text-xs font-medium mt-3" style={{ color: 'var(--color-text-secondary)' }}>{label}</p>
       <p className="text-3xl font-bold mt-0.5" style={{ color: valueColor }}>{value}</p>
       {children}
-      {sub && <p className="text-xs mt-1.5" style={{ color: '#6b7280' }}>{sub}</p>}
+      {sub && <p className="text-xs mt-1.5" style={{ color: 'var(--color-text-secondary)' }}>{sub}</p>}
     </div>
   )
 }
@@ -700,10 +700,10 @@ function QuickFactPills({ facts }) {
         <span
           key={i}
           className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
-          style={{ backgroundColor: '#1d1d1d', border: '1px solid #404040' }}
+          style={{ backgroundColor: 'var(--color-background-primary)', border: '1px solid var(--color-border-default)' }}
         >
-          <span className="font-medium" style={{ color: '#6b7280' }}>{f.label}:</span>
-          <span style={{ color: '#d1d5db' }}>{f.value}</span>
+          <span className="font-medium" style={{ color: 'var(--color-text-secondary)' }}>{f.label}:</span>
+          <span style={{ color: 'var(--color-text-primary)' }}>{f.value}</span>
         </span>
       ))}
     </div>
@@ -716,10 +716,10 @@ function MetaPill({ label, value }) {
   return (
     <span
       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
-      style={{ backgroundColor: '#1d1d1d', border: '1px solid #404040' }}
+      style={{ backgroundColor: 'var(--color-background-primary)', border: '1px solid var(--color-border-default)' }}
     >
-      <span style={{ color: '#6b7280' }}>{label}:</span>
-      <span className="font-medium" style={{ color: '#d1d5db' }}>{value}</span>
+      <span style={{ color: 'var(--color-text-secondary)' }}>{label}:</span>
+      <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{value}</span>
     </span>
   )
 }
@@ -727,10 +727,10 @@ function MetaPill({ label, value }) {
 function PrioritizeSection({ items }) {
   return (
     <div>
-      <SectionHeading wf={WF.prioritera} title="Prioritera dessa" count={items.length} titleColor="var(--color-text-warning)" />
+      <SectionHeading wf={WF.prioritera} title="Prioritera dessa" count={items.length} titleColor="var(--color-feedback-warning)" />
       {items.length === 0 ? (
-        <div className="rounded-xl border p-4" style={{ backgroundColor: '#0d2b1a', borderColor: '#1a4d2e' }}>
-          <p className="text-sm" style={{ color: 'var(--color-text-success)' }}>
+        <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--color-feedback-success-background)', borderColor: 'color-mix(in srgb, var(--color-feedback-success) 30%, transparent)' }}>
+          <p className="text-sm" style={{ color: 'var(--color-feedback-success)' }}>
             Stark matchning – inget kritiskt att prioritera inför det här uppdraget.
           </p>
         </div>
@@ -740,17 +740,17 @@ function PrioritizeSection({ items }) {
             <div
               key={i}
               className="rounded-xl border p-4 space-y-3"
-              style={{ backgroundColor: '#211a0d', borderColor: '#7c5a1a' }}
+              style={{ backgroundColor: 'var(--color-feedback-warning-background)', borderColor: 'color-mix(in srgb, var(--color-feedback-warning) 40%, transparent)' }}
             >
-              <p className="text-base text-white" style={{ fontWeight: 500 }}>{r.requirement}</p>
+              <p className="text-base text-text-primary" style={{ fontWeight: 500 }}>{r.requirement}</p>
               <div className="flex flex-wrap gap-2 text-xs">
                 <MetaPill label="Krav" value={r.importance} />
                 <MetaPill label="Din matchning" value={r.match} />
               </div>
               {r.howToAddress && (
-                <div className="rounded-lg p-3" style={{ backgroundColor: '#2b2414', border: '1px solid #4d3e1a' }}>
-                  <p className="text-xs font-semibold mb-1" style={{ color: '#f0c674' }}>Så här hanterar du det:</p>
-                  <p className="text-sm leading-relaxed" style={{ color: '#f0e3c8' }}>{r.howToAddress}</p>
+                <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--color-background-primary)', border: '1px solid var(--color-border-default)' }}>
+                  <p className="text-xs font-semibold mb-1" style={{ color: 'var(--color-feedback-warning)' }}>Så här hanterar du det:</p>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-primary)' }}>{r.howToAddress}</p>
                 </div>
               )}
             </div>
@@ -766,21 +766,21 @@ function PrioritizeSection({ items }) {
 function PrepareSection({ items }) {
   return (
     <div>
-      <SectionHeading wf={WF.forbered} title="Förbered dig på" count={items.length} titleColor="#e5e5e5" />
+      <SectionHeading wf={WF.forbered} title="Förbered dig på" count={items.length} titleColor="var(--color-text-primary)" />
       {items.length === 0 ? (
-        <p className="text-sm" style={{ color: '#6b7280' }}>Inget extra att förbereda just nu.</p>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Inget extra att förbereda just nu.</p>
       ) : (
         <ul className="grid gap-2 md:grid-cols-2">
           {items.map((r, i) => (
             <li
               key={i}
               className="flex items-center gap-3 rounded-lg p-3"
-              style={{ backgroundColor: '#1d1d1d', border: '1px solid #404040' }}
+              style={{ backgroundColor: 'var(--color-background-primary)', border: '1px solid var(--color-border-default)' }}
             >
-              <span className="text-sm text-white flex-1 min-w-0">{r.requirement}</span>
+              <span className="text-sm text-text-primary flex-1 min-w-0">{r.requirement}</span>
               <span
                 className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
-                style={{ backgroundColor: '#2a2a2a', color: '#9ca3af', border: '1px solid #404040' }}
+                style={{ backgroundColor: 'var(--color-tag-neutral-background)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border-default)' }}
               >
                 {r.match === 'delvis' ? 'Delvis' : 'Låg vikt'}
               </span>
@@ -797,18 +797,18 @@ function PrepareSection({ items }) {
 function StrengthsSection({ items }) {
   return (
     <div>
-      <SectionHeading wf={WF.styrkor} title="Dina styrkor" count={items.length} titleColor="var(--color-text-success)" />
+      <SectionHeading wf={WF.styrkor} title="Dina styrkor" count={items.length} titleColor="var(--color-feedback-success)" />
       {items.length === 0 ? (
-        <p className="text-sm" style={{ color: '#6b7280' }}>Inga starkt matchade krav ännu.</p>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Inga starkt matchade krav ännu.</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {items.map((r, i) => (
             <span
               key={i}
               className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
-              style={{ backgroundColor: '#0d2b1a', color: '#86efac', border: '1px solid #1a4d2e' }}
+              style={{ backgroundColor: 'var(--color-feedback-success-background)', color: 'var(--color-feedback-success)', border: '1px solid color-mix(in srgb, var(--color-feedback-success) 30%, transparent)' }}
             >
-              <TiCheck size={12} color="#4ade80" />
+              <TiCheck size={12} color="var(--color-feedback-success)" />
               {r.requirement}
             </span>
           ))}
@@ -826,13 +826,13 @@ function StructuredSections({ sections }) {
       {sections.map((sec, i) => (
         <div key={i}>
           {sec.heading && (
-            <p className="text-sm font-semibold text-white mb-1">{sec.heading}</p>
+            <p className="text-sm font-semibold text-text-primary mb-1">{sec.heading}</p>
           )}
           {Array.isArray(sec.points) && sec.points.length > 0 && (
             <ul className="space-y-0.5">
               {sec.points.map((pt, j) => (
-                <li key={j} className="flex gap-2 text-sm leading-relaxed" style={{ color: '#d1d5db' }}>
-                  <span className="shrink-0 mt-0.5" style={{ color: '#8064ad' }}>•</span>
+                <li key={j} className="flex gap-2 text-sm leading-relaxed" style={{ color: 'var(--color-text-primary)' }}>
+                  <span className="shrink-0 mt-0.5" style={{ color: 'var(--color-accent-purple)' }}>•</span>
                   {pt}
                 </li>
               ))}
@@ -849,7 +849,7 @@ function StructuredSections({ sections }) {
 function HistoryTab({ feedbacks, loading, canStart, blockedMessage, onNavigate, onStartInterview }) {
   if (loading) {
     return (
-      <p className="text-sm" style={{ color: '#6b7280' }}>
+      <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
         Laddar...
       </p>
     )
@@ -858,14 +858,14 @@ function HistoryTab({ feedbacks, loading, canStart, blockedMessage, onNavigate, 
   if (feedbacks.length === 0) {
     return (
       <div className="text-center py-8 space-y-4">
-        <p className="text-sm" style={{ color: '#6b7280' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           Du har inte tränat på detta uppdrag ännu. Starta din första intervju!
         </p>
         <div className="flex justify-center">
           <StartInterviewButton onClick={onStartInterview} disabled={!canStart} />
         </div>
         {blockedMessage && (
-          <p className="text-xs" style={{ color: '#9ca3af' }}>{blockedMessage}</p>
+          <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{blockedMessage}</p>
         )}
       </div>
     )
@@ -876,23 +876,23 @@ function HistoryTab({ feedbacks, loading, canStart, blockedMessage, onNavigate, 
       {feedbacks.map((feedback) => {
         const scoreColor =
           feedback.overallScore >= 8
-            ? '#22c55e'
+            ? 'var(--color-feedback-success)'
             : feedback.overallScore >= 6
-            ? '#E9C46A'
-            : '#ef4444'
+            ? 'var(--color-feedback-warning)'
+            : 'var(--color-feedback-error)'
 
         return (
           <li key={feedback.id}>
             <button
               onClick={() => onNavigate(feedback.id)}
               className="w-full text-left rounded-xl border p-4 transition-colors flex items-center justify-between gap-4"
-              style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
-              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#8064ad')}
-              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#404040')}
+              style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
+              onMouseOver={(e) => (e.currentTarget.style.borderColor = 'var(--color-link-text)')}
+              onMouseOut={(e) => (e.currentTarget.style.borderColor = 'var(--color-border-default)')}
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm text-white">
+                  <p className="text-sm text-text-primary">
                     {feedback.createdAt
                       ? new Date(feedback.createdAt.toDate()).toLocaleDateString(
                           'sv-SE',
@@ -903,7 +903,7 @@ function HistoryTab({ feedbacks, loading, canStart, blockedMessage, onNavigate, 
                   {feedback.sharedWithSeller && (
                     <span
                       className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
-                      style={{ backgroundColor: '#2a9d8f20', color: '#5ecfc3', border: '1px solid #2a9d8f40' }}
+                      style={{ backgroundColor: 'var(--color-feedback-info-background)', color: 'var(--color-feedback-info)', border: '1px solid color-mix(in srgb, var(--color-feedback-info) 30%, transparent)' }}
                       title="Delad med din säljare"
                     >
                       Delad
@@ -912,7 +912,7 @@ function HistoryTab({ feedbacks, loading, canStart, blockedMessage, onNavigate, 
                   {isEnglish(feedback.language) && (
                     <span
                       className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
-                      style={{ backgroundColor: '#8064ad20', color: '#b9a5d6', border: '1px solid #8064ad40' }}
+                      style={{ backgroundColor: 'var(--color-action-secondary-background-hover)', color: 'var(--color-text-primary)', border: '1px solid color-mix(in srgb, var(--color-accent-purple) 30%, transparent)' }}
                       title="Intervjun hölls på engelska"
                     >
                       EN
@@ -920,7 +920,7 @@ function HistoryTab({ feedbacks, loading, canStart, blockedMessage, onNavigate, 
                   )}
                 </div>
                 {feedback.interviewer && (
-                  <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
                     Intervjuare: {feedback.interviewer}
                   </p>
                 )}
@@ -930,7 +930,7 @@ function HistoryTab({ feedbacks, loading, canStart, blockedMessage, onNavigate, 
                 style={{
                   width: 48,
                   height: 48,
-                  backgroundColor: scoreColor + '20',
+                  backgroundColor: `color-mix(in srgb, ${scoreColor} 12%, transparent)`,
                   border: `2px solid ${scoreColor}`,
                 }}
               >
@@ -952,22 +952,22 @@ function HistoryTab({ feedbacks, loading, canStart, blockedMessage, onNavigate, 
 // ── Interview Config Screen ───────────────────────────────────────────────
 
 const CAT_META = {
-  erfarenhet: { label: 'Erfarenhet', color: '#8064ad' },
-  kompetens:  { label: 'Kompetens',  color: '#8064ad' },
-  situation:  { label: 'Situation',  color: '#E9C46A' },
-  motivation: { label: 'Motivation', color: '#7C5CBF' },
+  erfarenhet: { label: 'Erfarenhet', color: 'var(--color-tag-purple-1)' },
+  kompetens:  { label: 'Kompetens',  color: 'var(--color-tag-purple-1)' },
+  situation:  { label: 'Situation',  color: 'var(--color-tag-orange-1)' },
+  motivation: { label: 'Motivation', color: 'var(--color-tag-purple-2)' },
 }
 
 const DIFFICULTY_COLOR = {
-  Avslappnad: '#22c55e',
-  Standard:   '#E9C46A',
-  Hård:       '#ef4444',
+  Avslappnad: 'var(--color-feedback-success)',
+  Standard:   'var(--color-text-secondary)',
+  Hård:       'var(--color-feedback-error)',
 }
 
 function OptionGroup({ label, options, value, onChange, renderLabel = (o) => o }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-accent-purple)' }}>
         {label}
       </p>
       <div className="flex flex-wrap gap-2">
@@ -978,8 +978,8 @@ function OptionGroup({ label, options, value, onChange, renderLabel = (o) => o }
             className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             style={
               value === opt
-                ? { backgroundColor: '#8064ad', color: '#fff' }
-                : { backgroundColor: '#323232', color: '#9ca3af' }
+                ? { backgroundColor: 'var(--color-action-primary-background)', color: 'var(--color-action-primary-text)' }
+                : { backgroundColor: 'var(--color-background-tertiary)', color: 'var(--color-text-secondary)' }
             }
           >
             {renderLabel(opt)}
@@ -1003,7 +1003,7 @@ function InterviewConfigScreen({
     : sourceQuestions
   const pool = filtered.length > 0 ? filtered : sourceQuestions
   const previewQuestions = pool.slice(0, config.numQuestions)
-  const diffColor = DIFFICULTY_COLOR[config.difficulty] ?? '#9ca3af'
+  const diffColor = DIFFICULTY_COLOR[config.difficulty] ?? 'var(--color-text-secondary)'
 
   return (
     <div className="space-y-6">
@@ -1011,14 +1011,14 @@ function InterviewConfigScreen({
       <button
         onClick={onBack}
         className="text-sm transition-colors"
-        style={{ color: '#6b7280' }}
-        onMouseOver={(e) => (e.currentTarget.style.color = '#fff')}
-        onMouseOut={(e) => (e.currentTarget.style.color = '#6b7280')}
+        style={{ color: 'var(--color-text-secondary)' }}
+        onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+        onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
       >
         ← Tillbaka
       </button>
 
-      <h2 className="text-xl font-bold text-white tracking-tight">Konfigurera intervjun</h2>
+      <h2 className="text-xl font-medium text-text-primary tracking-tight">Konfigurera intervjun</h2>
 
       <div className="grid gap-8 md:grid-cols-2">
         {/* Left – settings */}
@@ -1049,7 +1049,7 @@ function InterviewConfigScreen({
             renderLabel={(o) => LANGUAGE_LABEL[o]}
           />
           {prepareError && (
-            <p className="text-xs" style={{ color: '#f87171' }}>
+            <p className="text-xs" style={{ color: 'var(--color-feedback-error)' }}>
               {prepareError}
             </p>
           )}
@@ -1065,24 +1065,24 @@ function InterviewConfigScreen({
 
         {/* Right – question preview */}
         <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#8064ad' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-accent-purple)' }}>
             Frågor som ingår ({previewQuestions.length})
           </p>
           {preparing ? (
             <div
               className="flex items-center gap-3 rounded-lg border p-4"
-              style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+              style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
             >
               <Spinner />
               <div>
-                <p className="text-sm text-white">Skapar engelska frågor...</p>
-                <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
+                <p className="text-sm text-text-primary">Skapar engelska frågor...</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
                   Det tar några sekunder. De sparas och återanvänds nästa gång.
                 </p>
               </div>
             </div>
           ) : previewQuestions.length === 0 ? (
-            <p className="text-sm" style={{ color: '#6b7280' }}>
+            <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
               Inga frågor matchar valt fokus.
             </p>
           ) : (
@@ -1093,25 +1093,25 @@ function InterviewConfigScreen({
                   <li
                     key={i}
                     className="rounded-lg border p-3 space-y-2"
-                    style={{ backgroundColor: '#1d1d1d', borderColor: '#404040' }}
+                    style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
                   >
                     <div className="flex items-center gap-2">
                       {cat && (
                         <span
                           className="text-xs font-medium px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: cat.color + '20', color: cat.color }}
+                          style={{ backgroundColor: cat.color, color: 'var(--color-tag-text)' }}
                         >
                           {cat.label}
                         </span>
                       )}
                       <span
                         className="text-xs font-medium px-2 py-0.5 rounded-full"
-                        style={{ backgroundColor: diffColor + '20', color: diffColor }}
+                        style={{ backgroundColor: `color-mix(in srgb, ${diffColor} 12%, transparent)`, color: diffColor }}
                       >
                         {config.difficulty}
                       </span>
                     </div>
-                    <p className="text-sm text-white leading-relaxed">{q.question}</p>
+                    <p className="text-sm text-text-primary leading-relaxed">{q.question}</p>
                   </li>
                 )
               })}
@@ -1144,7 +1144,7 @@ function SectionLabel({ children, noMargin }) {
   return (
     <p
       className={`text-xs font-semibold uppercase tracking-widest${noMargin ? '' : ' mb-3'}`}
-      style={{ color: '#8064ad' }}
+      style={{ color: 'var(--color-accent-purple)' }}
     >
       {children}
     </p>
