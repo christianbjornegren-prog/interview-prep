@@ -15,6 +15,32 @@ function resolveLanguage(req) {
   }
 }
 
+// Inspelningsformat per webbläsare: Chrome/Edge/Firefox skickar WebM, Safari
+// och ALLA webbläsare på iPhone/iPad skickar MP4. OpenAI avgör formatet på
+// FILNAMNETS ändelse, så en MP4 som kallas audio.webm avvisas. Okänd eller
+// saknad Content-Type → webm, exakt som förut (äldre klienter är oförändrade).
+const AUDIO_FORMATS = {
+  'audio/webm': 'webm',
+  'video/webm': 'webm',
+  'audio/mp4': 'mp4',
+  'video/mp4': 'mp4',
+  'audio/x-m4a': 'm4a',
+  'audio/m4a': 'm4a',
+  'audio/aac': 'm4a',
+  'audio/ogg': 'ogg',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/mpeg': 'mp3',
+}
+
+export function resolveAudioFormat(contentType) {
+  const type = String(contentType ?? '').split(';')[0].trim().toLowerCase()
+  const extension = AUDIO_FORMATS[type]
+  return extension
+    ? { type, extension }
+    : { type: 'audio/webm', extension: 'webm' }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -23,7 +49,8 @@ export default async function handler(req, res) {
 
   const startTime = Date.now()
   const language = resolveLanguage(req)
-  console.log('[OPENAI][DEBUG] Whisper request received', { language })
+  const format = resolveAudioFormat(req.headers?.['content-type'])
+  console.log('[OPENAI][DEBUG] Whisper request received', { language, format: format.extension })
 
   try {
     const chunks = []
@@ -35,8 +62,8 @@ export default async function handler(req, res) {
     const formData = new FormData()
     formData.append(
       'file',
-      new Blob([audioBuffer], { type: 'audio/webm' }),
-      'audio.webm'
+      new Blob([audioBuffer], { type: format.type }),
+      `audio.${format.extension}`
     )
     formData.append('model', 'whisper-1')
     formData.append('language', language)
