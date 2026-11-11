@@ -141,7 +141,7 @@ export default function JobCreate() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between max-sm:flex-col-reverse max-sm:items-start max-sm:gap-1">
         <div>
           <h1 className="text-2xl font-medium text-text-primary tracking-tight">Nytt uppdrag</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
@@ -161,7 +161,7 @@ export default function JobCreate() {
                   : '/'
               )
             }
-            className="text-sm transition-colors shrink-0"
+            className="text-sm transition-colors shrink-0 tap-target"
             style={{ color: 'var(--color-text-secondary)' }}
             onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
             onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
@@ -235,7 +235,7 @@ export default function JobCreate() {
                     id="job-cv"
                     value={selectedCvId}
                     onChange={(e) => { setSelectedCvId(e.target.value); setCvTouched(true) }}
-                    className="flex-1 min-w-0 rounded-lg border px-4 py-3 text-sm text-input-text focus:outline-none focus:border-focus-ring"
+                    className="flex-1 min-w-0 rounded-lg border px-4 py-3 text-sm text-input-text focus:outline-none focus:border-focus-ring max-sm:basis-full"
                     style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)' }}
                   >
                     <option value="">Koppla CV senare</option>
@@ -259,7 +259,7 @@ export default function JobCreate() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold transition-colors shrink-0"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold transition-colors shrink-0 max-sm:w-full"
                     style={{ backgroundColor: 'var(--color-action-secondary-background)', border: '1px solid var(--color-action-secondary-border)', color: 'var(--color-action-secondary-text)' }}
                     onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-link-text-hover)')}
                     onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-action-secondary-text)')}
@@ -286,7 +286,7 @@ export default function JobCreate() {
                     <button
                       type="button"
                       onClick={removeNewCv}
-                      className="text-xs shrink-0 transition-colors"
+                      className="text-xs shrink-0 transition-colors tap-target max-sm:px-1"
                       style={{ color: 'var(--color-text-secondary)' }}
                       onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-feedback-error)')}
                       onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}

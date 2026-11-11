@@ -116,14 +116,14 @@ export default function JobCvPicker({ job, cvs, store, onChanged, variant = 'car
         </div>
 
         {!linking && (
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <div className="flex items-center gap-2 flex-wrap shrink-0 max-sm:w-full">
             {cvs.length > 0 && (
-              <label className="flex items-center">
+              <label className="flex items-center max-sm:flex-1 max-sm:min-w-[10rem]">
                 <span className="sr-only">Välj CV för uppdraget</span>
                 <select
                   value={pendingCvId || current?.id || ''}
                   onChange={(e) => handleSelect(e.target.value)}
-                  className="rounded-lg border px-3 py-2 text-sm text-input-text focus:outline-none focus:border-focus-ring max-w-[18rem]"
+                  className="rounded-lg border px-3 py-2 text-sm text-input-text focus:outline-none focus:border-focus-ring max-w-[18rem] max-sm:w-full max-sm:max-w-none max-sm:min-h-11"
                   style={{ backgroundColor: 'var(--color-input-background)', borderColor: needsCv ? 'var(--color-focus-ring)' : 'var(--color-input-border)' }}
                 >
                   {!current && <option value="">Välj CV…</option>}
@@ -157,14 +157,14 @@ export default function JobCvPicker({ job, cvs, store, onChanged, variant = 'car
           <div className="flex gap-2">
             <button
               onClick={() => setPendingCvId('')}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium max-sm:min-h-11 max-sm:px-4 max-sm:text-sm"
               style={{ backgroundColor: 'var(--color-background-primary)', color: 'var(--color-text-primary)' }}
             >
               Avbryt
             </button>
             <button
               onClick={() => link(pendingCv)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold max-sm:min-h-11 max-sm:px-4 max-sm:text-sm"
               style={{ backgroundColor: 'transparent', border: '1px solid var(--color-action-secondary-border)', color: 'var(--color-action-secondary-text)' }}
             >
               Byt CV
@@ -201,7 +201,7 @@ function UploadButton({ open, onClick, emphasized, label }) {
     <button
       onClick={onClick}
       aria-expanded={open}
-      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors max-sm:flex-1 max-sm:justify-center max-sm:min-h-11 max-sm:whitespace-nowrap"
       style={base}
       onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--color-action-secondary-border)'; e.currentTarget.style.color = 'var(--color-link-text-hover)' }}
       onMouseOut={(e) => { e.currentTarget.style.borderColor = base.border.split(' ').pop(); e.currentTarget.style.color = base.color }}

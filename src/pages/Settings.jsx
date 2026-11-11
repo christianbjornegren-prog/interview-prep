@@ -69,7 +69,7 @@ export default function Settings() {
           {ACTIONS.map((action) => (
             <div
               key={action.key}
-              className="rounded-xl border p-5 flex items-center justify-between gap-4"
+              className="rounded-xl border p-5 flex items-center justify-between gap-4 max-sm:flex-col max-sm:items-stretch max-sm:gap-3"
               style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
             >
               <div className="min-w-0">
@@ -91,7 +91,7 @@ export default function Settings() {
                   )
                 }
                 disabled={busy}
-                className="shrink-0 px-4 py-2 rounded-lg text-action-primary-text text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="shrink-0 px-4 py-2 rounded-lg text-action-primary-text text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-sm:min-h-11"
                 style={{ backgroundColor: 'var(--color-action-primary-background)' }}
               >
                 {busyKey === action.key ? 'Rensar...' : 'Rensa'}
@@ -102,7 +102,7 @@ export default function Settings() {
       </section>
 
       <section
-        className="rounded-xl border p-5 flex items-center justify-between gap-4"
+        className="rounded-xl border p-5 flex items-center justify-between gap-4 max-sm:flex-col max-sm:items-stretch max-sm:gap-3"
         style={{ backgroundColor: 'var(--color-feedback-error-background)', borderColor: 'var(--color-feedback-error)' }}
       >
         <div className="min-w-0">
@@ -122,7 +122,7 @@ export default function Settings() {
             )
           }
           disabled={busy}
-          className="shrink-0 px-4 py-2 rounded-lg text-action-danger-text text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="shrink-0 px-4 py-2 rounded-lg text-action-danger-text text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-sm:min-h-11"
           style={{ backgroundColor: 'var(--color-action-danger-background)' }}
         >
           {busyKey === 'all' ? 'Rensar...' : 'Rensa allt'}

@@ -69,26 +69,26 @@ export default function PendingProfilPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 max-sm:flex-col max-sm:items-start max-sm:gap-1">
         <button
           onClick={() => navigate('/konsulter')}
-          className="text-sm transition-colors shrink-0"
+          className="text-sm transition-colors shrink-0 tap-target"
           style={{ color: 'var(--color-text-secondary)' }}
           onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
           onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
         >
           ← Konsulter
         </button>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-medium text-text-primary tracking-tight">
+        <div className="max-sm:min-w-0 max-sm:max-w-full">
+          <div className="flex items-center gap-2 max-sm:flex-wrap">
+            <h1 className="text-2xl font-medium text-text-primary tracking-tight max-sm:text-xl max-sm:break-words">
               {profile.name ?? email}
             </h1>
             <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--color-feedback-warning-background)', color: 'var(--color-feedback-warning)' }}>
               Väntande
             </span>
           </div>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>{email}</p>
+          <p className="text-sm mt-0.5 max-sm:break-all" style={{ color: 'var(--color-text-secondary)' }}>{email}</p>
         </div>
       </div>
 
@@ -108,7 +108,7 @@ export default function PendingProfilPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className="px-5 py-2.5 text-sm font-medium transition-colors -mb-px"
+            className="px-5 py-2.5 text-sm font-medium transition-colors -mb-px max-sm:px-4 max-sm:py-3"
             style={{
               color: activeTab === tab.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
               borderBottom: activeTab === tab.id ? '2px solid var(--color-link-text)' : '2px solid transparent',
@@ -142,7 +142,7 @@ export default function PendingProfilPage() {
                   },
                 })
               }
-              className="px-3 py-1.5 rounded-lg text-sm font-semibold text-action-primary-text transition-colors"
+              className="px-3 py-1.5 rounded-lg text-sm font-semibold text-action-primary-text transition-colors max-sm:w-full max-sm:min-h-11"
               style={{ backgroundColor: 'var(--color-action-primary-background)' }}
               onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
               onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}
@@ -154,7 +154,7 @@ export default function PendingProfilPage() {
           {cvError && <p className="text-sm" style={{ color: 'var(--color-feedback-error)' }}>{cvError}</p>}
 
           {jobs.length === 0 ? (
-            <div className="rounded-xl border-2 border-dashed p-12 text-center" style={{ borderColor: 'var(--color-border-default)' }}>
+            <div className="rounded-xl border-2 border-dashed p-12 text-center max-sm:p-6" style={{ borderColor: 'var(--color-border-default)' }}>
               <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 Inga uppdrag ännu. Skapa ett uppdrag och koppla sedan det CV som gäller för det.
               </p>

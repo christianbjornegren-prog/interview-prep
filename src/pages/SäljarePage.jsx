@@ -67,11 +67,11 @@ export default function SäljarePage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between max-sm:flex-wrap max-sm:gap-3">
         <h1 className="text-2xl font-medium text-text-primary tracking-tight">Konsulter</h1>
         <button
           onClick={() => setShowModal(true)}
-          className="px-4 py-2 rounded-lg text-action-primary-text text-sm font-semibold transition-colors"
+          className="px-4 py-2 rounded-lg text-action-primary-text text-sm font-semibold transition-colors max-sm:min-h-11"
           style={{ backgroundColor: 'var(--color-action-primary-background)' }}
           onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
           onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}
@@ -246,12 +246,12 @@ function NewKonsultModal({ onClose, onCreated }) {
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="w-full max-w-sm rounded-2xl border p-6 space-y-5"
+        className="w-full max-w-sm rounded-2xl border p-6 space-y-5 max-sm:p-5 max-sm:max-h-[calc(100dvh-2rem)] max-sm:overflow-y-auto"
         style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       >
         <div className="flex items-center justify-between">
           <h2 className="text-text-primary font-medium text-lg">Förbered ny konsult</h2>
-          <button onClick={onClose} className="text-sm transition-colors" style={{ color: 'var(--color-text-secondary)' }}
+          <button onClick={onClose} className="text-sm transition-colors tap-target max-sm:-my-3 max-sm:px-2 max-sm:-mx-2" style={{ color: 'var(--color-text-secondary)' }}
             onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
             onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
           >✕</button>
@@ -295,7 +295,7 @@ function NewKonsultModal({ onClose, onCreated }) {
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors"
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors max-sm:py-3"
             style={{ backgroundColor: 'var(--color-background-tertiary)', color: 'var(--color-text-secondary)' }}
           >
             Avbryt
@@ -303,7 +303,7 @@ function NewKonsultModal({ onClose, onCreated }) {
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-action-primary-text transition-colors disabled:opacity-60"
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-action-primary-text transition-colors disabled:opacity-60 max-sm:py-3"
             style={{ backgroundColor: 'var(--color-action-primary-background)' }}
             onMouseOver={(e) => !saving && (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
             onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}

@@ -50,7 +50,7 @@ export default function AddCompetencyModal({ cvName, onClose, onSave }) {
         role="dialog"
         aria-modal="true"
         aria-label="Lägg till kompetens"
-        className="w-full max-w-md rounded-2xl border p-6 space-y-5"
+        className="w-full max-w-md rounded-2xl border p-6 space-y-5 max-sm:p-5 max-sm:max-h-[calc(100dvh-2rem)] max-sm:overflow-y-auto"
         style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       >
         <div className="flex items-start justify-between gap-4">
@@ -62,7 +62,7 @@ export default function AddCompetencyModal({ cvName, onClose, onSave }) {
               </p>
             )}
           </div>
-          <button onClick={onClose} aria-label="Stäng" className="text-sm transition-colors" style={{ color: 'var(--color-text-secondary)' }}
+          <button onClick={onClose} aria-label="Stäng" className="text-sm transition-colors tap-target max-sm:-my-3 max-sm:px-2 max-sm:-mx-2" style={{ color: 'var(--color-text-secondary)' }}
             onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
             onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
           >✕</button>
@@ -109,7 +109,7 @@ export default function AddCompetencyModal({ cvName, onClose, onSave }) {
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors"
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors max-sm:py-3"
             style={{ backgroundColor: 'var(--color-background-tertiary)', color: 'var(--color-text-secondary)' }}
           >
             Avbryt
@@ -117,7 +117,7 @@ export default function AddCompetencyModal({ cvName, onClose, onSave }) {
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-action-primary-text transition-colors disabled:opacity-60"
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-action-primary-text transition-colors disabled:opacity-60 max-sm:py-3"
             style={{ backgroundColor: 'var(--color-action-primary-background)' }}
             onMouseOver={(e) => !saving && (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
             onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}

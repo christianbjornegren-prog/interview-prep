@@ -59,7 +59,7 @@ function Onboarding() {
   }
 
   return (
-    <div className="pt-16 px-4 max-w-2xl mx-auto space-y-10">
+    <div className="pt-16 px-4 max-w-2xl mx-auto space-y-10 max-sm:pt-6 max-sm:px-0 max-sm:space-y-8">
       <div className="space-y-4">
         <div
           className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border"
@@ -68,11 +68,11 @@ function Onboarding() {
           <span className="w-1.5 h-1.5 rounded-full bg-current" />
           AI-driven intervjuträning
         </div>
-        <h1 className="text-4xl font-medium text-text-primary leading-tight tracking-tight">
+        <h1 className="text-4xl font-medium text-text-primary leading-tight tracking-tight max-sm:text-3xl">
           Träna inför rätt uppdrag,{' '}
           <span style={{ color: 'var(--color-accent-purple)' }}>med dina egna kompetenser</span>
         </h1>
-        <p className="text-text-secondary text-lg leading-relaxed">
+        <p className="text-text-secondary text-lg leading-relaxed max-sm:text-base">
           Ladda upp ditt CV, lägg till jobbannonser och träna med en AI-intervjuare
           anpassad efter just din profil.
         </p>
@@ -103,7 +103,7 @@ function Onboarding() {
         <button
           onClick={handleSignIn}
           disabled={loading}
-          className="flex items-center gap-3 px-6 py-3 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-60"
+          className="flex items-center gap-3 px-6 py-3 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-60 max-sm:w-full max-sm:justify-center"
           style={{ backgroundColor: 'var(--color-background-primary)', color: 'var(--color-text-primary)', borderColor: 'var(--color-border-strong)' }}
           onMouseOver={(e) => !loading && (e.currentTarget.style.backgroundColor = 'var(--color-action-ghost-background-hover)')}
           onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-background-primary)')}
@@ -252,7 +252,7 @@ function Dashboard({ user }) {
           </p>
           <Link
             to="/kompetensbank"
-            className="text-sm font-semibold shrink-0 transition-colors"
+            className="text-sm font-semibold shrink-0 transition-colors tap-target"
             style={{ color: 'var(--color-feedback-warning)' }}
             onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
             onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-feedback-warning)')}
@@ -263,13 +263,13 @@ function Dashboard({ user }) {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between max-sm:flex-wrap max-sm:gap-3">
         <h1 className="text-2xl font-medium text-text-primary tracking-tight">
           Hej {firstName} 👋
         </h1>
         <button
           onClick={() => navigate('/jobb/ny')}
-          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors border"
+          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors border max-sm:min-h-11"
           // Nedtonad till kontur. Den delade tidigare lila yta med den primära
           // åtgärden, och två lika starka knappar bredvid varandra betyder att
           // ingen av dem framhävs.
@@ -333,7 +333,7 @@ function Dashboard({ user }) {
         <div className="space-y-3">
           <button
             onClick={() => setShowArchived((v) => !v)}
-            className="flex items-center gap-2 text-sm font-medium transition-colors"
+            className="flex items-center gap-2 text-sm font-medium transition-colors max-sm:min-h-11"
             style={{ color: 'var(--color-text-secondary)' }}
             onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
             onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
@@ -392,7 +392,7 @@ function OnboardingChecklist({ checklist, onDismiss }) {
         </p>
         <button
           onClick={onDismiss}
-          className="text-xs shrink-0 transition-colors"
+          className="text-xs shrink-0 transition-colors tap-target max-sm:-my-3 max-sm:px-2"
           style={{ color: 'var(--color-feedback-success)' }}
           onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
           onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-feedback-success)')}
@@ -451,7 +451,7 @@ function StartTrainingButton({ onClick }) {
 function NoJobsCard({ onAdd }) {
   return (
     <div
-      className="rounded-xl border-2 border-dashed p-12 text-center space-y-4"
+      className="rounded-xl border-2 border-dashed p-12 text-center space-y-4 max-sm:p-6"
       style={{ borderColor: 'var(--color-border-strong)' }}
     >
       <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
@@ -459,7 +459,7 @@ function NoJobsCard({ onAdd }) {
       </p>
       <button
         onClick={onAdd}
-        className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-action-primary-text text-sm font-semibold transition-colors"
+        className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-action-primary-text text-sm font-semibold transition-colors max-sm:w-full max-sm:justify-center"
         style={{ backgroundColor: 'var(--color-action-primary-background)' }}
         onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background-hover)')}
         onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-primary-background)')}
@@ -473,7 +473,7 @@ function NoJobsCard({ onAdd }) {
 function ReadyToTrainCard({ onStart }) {
   return (
     <div
-      className="rounded-xl border p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+      className="rounded-xl border p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 max-sm:p-5"
       style={{ backgroundColor: 'var(--color-action-secondary-background-hover)', borderColor: 'var(--color-accent-purple)' }}
     >
       <div>
@@ -497,14 +497,14 @@ function JobPickerModal({ jobs, onPick, onClose }) {
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="w-full max-w-md rounded-2xl border p-6 space-y-4"
+        className="w-full max-w-md rounded-2xl border p-6 space-y-4 max-sm:p-5 max-sm:max-h-[calc(100dvh-2rem)] max-sm:overflow-y-auto"
         style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       >
         <div className="flex items-center justify-between">
           <h2 className="text-text-primary font-medium text-lg">Välj uppdrag att träna på</h2>
           <button
             onClick={onClose}
-            className="text-sm transition-colors"
+            className="text-sm transition-colors tap-target max-sm:-my-3 max-sm:px-2 max-sm:-mx-2"
             style={{ color: 'var(--color-text-secondary)' }}
             onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
             onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}

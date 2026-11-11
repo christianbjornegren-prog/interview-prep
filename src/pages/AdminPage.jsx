@@ -95,7 +95,7 @@ export default function AdminPage() {
         placeholder="Sök på namn eller e-post..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="w-full max-w-sm rounded-lg px-4 py-2 text-sm outline-none"
+        className="w-full max-w-sm rounded-lg px-4 py-2 text-sm outline-none max-sm:max-w-none"
         style={{
           backgroundColor: 'var(--color-input-background)',
           border: '1px solid var(--color-input-border)',
@@ -110,7 +110,7 @@ export default function AdminPage() {
         <p className="text-sm py-4" style={{ color: 'var(--color-text-secondary)' }}>Inga användare hittades.</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--color-border-default)' }}>
-          <table className="w-full text-sm">
+          <table className="w-full text-sm max-sm:whitespace-nowrap">
             <thead>
               <tr style={{ backgroundColor: 'var(--color-background-tertiary)', borderBottom: '1px solid var(--color-border-default)' }}>
                 {['Namn', 'E-post', 'Roll', 'Ändrad'].map((col) => (

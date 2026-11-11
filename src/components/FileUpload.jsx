@@ -116,7 +116,7 @@ export default function FileUpload({ store, onSuccess, showNextStep = false, onB
           onClick={() => inputRef.current?.click()}
           className={[
             'flex flex-col items-center justify-center gap-3',
-            'border-2 border-dashed rounded-xl p-10 transition-colors select-none cursor-pointer',
+            'border-2 border-dashed rounded-xl p-10 max-sm:p-6 transition-colors select-none cursor-pointer',
             dragging
               ? 'border-link-text bg-action-secondary-background-hover'
               : 'border-border-default hover:border-action-secondary-border',
@@ -190,7 +190,7 @@ export default function FileUpload({ store, onSuccess, showNextStep = false, onB
           {showNextStep && (
             <Link
               to="/"
-              className="inline-flex items-center gap-1 text-sm font-semibold transition-colors"
+              className="inline-flex items-center gap-1 text-sm font-semibold transition-colors max-sm:min-h-11"
               style={{ color: 'var(--color-link-text)' }}
               onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-link-text-hover)')}
               onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-link-text)')}
@@ -202,7 +202,7 @@ export default function FileUpload({ store, onSuccess, showNextStep = false, onB
           <div>
             <button
               onClick={resetForAnotherUpload}
-              className="text-xs transition-colors"
+              className="text-xs transition-colors tap-target"
               style={{ color: 'var(--color-text-secondary)' }}
               onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
               onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}

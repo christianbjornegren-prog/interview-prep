@@ -27,7 +27,7 @@ export default function Layout({ children }) {
   }
 
   const brand = (
-    <Link to="/" className="flex items-center gap-md">
+    <Link to="/" className="flex items-center gap-md max-desktop:min-h-11">
       <img src={logo} alt="Boulder" style={{ height: 28 }} />
       <span className="text-label-m text-text-primary">Intervjucoach</span>
     </Link>
@@ -44,7 +44,7 @@ export default function Layout({ children }) {
         >
           {brand}
         </header>
-        <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-10">{children}</main>
+        <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-10 max-sm:px-4 max-sm:py-6">{children}</main>
         <Footer />
       </div>
     )
@@ -109,7 +109,7 @@ export default function Layout({ children }) {
       {/* Sign-out – nås utan att öppna en meny */}
       <button
         onClick={handleSignOut}
-        className="shrink-0 px-sm py-xs rounded-md text-label-s text-text-secondary hover:text-text-primary hover:bg-action-ghost-background-hover transition-colors"
+        className="shrink-0 px-sm py-xs rounded-md text-label-s text-text-secondary hover:text-text-primary hover:bg-action-ghost-background-hover transition-colors max-desktop:min-h-11 max-desktop:px-md"
         title="Logga ut"
       >
         Logga ut
@@ -158,7 +158,7 @@ export default function Layout({ children }) {
 
       {/* Arbetsyta */}
       <div className="desktop:pl-60 min-h-screen flex flex-col">
-        <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-10">
+        <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-10 max-sm:px-4 max-sm:py-6">
           {children}
         </main>
         <Footer />
@@ -169,7 +169,7 @@ export default function Layout({ children }) {
 
 function Footer() {
   return (
-    <footer className="border-t border-border-default py-6 text-center text-body-s text-text-secondary">
+    <footer className="border-t border-border-default py-6 text-center text-body-s text-text-secondary max-sm:px-4">
       Intervjucoach &mdash; ditt trygga utrymme för intervjuförberedelse
     </footer>
   )
@@ -180,7 +180,7 @@ function NavLink({ to, active, nowrap, children }) {
     <Link
       to={to}
       aria-current={active ? 'page' : undefined}
-      className={`flex items-center h-10 px-md rounded-lg text-label-m transition-colors${nowrap ? ' whitespace-nowrap' : ''} ${
+      className={`flex items-center h-10 max-desktop:h-11 px-md rounded-lg text-label-m transition-colors${nowrap ? ' whitespace-nowrap' : ''} ${
         active
           ? 'bg-action-secondary-background-pressed text-link-text'
           : 'text-text-secondary hover:text-text-primary hover:bg-action-ghost-background-hover'

@@ -35,7 +35,7 @@ export default function CvLibrary({
         </p>
         <button
           onClick={() => setShowUpload((v) => !v)}
-          className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+          className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors max-sm:min-h-11"
           style={{ backgroundColor: 'var(--color-action-secondary-background-hover)', border: '1px solid var(--color-action-secondary-border)', color: 'var(--color-action-secondary-text)' }}
           onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-link-text-hover)')}
           onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-action-secondary-text)')}
@@ -139,10 +139,10 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
                   className="flex-1 min-w-0 rounded-lg border px-3 py-1.5 text-sm text-input-text focus:outline-none focus:border-focus-ring"
                   style={{ backgroundColor: 'var(--color-input-background)', borderColor: 'var(--color-input-border)' }}
                 />
-                <button type="submit" disabled={busy || !label.trim()} className="text-xs font-semibold disabled:opacity-50" style={{ color: 'var(--color-link-text)' }}>
+                <button type="submit" disabled={busy || !label.trim()} className="text-xs font-semibold disabled:opacity-50 tap-target max-sm:px-1 max-sm:text-sm" style={{ color: 'var(--color-link-text)' }}>
                   Spara
                 </button>
-                <button type="button" onClick={() => { setLabel(name); setRenaming(false) }} className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                <button type="button" onClick={() => { setLabel(name); setRenaming(false) }} className="text-xs tap-target max-sm:px-1 max-sm:text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                   Avbryt
                 </button>
               </form>
@@ -152,7 +152,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
                 <h3 className="text-text-primary font-medium text-base leading-snug break-words">{name}</h3>
                 <button
                   onClick={() => setRenaming(true)}
-                  className="text-xs transition-colors"
+                  className="text-xs transition-colors tap-target max-sm:-my-3"
                   style={{ color: 'var(--color-text-secondary)' }}
                   onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
                   onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
@@ -173,7 +173,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
           {!confirmDelete && (
             <button
               onClick={() => { setConfirmDelete(true); setErr('') }}
-              className="text-xs transition-colors shrink-0"
+              className="text-xs transition-colors shrink-0 tap-target max-sm:-my-3 max-sm:px-1"
               style={{ color: 'var(--color-text-secondary)' }}
               onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-feedback-error)')}
               onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
@@ -194,7 +194,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
                 key={job.docId ?? job.id}
                 onClick={() => onOpenJob?.(job)}
                 disabled={!onOpenJob}
-                className="text-xs font-medium px-2 py-0.5 rounded-full transition-colors disabled:cursor-default"
+                className="text-xs font-medium px-2 py-0.5 rounded-full transition-colors disabled:cursor-default max-sm:px-3 max-sm:py-2 max-sm:min-h-9 max-sm:rounded-xl max-sm:text-left"
                 style={{ backgroundColor: 'var(--color-action-secondary-background-hover)', color: 'var(--color-text-primary)', border: '1px solid var(--color-action-secondary-background-pressed)' }}
               >
                 {job.jobTitle || 'Namnlöst uppdrag'}{job.company ? ` · ${job.company}` : ''}
@@ -217,7 +217,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
             <div className="flex gap-2">
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="px-2.5 py-1 rounded text-xs font-medium"
+                className="px-2.5 py-1 rounded text-xs font-medium max-sm:min-h-11 max-sm:px-4 max-sm:text-sm"
                 style={{ backgroundColor: 'var(--color-background-tertiary)', color: 'var(--color-text-secondary)' }}
               >
                 Avbryt
@@ -225,7 +225,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
               <button
                 onClick={() => run(() => store.remove(cv.id))}
                 disabled={busy}
-                className="px-2.5 py-1 rounded text-xs font-medium disabled:opacity-60"
+                className="px-2.5 py-1 rounded text-xs font-medium disabled:opacity-60 max-sm:min-h-11 max-sm:px-4 max-sm:text-sm"
                 style={{ backgroundColor: 'var(--color-action-danger-background)', color: 'var(--color-action-danger-text)' }}
               >
                 {busy ? 'Raderar...' : 'Ja, radera CV:t'}
@@ -240,7 +240,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
           <button
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
-            className="text-xs font-semibold transition-colors"
+            className="text-xs font-semibold transition-colors tap-target max-sm:text-sm"
             style={{ color: 'var(--color-link-text)' }}
             onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-link-text-hover)')}
             onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-link-text)')}
@@ -250,7 +250,7 @@ function CvCard({ cv, store, usedBy, onChanged, onOpenJob }) {
           {expanded && (
             <button
               onClick={() => setShowAdd(true)}
-              className="text-xs transition-colors"
+              className="text-xs transition-colors tap-target max-sm:text-sm"
               style={{ color: 'var(--color-text-secondary)' }}
               onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
               onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}

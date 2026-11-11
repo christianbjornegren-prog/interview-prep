@@ -98,7 +98,7 @@ export default function FeedbackPage() {
       <div className="space-y-4">
         <button
           onClick={() => navigate(jobId ? `/jobb/${jobId}` : '/')}
-          className="text-sm transition-colors"
+          className="text-sm transition-colors tap-target"
           style={{ color: 'var(--color-text-secondary)' }}
           onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
           onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
@@ -136,7 +136,7 @@ export default function FeedbackPage() {
       <div className="space-y-4">
         <button
           onClick={() => navigate(backPath)}
-          className="text-sm transition-colors"
+          className="text-sm transition-colors tap-target"
           style={{ color: 'var(--color-text-secondary)' }}
           onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
           onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
@@ -145,7 +145,7 @@ export default function FeedbackPage() {
         </button>
 
         <div>
-          <h1 className="text-2xl font-medium text-text-primary tracking-tight">
+          <h1 className="text-2xl font-medium text-text-primary tracking-tight max-sm:text-xl max-sm:break-words">
             {copy.title(feedback.jobTitle)}
           </h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
@@ -190,7 +190,7 @@ export default function FeedbackPage() {
       {/* Summary */}
       {feedback.summary && (
         <div
-          className="rounded-xl border p-6"
+          className="rounded-xl border p-6 max-sm:p-5"
           style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
         >
           <h2
@@ -210,7 +210,7 @@ export default function FeedbackPage() {
         {/* Strengths */}
         {feedback.strengths && feedback.strengths.length > 0 && (
           <div
-            className="rounded-xl border p-6 space-y-3"
+            className="rounded-xl border p-6 space-y-3 max-sm:p-5"
             style={{ backgroundColor: 'var(--color-feedback-success-background)', borderColor: 'color-mix(in srgb, var(--color-feedback-success) 25%, transparent)' }}
           >
             <h2
@@ -237,7 +237,7 @@ export default function FeedbackPage() {
         {/* Improvements */}
         {feedback.improvements && feedback.improvements.length > 0 && (
           <div
-            className="rounded-xl border p-6 space-y-3"
+            className="rounded-xl border p-6 space-y-3 max-sm:p-5"
             style={{ backgroundColor: 'var(--color-feedback-warning-background)', borderColor: 'color-mix(in srgb, var(--color-feedback-warning) 25%, transparent)' }}
           >
             <h2
@@ -265,7 +265,7 @@ export default function FeedbackPage() {
       {/* Competency Gaps */}
       {feedback.competencyGaps && feedback.competencyGaps.length > 0 && (
         <div
-          className="rounded-xl border p-6 space-y-3"
+          className="rounded-xl border p-6 space-y-3 max-sm:p-5"
           style={{ backgroundColor: 'var(--color-feedback-info-background)', borderColor: 'color-mix(in srgb, var(--color-feedback-info) 25%, transparent)' }}
         >
           <h2
@@ -341,7 +341,7 @@ function ShareCard({ status, saving, error, onToggle, copy }) {
           role="switch"
           aria-checked={on}
           aria-label={copy.shareToggle}
-          className="relative shrink-0 rounded-full transition-colors disabled:opacity-50"
+          className="relative shrink-0 rounded-full transition-colors disabled:opacity-50 max-sm:before:absolute max-sm:before:-inset-2 max-sm:before:content-['']"
           style={{
             width: 48,
             height: 28,

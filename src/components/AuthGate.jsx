@@ -225,7 +225,7 @@ export function SignInScreen() {
       </div>
 
       <div
-        className="w-full max-w-sm rounded-2xl border p-8 flex flex-col items-center gap-6"
+        className="w-full max-w-sm rounded-2xl border p-8 flex flex-col items-center gap-6 max-sm:p-6"
         style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       >
         <div className="text-center space-y-2">

@@ -61,7 +61,7 @@ export default function StartInterviewButton({
         'inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-lg ' +
         'text-action-primary-text text-sm font-semibold transition-all ' +
         'disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none ' +
-        (fullWidth ? 'w-full ' : 'shrink-0 ') +
+        (fullWidth ? 'w-full ' : 'shrink-0 max-sm:w-full ') +
         className
       }
       style={{

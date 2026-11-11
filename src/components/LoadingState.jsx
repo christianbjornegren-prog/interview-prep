@@ -36,7 +36,7 @@ export default function LoadingState({
 
   return (
     <div
-      className="flex flex-col items-center justify-center gap-5 rounded-xl px-8 py-12 text-center"
+      className="flex flex-col items-center justify-center gap-5 rounded-xl px-8 py-12 text-center max-sm:px-5 max-sm:py-8"
       style={{ backgroundColor: 'var(--color-background-primary)', border: '1px solid var(--color-border-default)' }}
     >
       {/* Hero emoji */}

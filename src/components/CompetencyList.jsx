@@ -158,7 +158,7 @@ export default function CompetencyList({ competencies: input = [], onDelete, emp
   if (competencies.length === 0) {
     return (
       <div
-        className="rounded-xl border-2 border-dashed p-12 text-center"
+        className="rounded-xl border-2 border-dashed p-12 text-center max-sm:p-6"
         style={{ borderColor: 'var(--color-border-strong)' }}
       >
         <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
@@ -175,7 +175,7 @@ export default function CompetencyList({ competencies: input = [], onDelete, emp
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setActiveCategory(null)}
-          className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
+          className="px-3 py-1.5 rounded-full text-sm font-medium transition-all max-sm:py-2"
           style={
             activeCategory === null
               ? { backgroundColor: 'var(--color-action-primary-background)', color: 'var(--color-action-primary-text)' }
@@ -191,7 +191,7 @@ export default function CompetencyList({ competencies: input = [], onDelete, emp
             <button
               key={cat.name}
               onClick={() => setActiveCategory(isActive ? null : cat.name)}
-              className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
+              className="px-3 py-1.5 rounded-full text-sm font-medium transition-all max-sm:py-2"
               style={
                 isActive
                   ? { backgroundColor: cat.color, color: 'var(--color-tag-text)' }
@@ -276,7 +276,7 @@ function CategoryAccordions({ competencies, activeCategory, deletingIndex, onDel
             {/* Accordion header */}
             <button
               onClick={() => toggle(cat.name)}
-              className="w-full flex items-center justify-between px-4 py-3 transition-colors"
+              className="w-full flex items-center justify-between px-4 py-3 transition-colors max-sm:gap-3 max-sm:text-left"
               style={{ backgroundColor: 'var(--color-background-primary)' }}
               onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-action-ghost-background-hover)')}
               onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-background-primary)')}
@@ -350,7 +350,7 @@ function CompetencyCard({ competency, deleting, onDelete }) {
 
   return (
     <li
-      className="rounded-xl border p-5 transition-colors cursor-pointer"
+      className="rounded-xl border p-5 transition-colors cursor-pointer max-sm:p-4"
       style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
       onClick={() => setExpanded((v) => !v)}
     >
@@ -394,7 +394,7 @@ function CompetencyCard({ competency, deleting, onDelete }) {
               disabled={deleting}
               title="Ta bort kompetens"
               aria-label="Ta bort kompetens"
-              className="p-1.5 rounded transition-colors disabled:opacity-40"
+              className="p-1.5 rounded transition-colors disabled:opacity-40 max-sm:p-3 max-sm:-m-1.5"
               style={{ color: 'var(--color-text-secondary)' }}
               onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-feedback-error)')}
               onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}

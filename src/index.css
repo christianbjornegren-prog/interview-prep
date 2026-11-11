@@ -55,7 +55,32 @@
   animation: sectionFlash 1.2s ease-out;
 }
 
+/* ── Mobil (under 640 px) ──────────────────────────────────────────────────
+   Samma brytpunkt som Tailwinds `max-sm:`. Påverkar ingenting från 640 px. */
+@media not all and (min-width: 640px) {
+  /* iOS zoomar in hela sidan när ett fält med text under 16 px får fokus –
+     och zoomar inte ut igen. 16 px i alla fält tar bort det. */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+  /* Fält som går att träffa med tummen (kryssrutor m.m. undantagna). */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select {
+    min-height: 2.75rem;
+  }
+}
+
 @layer utilities {
+  /* Textknappar och länkar utan egen yta ("← Tillbaka", "Radera"): ge fingret
+     44 px att träffa utan att ändra hur de ser ut på större skärmar. */
+  @media not all and (min-width: 640px) {
+    .tap-target {
+      display: inline-flex;
+      align-items: center;
+      min-height: 2.75rem;
+    }
+  }
+
   .border-brand-border {
     border-color: var(--color-border-default);
   }
