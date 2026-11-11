@@ -34,6 +34,7 @@ import JobCvPicker from '../components/JobCvPicker'
 import { createPendingCvStore, createUserCvStore } from '../lib/cvStore'
 import { READINESS_MESSAGE, cvCompetencies, resolveJobCv, trainingReadiness } from '../lib/cvs'
 import { useCvs } from '../lib/useCvs'
+import { unlockAudio } from '../lib/audioUnlock'
 
 const TABS = [
   { key: 'preparation', label: 'Förberedelse' },
@@ -225,6 +226,9 @@ export default function JobPage() {
   async function launchInterview() {
     // Sista spärren: utan kopplat CV startas ingen träning.
     if (!canStart) return
+    // Måste ske HÄR, synkront i klicket och före första await: Safari och
+    // iPhone spelar bara upp ljud som låsts upp av ett tryck. Se lib/audioUnlock.js.
+    unlockAudio()
     const language = normalizeLanguage(config.language)
 
     let sourceQuestions = questions
@@ -291,7 +295,7 @@ export default function JobPage() {
       {!inConfig && (
         <button
           onClick={() => navigate(backPath)}
-          className="text-sm transition-colors"
+          className="text-sm transition-colors tap-target max-sm:-my-3"
           style={{ color: 'var(--color-text-secondary)' }}
           onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
           onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
@@ -302,8 +306,8 @@ export default function JobPage() {
 
       {/* Header: titel + kund vänster, Starta höger */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-medium text-text-primary tracking-tight">
+        <div className="max-sm:min-w-0 max-sm:w-full">
+          <h1 className="text-2xl font-medium text-text-primary tracking-tight max-sm:text-xl max-sm:break-words">
             {job.jobTitle || 'Namnlös roll'}
           </h1>
           {job.company && (
@@ -314,13 +318,13 @@ export default function JobPage() {
         </div>
 
         {!isReadOnly && !inConfig && (
-          <div className="flex flex-col items-end gap-1.5">
+          <div className="flex flex-col items-end gap-1.5 max-sm:w-full max-sm:items-stretch">
             <StartInterviewButton
               onClick={startInterview}
               disabled={!canStart}
             />
             {!loadingCvs && !readiness.ready && (
-              <p className="text-xs max-w-[16rem] text-right" style={{ color: 'var(--color-text-secondary)' }}>
+              <p className="text-xs max-w-[16rem] text-right max-sm:max-w-none max-sm:text-left" style={{ color: 'var(--color-text-secondary)' }}>
                 {readiness.reason === 'no-questions'
                   ? READINESS_MESSAGE['no-questions']
                   : 'Koppla ett CV nedan för att kunna starta.'}
@@ -368,7 +372,7 @@ export default function JobPage() {
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className="px-4 py-2.5 text-sm font-medium transition-colors"
+                    className="px-4 py-2.5 max-sm:py-3 text-sm font-medium transition-colors"
                     style={{
                       color: activeTab === tab.key ? 'var(--color-link-text)' : 'var(--color-text-secondary)',
                       borderBottom:
@@ -415,7 +419,7 @@ export default function JobPage() {
               <button
                 onClick={handleArchive}
                 disabled={archiving}
-                className="text-xs transition-colors disabled:opacity-40"
+                className="text-xs transition-colors disabled:opacity-40 tap-target"
                 style={{ color: 'var(--color-text-secondary)' }}
                 onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
                 onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
@@ -539,7 +543,7 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError, cvLinked, loa
   return (
     <div className="space-y-8">
       {/* b. AI-summering + refresh */}
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex items-start justify-between gap-6 max-sm:flex-col max-sm:gap-2">
         {summary
           ? <p className="text-sm leading-relaxed max-w-3xl" style={{ color: 'var(--color-text-primary)' }}>{summary}</p>
           : <span />}
@@ -547,7 +551,7 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError, cvLinked, loa
           <button
             onClick={onRefreshGap}
             disabled={refreshingGap}
-            className="text-xs transition-colors disabled:opacity-40 shrink-0"
+            className="text-xs transition-colors disabled:opacity-40 shrink-0 tap-target"
             style={{ color: 'var(--color-text-secondary)' }}
             onMouseOver={(e) => !refreshingGap && (e.currentTarget.style.color = 'var(--color-text-primary)')}
             onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
@@ -601,13 +605,13 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError, cvLinked, loa
           <MetricRow metrics={metrics} onJump={scrollToSection} />
 
           {/* e. prioritera, f. förbered, g. styrkor – allt fullbredd */}
-          <section id="sec-prioritera" className="scroll-mt-4">
+          <section id="sec-prioritera" className="scroll-mt-4 max-desktop:scroll-mt-20">
             <PrioritizeSection items={buckets.prioritera} />
           </section>
-          <section id="sec-forbered" className="scroll-mt-4">
+          <section id="sec-forbered" className="scroll-mt-4 max-desktop:scroll-mt-20">
             <PrepareSection items={buckets.förbered} />
           </section>
-          <section id="sec-styrkor" className="scroll-mt-4">
+          <section id="sec-styrkor" className="scroll-mt-4 max-desktop:scroll-mt-20">
             <StrengthsSection items={buckets.styrkor} />
           </section>
         </>
@@ -619,7 +623,7 @@ function PrepTab({ job, onRefreshGap, refreshingGap, refreshError, cvLinked, loa
 
       {/* h. hela uppdragsbeskrivningen längst ned */}
       {hasDescription && (
-        <section id="sec-beskrivning" className="scroll-mt-4 pt-6 border-t" style={{ borderColor: 'var(--color-border-default)' }}>
+        <section id="sec-beskrivning" className="scroll-mt-4 max-desktop:scroll-mt-20 pt-6 border-t" style={{ borderColor: 'var(--color-border-default)' }}>
           <SectionLabel>Hela uppdragsbeskrivningen</SectionLabel>
           {sections.length > 0 ? (
             <StructuredSections sections={sections} />
@@ -805,7 +809,7 @@ function StrengthsSection({ items }) {
           {items.map((r, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full max-sm:rounded-xl max-sm:text-left"
               style={{ backgroundColor: 'var(--color-feedback-success-background)', color: 'var(--color-feedback-success)', border: '1px solid color-mix(in srgb, var(--color-feedback-success) 30%, transparent)' }}
             >
               <TiCheck size={12} color="var(--color-feedback-success)" />
@@ -975,7 +979,7 @@ function OptionGroup({ label, options, value, onChange, renderLabel = (o) => o }
           <button
             key={opt}
             onClick={() => onChange(opt)}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-2 max-sm:py-3 rounded-lg text-sm font-medium transition-colors"
             style={
               value === opt
                 ? { backgroundColor: 'var(--color-action-primary-background)', color: 'var(--color-action-primary-text)' }
@@ -1010,7 +1014,7 @@ function InterviewConfigScreen({
       {/* Back */}
       <button
         onClick={onBack}
-        className="text-sm transition-colors"
+        className="text-sm transition-colors tap-target max-sm:-my-3"
         style={{ color: 'var(--color-text-secondary)' }}
         onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
         onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}

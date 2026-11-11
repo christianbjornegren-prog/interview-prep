@@ -60,9 +60,16 @@ pendingProfiles/{email} → { name, email, createdAt, cvs: [{ id, label, fileNam
   → cvs[].id genereras klientsidigt (generateCvId) och BEHÅLLS som dokument-id vid
     överlämningen, så jobs[].cvId fortsätter peka rätt. Äldre profiler med `competencies[]`
     konverteras till cvs (convertLegacyPendingCompetencies) – vid visning OCH vid överlämning.
-systemEvents/{eventId} → { type, severity: 'info'|'error', step, message, uid, createdAt }
+systemEvents/{eventId} → { type, severity: 'info'|'error', step, message, uid, createdAt, context? }
   → TEKNISK driftlogg (Whisper→Claude→TTS→Firestore). ALDRIG betyg/feedbackinnehåll.
     Oföränderlig: write-only för inloggad (egen uid), läs endast admin.
+  → type: pipeline_error | client_error (fel) samt session_started | session_completed |
+    session_aborted | audio_blocked (info). step: whisper | claude | tts | firestore | complete |
+    mic | recorder | start | app | pending_migration.
+  → context = FELSÖKNINGSUNDERLAG (sedan 2026-11): enhet/webbläsare, appversion, sessions-id,
+    läge i intervjun, HTTP-status, inspelningsformat, förloppet fram till felet (trail).
+    VITLISTA (CONTEXT_FIELDS i lib/diagnostics.js) – allt annat kastas i sanitizeContext().
+    Äldre händelser saknar fältet; allt som läser det måste tåla null.
 
 ## Viktiga beslut
 - CV PER UPPDRAG (ersätter den kumulativa kompetensbanken, 2026-11-06): varje uppladdning blir
@@ -196,6 +203,48 @@ Regler i korthet:
 - Testtäckning: `test/unit/interviewPhase.test.js` – 50 tester täcker alla 7 states,
   fallback för okänt state, intro-hint-logik, timer-formatering
 
+### Ljud och inspelning i Safari/iPhone (2026-11)
+Rotorsak till de vanligaste felen i Driftöversikten ("The request is not allowed by the user
+agent…"): WebKit – ALLA webbläsare på iPhone/iPad och Safari på Mac – nekar `audio.play()`
+som inte startas av ett tryck. Simulatorn auto-startar och hämtar rösten över nätet först, så
+när ljudet väl skulle spelas fanns inget tryck kvar.
+- `lib/audioUnlock.js`: ETT delat `<audio>`-element (`getSharedAudio()`) för alla repliker.
+  Spärren sitter per element och släpper när elementet en gång startats i ett tryck.
+  `unlockAudio()` spelar en tyst WAV på elementet och MÅSTE anropas SYNKRONT i klicket, före
+  första `await` – görs i JobPage `launchInterview()`. Skapa ALDRIG `new Audio()` per replik.
+- Skyddsnät: nekas uppspelningen ändå (direktlänk, omladdad sida) visar simulatorn knappen
+  "Tryck för att starta ljudet" (`needsTap`) och loggar `audio_blocked` som INFO – inte fel.
+- `startPlayback()` anropar `play()` direkt. Vänta INTE på `canplaythrough` – på iPhone kommer
+  den inte alltid förrän uppspelningen redan begärts.
+- `lib/recording.js` (ren): `pickRecordingMimeType()` väljer WebM (Chrome/Edge/Firefox, nyare
+  Safari) eller MP4 (äldre Safari, som kastar om man begär WebM). `baseMimeType()` följer med
+  som Content-Type till `api/whisper.js`, där `resolveAudioFormat()` namnger filen efter
+  formatet (OpenAI avgör format på filändelsen). Okänt/saknat → webm, som förut.
+  `recorder.start(100)` bara för WebM; MP4 spelas in i ett stycke.
+- Mikrofonfel → `micErrorCopyKey()` → begriplig text (micDenied/micUnavailable/micUnsupported)
+  och loggas med step 'mic'. Avbrutna hämtningar (användaren lämnade) loggas ALDRIG som fel –
+  de blir `session_aborted`.
+- Användaren ser aldrig råa tekniska fel i intervjun ("Whisper HTTP 400"): `copy.answerFailed`,
+  `copy.noSpeech`, `copy.speechFailed`, `copy.startFailed` (+ "Försök igen"). Det tekniska
+  loggas i systemEvents.
+- Screen Wake Lock hålls under intervjun (tas om vid `visibilitychange`) så telefonen inte
+  släcker skärmen mitt i ett svar.
+- OVERIFIERAT PÅ RIKTIG IPHONE tills det körts i produktion (lokalt går inte: mikrofonen
+  kräver HTTPS och Google-inloggningen en godkänd domän). Safari på Mac mot localhost täcker
+  WebKit-reglerna. Se docs/SMOKE_TEST_MOBILE.md.
+
+### Mobilanpassning (2026-11)
+Inte en mobilapp – samma sidor ska gå att använda i telefonen. Desktop (≥1024 px) är orört.
+- Allt mobilspecifikt är `max-sm:` (under 640 px) eller `max-desktop:` (under 1024 px), så
+  det kan inte påverka desktop. Ingen sidledes rullning vid 360 px.
+- `src/index.css`: under 640 px får alla fält 16 px text (annars zoomar iOS in sidan vid
+  fokus och zoomar inte ut igen) och 44 px minhöjd. Hjälpklassen `.tap-target` ger
+  textknappar/länkar 44 px träffyta utan att ändra utseendet på större skärmar.
+- Tryckytor ≥ 44 px. Primärknappen (StartInterviewButton) är fullbredd på mobil.
+- Modaler: maxhöjd + intern rullning. JobCvPicker radbryter (var orsaken till sidledes rullning).
+- Kända kvarstående: Användarhanteringens tabell rullar i sidled inuti sin ram (kort-vy kräver
+  ny struktur); delningsreglaget på feedbacksidan är 48×28 visuellt.
+
 ### Dashboard onboarding (Home.jsx, inloggad konsult)
 - Ren logik i lib/onboarding.js (enhetstestad): computeChecklist(), resolvePrimaryCta(),
   resolveEmptyState(). Inga Firestore-anrop i hjälparna.
@@ -280,6 +329,8 @@ Språket läses från query (`?language=sv|en`), valideras mot en vitlista och
 faller tillbaka på 'sv'. Kroppen är rå ljuddata, därför query och inte JSON.
 Att ANGE språk är dokumenterat bättre än automatisk detektering (träffsäkerhet
 OCH svarstid). TTS behöver ingen språkparameter – språket följer texten.
+Ljudformatet läses från Content-Type (`resolveAudioFormat()`): WebM eller MP4 beroende
+på webbläsare – se "Ljud och inspelning i Safari/iPhone".
 
 ⏳ `whisper-1` avvecklas 2027-02-26. Efterträdaren `gpt-transcribe` byter
 `language` mot `languages` (array). Egen migrering, eget röktest.
@@ -476,13 +527,29 @@ kan tas bort när Realtime är ute.
 
 ### Driftöversikt (/admin/drift → DriftPage.jsx) — TEKNISK hälsovy
 - Läser ENBART systemEvents (`collection(db,'systemEvents')`, orderBy createdAt desc).
-  Läser INTE längre feedback. INGA betyg, INGEN feedbacktext, INGEN personrankning.
-- KPI:er via `summarizeEvents()` (ren funktion i lib/systemEvents.js):
-  slutförda sessioner totalt / 7d / 30d, aktiva konsulter (distinkta uid med
-  session_completed), tekniska fel, felfrekvens = fel / (fel + slutförda).
-- "Senaste tekniska fel": tabell Tid | Steg | Meddelande | Konsult (uid→namn via
-  users-collection, enbart för läsbarhet — felets steg, ej prestation).
-- Steg-etiketter: whisper | claude | tts | firestore | complete.
+  Läser INTE feedback. INGA betyg, INGEN feedbacktext, INGEN personrankning.
+- Syftet är ROTORSAK, inte bara räkning. Varje fel översätts av `diagnoseEvent()`
+  (lib/diagnostics.js, ren, enhetstestad) till klarspråk: vad hände, VAR felet ligger
+  (användarens webbläsare / vår app / extern tjänst / nätet), trolig orsak och åtgärd.
+  Ny feltyp som dyker upp som "Okänt fel" → lägg till en regel i DIAGNOSES + ett test.
+- Uppifrån och ned:
+  1. KPI:er via `summarizeEvents()`: slutförda totalt / 7d / 30d, aktiva konsulter, tekniska
+     fel, felfrekvens = fel / (fel + slutförda). OFARLIGA avbrott (användaren lämnade mitt i
+     en hämtning) räknas INTE som fel – de visas som en rad under siffran.
+  2. "Hur går det för dem som startar?" (`summarizeFunnel()`): påbörjade → slutförda / avbröt
+     själv / stoppade av fel / stängde sidan / ljud krävde tryck. Räknas från 2026-11, då
+     `session_started` började loggas.
+  3. "Vanligaste orsakerna" (`groupByDiagnosis()`): ett kort per rotorsak med antal, berörda
+     personer, senaste tillfälle och åtgärd.
+  4. "Senaste tekniska fel": utfällbara rader. Utfälld rad visar diagnosen, felsökningsunderlaget
+     (`describeContext()`), förloppet fram till felet (trail) och allt som loggades i samma
+     session (sessionId).
+- "Kopiera felrapport" (`buildErrorReport()`): hela felet som text (underlag för
+  rotorsaksanalys). Innehåller INGA namn, betyg eller intervjusvar. Sidan visar bara fakta –
+  inga instruktioner om vart rapporten ska.
+- Konsultnamn slås upp via users-collection enbart för läsbarhet (felets steg, ej prestation).
+- Steg-etiketter: whisper | claude | tts | firestore | complete | mic | recorder | start | app |
+  pending_migration.
 
 ### Navbar
 - Utloggade användare ser ENBART loggan (ingen knapp i navbar – knappen finns på startsidan)
@@ -597,9 +664,22 @@ kan tas bort när Realtime är ute.
   tvingar severity till 'info'|'error'. summarizeEvents() (ren): driftaggregat.
 - logSystemEvent(): fire-and-forget skriv till systemEvents; kräver inloggad (egen uid);
   sväljer alla egna fel (try/catch) — blockerar ALDRIG användarflödet.
-- InterviewSimulatorTTS loggar pipeline_error per externt steg (whisper/tts/claude/
-  firestore) + session_completed (info) när en intervju slutförs. Ny feedback skapas med
-  sharedWithSeller:false, sharedAt:null.
+- InterviewSimulatorTTS loggar pipeline_error per steg (whisper/tts/claude/firestore/mic/
+  recorder) + session_started, session_completed, session_aborted och audio_blocked (info).
+  Ny feedback skapas med sharedWithSeller:false, sharedAt:null.
+- FELSÖKNINGSUNDERLAG (lib/diagnostics.js): `logSystemEvent()` lägger alltid till
+  `collectEnvironment()` (enhet, webbläsare, appversion, nät, sida) och simulatorn lägger till
+  `sessionContext()` (sessions-id, läge, fråga, inspelningsformat, HTTP-status, tjänstens
+  svar, trail). `createSessionTrail()` håller första händelsen + de 39 senaste.
+  `sanitizeContext()` släpper BARA igenom CONTEXT_FIELDS (vitlista), klipper strängar och
+  kastar nästlade värden – ett nytt fält måste läggas i vitlistan för att sparas. Aldrig
+  betyg, transkript eller svar. Firestore-regeln kräver bara rätt uid, så nya fält behöver
+  ingen regeldeploy.
+- `installGlobalErrorLogging()` (main.jsx) fångar fel UTANFÖR intervjun (window.onerror,
+  unhandledrejection) som `client_error`/step 'app'. `shouldLogClientError()` filtrerar brus
+  och avbrutna hämtningar.
+- Appversion: `__APP_VERSION__` sätts i vite.config.js (`<datum>-<commit|lokal>`) och följer
+  med varje händelse – så det syns om ett fel kom före eller efter en fix.
 
 ### Tester
 - Vitest enhetstester (test/unit/, körs utan emulator): `npm test`
@@ -608,8 +688,10 @@ kan tas bort när Realtime är ute.
     sanitizeCompetencies) + userData.test.js (rensning, mockad Firestore) + interviewPhase.test.js
     + language.test.js + interviewScript.test.js + claudePrompts.test.js + gapAnalysisGuard.test.js
     + feedbackCopy.test.js + pendingMigration.test.js + cvs.test.js + cvStore.test.js
-    + jobCreation.test.js (svep-orkestrering + progressSteps).
-    442 tester i 17 filer. (vite.config.js sätter dummy VITE_FIREBASE_*-env för test så moduler som
+    + jobCreation.test.js (svep-orkestrering + progressSteps)
+    + diagnostics.test.js (enhetstolkning, diagnoser för de verkliga produktionsfelen, tratt,
+      felrapport) + recording.test.js (inspelningsformat, mikrofonfel, tyst WAV, proxyns format).
+    507 tester i 19 filer. (vite.config.js sätter dummy VITE_FIREBASE_*-env för test så moduler som
     initierar Firebase-SDK:t vid import laddar utan .env – rör INTE `vite build`.)
   - VIKTIGT: testmiljön har INGEN DOM-rigg (ingen jsdom, inga setupFiles). Alla
     tester måste vara rena Node-tester – inget får bero på React-rendering.
@@ -634,6 +716,12 @@ kan tas bort när Realtime är ute.
   - docs/SMOKE_TEST_CV.md (CV per uppdrag: säljarflöde, överlämning, träningsspärr, äldre data)
   - docs/SMOKE_TEST_GAPANALYSIS.md (gap-analys: äldre jobb / nytt jobb med criticalGaps / utan gaps)
   - docs/SMOKE_TEST_JOBPAGE.md (executive briefing: äldre jobb / nytt jobb efter "Uppdatera analys" / smal vs bred skärm)
+  - docs/SMOKE_TEST_MOBILE.md (mobil: layout i smalt fönster, ljud i Safari, riktig iPhone efter
+    deploy, Driftöversiktens felanalys)
+- Webbläsarkörning av intervjun (2026-11, ej incheckad rigg): headless Chrome mot emulatorer med
+  röst/transkribering/Claude besvarade lokalt. Bevisade hela flödet, tryck-knappen, MP4-vägen,
+  felvägarna och att avbrott inte loggas som fel. Safaris regler var SIMULERADE – ersätter inte
+  ett riktigt iPhone-test.
 
 ## Konventioner
 - Svenska i hela UI

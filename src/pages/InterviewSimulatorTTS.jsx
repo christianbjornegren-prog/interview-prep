@@ -11,6 +11,9 @@ import {
 import { auth, db } from '../lib/firebase'
 import { analyzeInterviewFeedback, sanitizeCompetencies } from '../lib/claude'
 import { logSystemEvent } from '../lib/systemEvents'
+import { createSessionTrail, isAbortError } from '../lib/diagnostics'
+import { getSharedAudio, isAudioUnlocked, markAudioUnlocked, unlockAudio } from '../lib/audioUnlock'
+import { baseMimeType, micErrorCopyKey, pickRecordingMimeType } from '../lib/recording'
 import { cvCompetencies, cvDisplayName, trainingReadiness } from '../lib/cvs'
 import {
   buttonStateForPhase,
@@ -35,6 +38,8 @@ const VERCEL_TTS = 'https://interview-prep-liard-three.vercel.app/api/tts'
 const WHISPER_TIMEOUT_MS = 45000
 /** Yttersta skyddsnät: PROCESSING får aldrig bli permanent. */
 const PROCESSING_WATCHDOG_MS = 75000
+/** Så länge väntar vi på att en hämtad replik faktiskt börjar låta. */
+const PLAY_START_TIMEOUT_MS = 20000
 
 const FOCUS_TO_CATEGORY = {
   Erfarenhet: 'erfarenhet',
@@ -90,6 +95,11 @@ export default function InterviewSimulatorTTS() {
     pickVoiceAndName(language)
   )
   const [showConfirmAbort, setShowConfirmAbort] = useState(false)
+  // Webbläsaren nekade ljudet och väntar på ett tryck (Safari/iPhone).
+  const [needsTap, setNeedsTap] = useState(false)
+  // Hälsningen gick inte att hämta/spela – visa "Försök igen" i stället för
+  // en snurra som aldrig tar slut.
+  const [startFailed, setStartFailed] = useState(false)
 
   const audioRef = useRef(null)
   const audioUrlRef = useRef(null)
@@ -103,6 +113,73 @@ export default function InterviewSimulatorTTS() {
   const abortedRef = useRef(false)
   const ttsAbortRef = useRef(null)
   const startedRef = useRef(false)
+
+  // ── Felsökningsunderlag (lib/diagnostics.js) ──────────────────────────────
+  // Spåret är sessionens färdskrivare: korta tekniska noteringar som skickas
+  // med när något loggas, så man ser vägen fram till ett fel. Aldrig innehåll.
+  const trailRef = useRef(null)
+  if (!trailRef.current) trailRef.current = createSessionTrail()
+  const phaseRef = useRef(STATES.CONNECTING)
+  const recorderMimeRef = useRef('')
+  const tapResolverRef = useRef(null)
+  const sessionLoggedRef = useRef(false)   // session_started är loggad
+  const sessionClosedRef = useRef(false)   // slutförd eller avbruten är loggad
+  const audioBlockedLoggedRef = useRef(false)
+
+  /** Byter läge och noterar det i spåret. ENDA stället som sätter läget. */
+  function setPhase(next) {
+    if (phaseRef.current !== next) {
+      phaseRef.current = next
+      trailRef.current.mark(`läge:${next}`)
+    }
+    setInterviewState(next)
+  }
+
+  function sessionContext(extra = {}) {
+    const trail = trailRef.current
+    return {
+      sessionId: trail.id,
+      phase: phaseRef.current,
+      questionIndex: currentQuestionIndexRef.current,
+      totalQuestions: activeQuestionsRef.current.length,
+      elapsedMs: trail.elapsedMs(),
+      language,
+      voice: interviewerVoice,
+      audioUnlocked: isAudioUnlocked(),
+      recorderMime: recorderMimeRef.current,
+      trail: trail.entries(),
+      ...extra,
+    }
+  }
+
+  /** Ett fel i kedjan – med allt som behövs för att hitta rotorsaken. */
+  function logPipelineError(step, err, extra = {}) {
+    trailRef.current.mark(`FEL ${step}: ${err?.name ?? 'Error'}`)
+    logSystemEvent({
+      type: 'pipeline_error',
+      severity: 'error',
+      step,
+      message: err?.message ?? String(err),
+      context: sessionContext({
+        errorName: err?.name,
+        httpStatus: err?.httpStatus,
+        detail: err?.detail,
+        ...extra,
+      }),
+    })
+  }
+
+  /** En driftsignal som INTE är ett fel (start, slut, avbrott, nekat ljud). */
+  function logSessionInfo(type, step, message, extra = {}) {
+    logSystemEvent({ type, severity: 'info', step, message, context: sessionContext(extra) })
+  }
+
+  /** Användaren lämnade innan intervjun blev klar. Loggas högst en gång. */
+  function logSessionAborted(how) {
+    if (!sessionLoggedRef.current || sessionClosedRef.current) return
+    sessionClosedRef.current = true
+    logSessionInfo('session_aborted', phaseRef.current, how)
+  }
 
   useEffect(() => {
     transcriptRef.current = transcript
@@ -126,8 +203,11 @@ export default function InterviewSimulatorTTS() {
   useEffect(() => {
     if (interviewState !== STATES.PROCESSING) return
     const id = setTimeout(() => {
+      logPipelineError('recorder', new Error(
+        `Inget svar från inspelningen inom ${PROCESSING_WATCHDOG_MS / 1000} s`
+      ))
       setErrorMsg(copy.processingStalled)
-      setInterviewState(STATES.WAITING_FOR_USER)
+      setPhase(STATES.WAITING_FOR_USER)
     }, PROCESSING_WATCHDOG_MS)
     return () => clearTimeout(id)
   }, [interviewState, copy])
@@ -206,24 +286,56 @@ export default function InterviewSimulatorTTS() {
     abortedRef.current = false
 
     return () => {
+      // Lämnade sidan mitt i intervjun (bakåtknapp, menyval). Ett avbrott –
+      // inte ett fel. Loggas FÖRE flaggan nedan så läget följer med.
+      logSessionAborted('Lämnade sidan')
       abortedRef.current = true
       // Avbryt en pågående TTS-hämtning INNAN ljudet hinner skapas.
       ttsAbortRef.current?.abort()
-      const audio = audioRef.current
-      if (audio) {
-        audio.pause()
-        audio.src = ''
-        audioRef.current = null
-      }
-      if (audioUrlRef.current) {
-        URL.revokeObjectURL(audioUrlRef.current)
-        audioUrlRef.current = null
-      }
+      stopCurrentAudio()
       const recorder = mediaRecorderRef.current
       if (recorder && recorder.state !== 'inactive') {
         recorder.stop()
       }
       streamRef.current?.getTracks().forEach((t) => t.stop())
+    }
+  }, [])
+
+  // Miljön under intervjun: noteras i spåret (doldes sidan? föll nätet bort?)
+  // och skärmen hålls vaken – en telefon som släcker skärmen mitt i ett svar
+  // pausar både ljud och inspelning.
+  useEffect(() => {
+    const trail = trailRef.current
+    let wakeLock = null
+    let unmounted = false
+
+    async function keepAwake() {
+      try {
+        if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return
+        const lock = await navigator.wakeLock.request('screen')
+        if (unmounted) lock.release().catch(() => {})
+        else wakeLock = lock
+      } catch { /* stöds inte eller nekades – intervjun fungerar ändå */ }
+    }
+
+    const onVisibility = () => {
+      trail.mark(`sida:${document.visibilityState === 'visible' ? 'synlig' : 'dold'}`)
+      // Webbläsaren släpper låset när sidan döljs – ta det igen när den syns.
+      if (document.visibilityState === 'visible') keepAwake()
+    }
+    const onOnline = () => trail.mark('nät:tillbaka')
+    const onOffline = () => trail.mark('nät:borta')
+
+    keepAwake()
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      unmounted = true
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+      wakeLock?.release().catch(() => {})
     }
   }, [])
 
@@ -240,11 +352,29 @@ export default function InterviewSimulatorTTS() {
     } catch { /* non-critical */ }
   }
 
-  /** Stoppar och frigör ljud som eventuellt fortfarande hänger kvar. */
+  /**
+   * Tystar ljudet och släpper en väntande "tryck för att starta".
+   * Ljudelementet är DELAT (lib/audioUnlock.js) och får inte kastas – det är
+   * elementet som bär upplåsningen från användarens tryck. Det töms i stället.
+   */
   function stopCurrentAudio() {
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.src = ''
+    const pendingTap = tapResolverRef.current
+    if (pendingTap) {
+      tapResolverRef.current = null
+      pendingTap.resolve()
+    }
+    const audio = audioRef.current
+    if (audio) {
+      audio.onended = null
+      audio.onerror = null
+      try {
+        audio.pause()
+        // Töm källan, så en pausad replik inte kan dras igång från låsskärmen
+        // eller hörlurarna. removeAttribute + load() ger inget error-event
+        // (det gör src = '').
+        audio.removeAttribute('src')
+        audio.load()
+      } catch { /* städning får aldrig kasta */ }
       audioRef.current = null
     }
     if (audioUrlRef.current) {
@@ -253,19 +383,76 @@ export default function InterviewSimulatorTTS() {
     }
   }
 
+  /**
+   * Startar uppspelningen. Nekar webbläsaren (Safari/iPhone kräver ett tryck)
+   * visas en knapp, och funktionen väntar tills användaren tryckt på den –
+   * ett nekat ljud är alltså en fråga till användaren, inte ett fel.
+   */
+  async function startPlayback(audio) {
+    const trail = trailRef.current
+    try {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          audio.pause()
+          reject(new Error('Ljudet kunde inte spelas upp.'))
+        }, PLAY_START_TIMEOUT_MS)
+        // play() direkt – ingen väntan på canplaythrough, som på iPhone inte
+        // alltid kommer förrän uppspelningen redan har begärts.
+        audio.play().then(
+          () => { clearTimeout(timer); resolve() },
+          (err) => { clearTimeout(timer); reject(err) }
+        )
+      })
+      markAudioUnlocked()
+      trail.mark('ljud:spelar')
+    } catch (err) {
+      if (err?.name !== 'NotAllowedError' || abortedRef.current) throw err
+      trail.mark('ljud:nekat – väntar på tryck')
+      if (!audioBlockedLoggedRef.current) {
+        audioBlockedLoggedRef.current = true
+        logSessionInfo('audio_blocked', 'tts', err.message, { errorName: err.name })
+      }
+      try {
+        await new Promise((resolve, reject) => {
+          tapResolverRef.current = { resolve, reject }
+          setNeedsTap(true)
+        })
+      } finally {
+        setNeedsTap(false)
+      }
+    }
+  }
+
+  // Körs I trycket: play() måste anropas synkront här för att räknas.
+  function handleTapToStart() {
+    const pending = tapResolverRef.current
+    if (!pending) return
+    tapResolverRef.current = null
+    getSharedAudio().play().then(
+      () => {
+        markAudioUnlocked()
+        trailRef.current.mark('ljud:spelar efter tryck')
+        pending.resolve()
+      },
+      (err) => pending.reject(err)
+    )
+  }
+
   // speakText: fetches TTS, signals AI_SPEAKING when audio starts, resolves when done
   async function speakText(text) {
     stopCurrentAudio()
+    const trail = trailRef.current
 
     // TTS-hämtningen måste gå att avbryta. Utan detta kan komponenten hinna
     // avmonteras (Vite HMR, navigering, StrictMode) medan hämtningen pågår –
-    // och eftersom audioRef sätts FÖRST efteråt hittar städningen ingenting
-    // att stoppa. Ljudet börjar då spela i en komponent som inte längre finns
-    // och kan aldrig tystas. Det var så två röster kunde prata samtidigt.
+    // och ljudet börjar då spela i en komponent som inte längre finns.
+    // Det var så två röster kunde prata samtidigt.
     ttsAbortRef.current?.abort()
     const controller = new AbortController()
     ttsAbortRef.current = controller
 
+    const fetchStarted = Date.now()
+    trail.mark(`tts:hämtar ${text.length} tecken`)
     const r = await fetch(VERCEL_TTS, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -275,50 +462,55 @@ export default function InterviewSimulatorTTS() {
     if (abortedRef.current || controller.signal.aborted) return
     if (!r.ok) {
       const errText = await r.text()
-      throw new Error('TTS fel: ' + errText)
+      const err = new Error('TTS fel: ' + errText)
+      err.httpStatus = r.status
+      throw err
     }
 
     const audioData = await r.arrayBuffer()
     // Sista kontrollen innan vi skapar något som kan låta.
     if (abortedRef.current || controller.signal.aborted) return
+    trail.mark(`tts:klar ${Date.now() - fetchStarted} ms, ${audioData.byteLength} byte`)
 
     const blob = new Blob([audioData], { type: 'audio/mpeg' })
     const url = URL.createObjectURL(blob)
     audioUrlRef.current = url
-    const audio = new Audio()
+    // Appens DELADE ljudelement – upplåst av klicket på Starta. Ett nytt
+    // new Audio() per replik nekas av Safari och iPhone (se lib/audioUnlock.js).
+    const audio = getSharedAudio()
+    audio.onended = null
+    audio.onerror = null
     audio.src = url
     audioRef.current = audio
 
+    await startPlayback(audio)
+    if (abortedRef.current || controller.signal.aborted) return
     // Signal AI_SPEAKING the moment playback actually starts.
-    await new Promise((resolve, reject) => {
-      audio.oncanplaythrough = () => {
-        audio.play()
-          .then(() => {
-            setInterviewState(STATES.AI_SPEAKING)
-            resolve()
-          })
-          .catch(reject)
-      }
-      audio.onerror = () => reject(new Error('Ljudet kunde inte spelas upp.'))
-      audio.load()
-    })
+    setPhase(STATES.AI_SPEAKING)
 
     // Wait for playback to finish, but NEVER hang forever: resolve on ended,
     // on a mid-playback error, or after a duration-based safety timeout.
     await new Promise((resolve) => {
       let settled = false
-      const finish = () => {
+      const finish = (how) => {
         if (settled) return
         settled = true
         clearTimeout(timer)
         audio.onended = null
         audio.onerror = null
+        if (how !== 'slut') trail.mark(`ljud:${how}`)
         resolve()
       }
-      audio.onended = finish
-      audio.onerror = finish
-      const durationMs = Number.isFinite(audio.duration) ? audio.duration * 1000 : 0
-      const timer = setTimeout(finish, durationMs + 8000)
+      audio.onended = () => finish('slut')
+      audio.onerror = () => finish('avbröts av fel')
+      // Okänd längd (händer på iPhone): uppskatta från textens längd i stället
+      // för att släppa fram mikrofonknappen mitt i frågan.
+      const durationMs = Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration * 1000
+        : Math.max(30000, text.length * 120)
+      const timer = setTimeout(() => finish('tog för lång tid'), durationMs + 8000)
+      // Redan slut? (Mycket korta repliker kan hinna före.)
+      if (audio.ended) finish('slut')
     })
 
     if (audioUrlRef.current === url) {
@@ -345,7 +537,12 @@ export default function InterviewSimulatorTTS() {
     })()
 
     activeQuestionsRef.current = activeQuestions
-    setInterviewState(STATES.CONNECTING)
+    setStartFailed(false)
+    setPhase(STATES.CONNECTING)
+    if (!sessionLoggedRef.current) {
+      sessionLoggedRef.current = true
+      logSessionInfo('session_started', 'start', `${activeQuestions.length} frågor`)
+    }
 
     const greeting = buildGreeting({
       interviewerName,
@@ -360,13 +557,24 @@ export default function InterviewSimulatorTTS() {
 
     try {
       await speakText(greeting)
+      if (abortedRef.current) return
       addToTranscript('interviewer', greeting)
-      setInterviewState(STATES.WAITING_FOR_USER)
+      setPhase(STATES.WAITING_FOR_USER)
     } catch (err) {
+      // Lämnade användaren sidan avbryts hämtningen med flit – inget fel.
+      if (abortedRef.current || isAbortError(err)) return
       console.error('TTS-fel:', err)
-      logSystemEvent({ type: 'pipeline_error', severity: 'error', step: 'tts', message: err.message })
-      setErrorMsg(err.message ?? 'Kunde inte spela upp AI-rösten.')
+      logPipelineError('tts', err)
+      setStartFailed(true)
+      setErrorMsg(copy.startFailed)
     }
+  }
+
+  // "Försök igen" efter en misslyckad start. Klicket låser samtidigt upp ljudet.
+  function retryStart() {
+    unlockAudio()
+    setErrorMsg('')
+    startInterview()
   }
 
   // Click-toggle: WAITING_FOR_USER → RECORDING, RECORDING → PROCESSING (min 1s)
@@ -380,33 +588,61 @@ export default function InterviewSimulatorTTS() {
   }
 
   async function startRecording() {
+    const trail = trailRef.current
+    let stream
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+        // Inbäddade webbläsare (länk öppnad inuti en annan app) saknar ofta stöd.
+        const unsupported = new Error('Webbläsaren saknar stöd för inspelning')
+        unsupported.name = 'NotSupportedError'
+        throw unsupported
+      }
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      if (abortedRef.current) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
       streamRef.current = stream
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : 'audio/webm'
-      const recorder = new MediaRecorder(stream, { mimeType })
+      // WebM i Chrome/Edge/Firefox, MP4 i Safari och på iPhone – se lib/recording.js.
+      const mimeType = pickRecordingMimeType((type) => MediaRecorder.isTypeSupported(type))
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
       mediaRecorderRef.current = recorder
       audioChunksRef.current = []
+      const recordedType = baseMimeType(recorder.mimeType || mimeType)
+      recorderMimeRef.current = recorder.mimeType || mimeType || 'webbläsarens val'
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+      recorder.onerror = (e) => {
+        logPipelineError('recorder', e.error ?? new Error('Inspelningen avbröts av webbläsaren'))
       }
       recorder.onstop = async () => {
         // Mikrofonen släpps FÖRST här – se kommentaren i stopRecording().
         streamRef.current?.getTracks().forEach((t) => t.stop())
         // If the interview was aborted/unmounted, don't process a stray answer.
         if (abortedRef.current) return
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const audioBlob = new Blob(audioChunksRef.current, { type: recordedType })
+        trail.mark(`inspelning:klar ${audioBlob.size} byte`)
         await processAnswer(audioBlob)
       }
-      recorder.start(100)
+      // WebM delas i småbitar som förut. MP4 spelas in i ETT stycke: Safaris
+      // MP4 i bitar blir en fragmenterad fil som transkriberingen kan avvisa.
+      if (recordedType === 'audio/webm') recorder.start(100)
+      else recorder.start()
       recordingStartRef.current = Date.now()
-      setInterviewState(STATES.RECORDING)
+      trail.mark(`inspelning:start ${recorderMimeRef.current}`)
+      setErrorMsg('')
+      setPhase(STATES.RECORDING)
     } catch (err) {
+      stream?.getTracks().forEach((t) => t.stop())
+      if (abortedRef.current) return
       console.error('Kunde inte starta inspelning:', err)
-      setErrorMsg(err.message ?? 'Kunde inte starta inspelning.')
+      logPipelineError('mic', err)
+      // En förklaring användaren kan agera på – inte webbläsarens råa feltext.
+      setErrorMsg(copy[micErrorCopyKey(err)])
     }
   }
 
@@ -419,11 +655,12 @@ export default function InterviewSimulatorTTS() {
     // och vyn fastnar i PROCESSING för alltid ("Analyserar ditt svar...").
     // Spåren släpps i recorder.onstop i stället.
     recorder.stop()
-    setInterviewState(STATES.PROCESSING)
+    setPhase(STATES.PROCESSING)
   }
 
   async function processAnswer(audioBlob) {
     let step = 'whisper'
+    const trail = trailRef.current
     const prevIndex = currentQuestionIndexRef.current
     let advanced = false
     try {
@@ -434,25 +671,44 @@ export default function InterviewSimulatorTTS() {
       const whisperAbort = new AbortController()
       const whisperTimer = setTimeout(() => whisperAbort.abort(), WHISPER_TIMEOUT_MS)
       let whisperRes
+      const whisperStarted = Date.now()
+      trail.mark('transkribering:skickar')
       try {
         whisperRes = await fetch(
           `${VERCEL_WHISPER}?language=${encodeURIComponent(language)}`,
           {
             method: 'POST',
-            headers: { 'Content-Type': 'audio/webm' },
+            // Formatet följer inspelningen (WebM eller MP4) – proxyn läser det.
+            headers: { 'Content-Type': baseMimeType(audioBlob.type) },
             body: audioBlob,
             signal: whisperAbort.signal,
           }
         )
       } catch (err) {
-        if (err.name === 'AbortError') throw new Error(copy.transcriptionTimeout)
+        if (err.name === 'AbortError') {
+          const timeout = new Error(copy.transcriptionTimeout)
+          timeout.name = 'TimeoutError'
+          throw timeout
+        }
         throw err
       } finally {
         clearTimeout(whisperTimer)
       }
-      if (!whisperRes.ok) throw new Error(`Whisper HTTP ${whisperRes.status}`)
+      if (!whisperRes.ok) {
+        // Tjänstens egen förklaring sparas som felsökningsunderlag; användaren
+        // får en begriplig uppmaning i stället för statuskoden.
+        const httpError = new Error(`Whisper HTTP ${whisperRes.status}`)
+        httpError.httpStatus = whisperRes.status
+        httpError.detail = await whisperRes.text().catch(() => '')
+        throw httpError
+      }
       const { text: userText } = await whisperRes.json()
-      if (!userText) throw new Error('Inget tal detekterat')
+      trail.mark(`transkribering:klar ${Date.now() - whisperStarted} ms`)
+      if (!userText) {
+        const noSpeech = new Error('Inget tal detekterat')
+        noSpeech.name = 'NoSpeechError'
+        throw noSpeech
+      }
       addToTranscript('candidate', userText)
 
       const activeQuestions = activeQuestionsRef.current
@@ -476,17 +732,20 @@ export default function InterviewSimulatorTTS() {
       }
 
       step = 'tts'
-      setInterviewState(STATES.PREPARING_NEXT)
+      setPhase(STATES.PREPARING_NEXT)
       await speakText(aiText)
+      if (abortedRef.current) return
       addToTranscript('interviewer', aiText)
 
       if (finishing) {
-        setInterviewState(STATES.FINISHED)
+        setPhase(STATES.FINISHED)
         await saveSession()
       } else {
-        setInterviewState(STATES.WAITING_FOR_USER)
+        setPhase(STATES.WAITING_FOR_USER)
       }
     } catch (error) {
+      // Lämnade användaren sidan avbryts hämtningen med flit – inget fel.
+      if (abortedRef.current) return
       // If we advanced the question but never got it spoken, roll the index
       // back so the user re-answers the correct (current) question.
       if (advanced) {
@@ -494,9 +753,15 @@ export default function InterviewSimulatorTTS() {
         currentQuestionIndexRef.current = prevIndex
       }
       console.error(error)
-      logSystemEvent({ type: 'pipeline_error', severity: 'error', step, message: error.message })
-      setErrorMsg(error.message)
-      setInterviewState(STATES.WAITING_FOR_USER)
+      logPipelineError(step, error, { audioBytes: audioBlob.size })
+      // Det tekniska felet loggas ovan; användaren får veta vad hen kan göra.
+      setErrorMsg(
+        step === 'tts' ? copy.speechFailed
+          : error.name === 'TimeoutError' ? error.message
+          : error.name === 'NoSpeechError' ? copy.noSpeech
+          : copy.answerFailed
+      )
+      setPhase(STATES.WAITING_FOR_USER)
     }
   }
 
@@ -532,7 +797,7 @@ export default function InterviewSimulatorTTS() {
           }
         )
       } catch (err) {
-        logSystemEvent({ type: 'pipeline_error', severity: 'error', step: 'claude', message: err.message })
+        logPipelineError('claude', err)
         throw err
       }
 
@@ -568,17 +833,13 @@ export default function InterviewSimulatorTTS() {
           }
         )
       } catch (err) {
-        logSystemEvent({ type: 'pipeline_error', severity: 'error', step: 'firestore', message: err.message })
+        logPipelineError('firestore', err)
         throw err
       }
 
       // Teknisk driftsignal – inga betyg, bara att en session slutfördes.
-      logSystemEvent({
-        type: 'session_completed',
-        severity: 'info',
-        step: 'complete',
-        message: `${activeQuestions.length} frågor`,
-      })
+      sessionClosedRef.current = true
+      logSessionInfo('session_completed', 'complete', `${activeQuestions.length} frågor`)
 
       navigate(`/feedback/${jobId}/${feedbackRef.id}`)
     } catch (err) {
@@ -588,6 +849,7 @@ export default function InterviewSimulatorTTS() {
   }
 
   function endInterview() {
+    logSessionAborted('Avslutade intervjun')
     abortedRef.current = true
     ttsAbortRef.current?.abort()
     stopCurrentAudio()
@@ -676,11 +938,11 @@ export default function InterviewSimulatorTTS() {
     : btnState.label
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-6 sm:space-y-10">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-medium text-text-primary tracking-tight">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-medium text-text-primary tracking-tight">
             {copy.title(interviewerName)}
           </h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
@@ -690,7 +952,7 @@ export default function InterviewSimulatorTTS() {
         </div>
 
         {interviewState !== STATES.FINISHED && (
-          <div className="shrink-0 pt-1">
+          <div className="shrink-0 pt-1 ml-auto">
             {showConfirmAbort ? (
               <div className="text-right space-y-2">
                 <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
@@ -699,7 +961,7 @@ export default function InterviewSimulatorTTS() {
                 <div className="flex items-center gap-2 justify-end">
                   <button
                     onClick={() => setShowConfirmAbort(false)}
-                    className="text-xs px-3 py-1.5 rounded-md transition-colors"
+                    className="text-xs px-3 py-2.5 sm:py-1.5 rounded-md transition-colors"
                     style={{ backgroundColor: 'var(--color-background-tertiary)', color: 'var(--color-text-secondary)' }}
                     onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
                     onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
@@ -708,7 +970,7 @@ export default function InterviewSimulatorTTS() {
                   </button>
                   <button
                     onClick={endInterview}
-                    className="text-xs px-3 py-1.5 rounded-md font-semibold"
+                    className="text-xs px-3 py-2.5 sm:py-1.5 rounded-md font-semibold"
                     style={{ backgroundColor: 'var(--color-feedback-error-background)', color: 'var(--color-feedback-error)' }}
                   >
                     {copy.confirmEnd}
@@ -718,7 +980,7 @@ export default function InterviewSimulatorTTS() {
             ) : (
               <button
                 onClick={() => setShowConfirmAbort(true)}
-                className="text-xs font-medium transition-colors"
+                className="text-xs font-medium transition-colors py-2.5 sm:py-0 -my-2.5 sm:my-0"
                 style={{ color: 'var(--color-feedback-error)' }}
                 onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-action-danger-background-hover)')}
                 onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-feedback-error)')}
@@ -742,7 +1004,7 @@ export default function InterviewSimulatorTTS() {
       {/* Status circle + label */}
       <div className="flex flex-col items-center gap-6">
         <StatusCircle state={interviewState} />
-        {btnState.showSpinner ? (
+        {needsTap || startFailed ? null : btnState.showSpinner ? (
           <p
             className="text-lg font-semibold text-text-primary text-center"
             style={{ animation: 'ttsTextPulse 1.4s ease-in-out infinite' }}
@@ -751,7 +1013,7 @@ export default function InterviewSimulatorTTS() {
           </p>
         ) : (
           <p
-            className="text-sm font-medium"
+            className="text-sm font-medium text-center"
             style={{ color: interviewState === STATES.WAITING_FOR_USER ? 'var(--color-feedback-success)' : 'var(--color-text-secondary)' }}
           >
             {btnState.subLabel}
@@ -836,6 +1098,42 @@ export default function InterviewSimulatorTTS() {
         </div>
       )}
 
+      {/* Webbläsaren kräver ett tryck innan rösten får höras (Safari/iPhone) */}
+      {needsTap && (
+        <div className="flex flex-col items-center gap-3">
+          <button
+            onClick={handleTapToStart}
+            className="px-8 py-4 rounded-full text-action-primary-text text-base font-semibold select-none transition-colors"
+            style={{
+              backgroundColor: 'var(--color-feedback-success)',
+              minWidth: 'min(260px, 100%)',
+              animation: 'waitingPulse 2s ease-in-out infinite',
+            }}
+          >
+            {copy.tapToStart}
+          </button>
+          <p className="text-sm text-center" style={{ color: 'var(--color-text-secondary)' }}>
+            {copy.tapToStartHint}
+          </p>
+        </div>
+      )}
+
+      {/* Starten misslyckades – ge en väg framåt i stället för en evig snurra */}
+      {startFailed && !needsTap && (
+        <div className="flex flex-col items-center gap-3">
+          <button
+            onClick={retryStart}
+            className="px-8 py-4 rounded-full text-action-primary-text text-base font-semibold select-none transition-colors"
+            style={{
+              backgroundColor: 'var(--color-action-primary-background)',
+              minWidth: 'min(260px, 100%)',
+            }}
+          >
+            {copy.retry}
+          </button>
+        </div>
+      )}
+
       {/* Action button */}
       {btnState.label && (
         <div className="flex flex-col items-center gap-3">
@@ -846,7 +1144,7 @@ export default function InterviewSimulatorTTS() {
             className="px-8 py-4 rounded-full text-action-primary-text text-base font-semibold select-none transition-colors disabled:opacity-50"
             style={{
               backgroundColor: btnState.recording ? 'var(--color-action-danger-background)' : 'var(--color-feedback-success)',
-              minWidth: '260px',
+              minWidth: 'min(260px, 100%)',
               animation: btnState.enabled && !btnState.recording
                 ? 'waitingPulse 2s ease-in-out infinite'
                 : 'none',
@@ -959,7 +1257,7 @@ function StatusCircle({ state }) {
   }[state] ?? { color: 'var(--color-border-default)', pulse: false, spin: false }
 
   return (
-    <div className="relative" style={{ width: 160, height: 160 }}>
+    <div className="relative" style={{ width: 'clamp(112px, 34vw, 160px)', aspectRatio: '1 / 1' }}>
       {/* Pulse ring */}
       {config.pulse === 'fast' && (
         <span

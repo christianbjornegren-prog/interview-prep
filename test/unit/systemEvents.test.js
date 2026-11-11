@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSystemEvent, summarizeEvents } from '../../src/lib/systemEvents.js'
+import { buildSystemEvent, sanitizeContext, summarizeEvents } from '../../src/lib/systemEvents.js'
 
 describe('buildSystemEvent', () => {
   it('applies defaults and normalizes types', () => {
@@ -70,5 +70,58 @@ describe('summarizeEvents', () => {
       completedTotal: 0, completed7: 0, completed30: 0,
       activeConsultants: 0, errorTotal: 0, attempts: 0, errorRate: 0,
     })
+  })
+})
+
+describe('buildSystemEvent – context (felsökningsunderlag)', () => {
+  it('keeps whitelisted technical fields', () => {
+    const e = buildSystemEvent({
+      type: 'pipeline_error', severity: 'error', step: 'tts', uid: 'u',
+      context: { device: 'iPhone · Safari 18', phase: 'AI_SPEAKING', questionIndex: 0, mobile: true },
+    })
+    expect(e.context).toEqual({
+      device: 'iPhone · Safari 18', phase: 'AI_SPEAKING', questionIndex: 0, mobile: true,
+    })
+  })
+
+  it('drops everything outside the whitelist – the log can never carry betyg or answers', () => {
+    const e = buildSystemEvent({
+      type: 'x',
+      context: { overallScore: 9, transcript: 'mitt svar', feedback: 'bra', answer: 'hej', device: 'Mac' },
+    })
+    expect(e.context).toEqual({ device: 'Mac' })
+  })
+
+  it('omits context entirely when nothing usable remains', () => {
+    expect('context' in buildSystemEvent({ type: 'x', context: { overallScore: 9 } })).toBe(false)
+    expect('context' in buildSystemEvent({ type: 'x', context: {} })).toBe(false)
+    expect('context' in buildSystemEvent({ type: 'x', context: 'nope' })).toBe(false)
+  })
+
+  it('never lets undefined, null, NaN or nested objects through (Firestore would reject them)', () => {
+    const clean = sanitizeContext({
+      device: undefined, phase: null, route: '', elapsedMs: NaN, httpStatus: Infinity,
+      detail: { nested: true }, voice: () => 'x', language: 'sv',
+    })
+    expect(clean).toEqual({ language: 'sv' })
+  })
+
+  it('clips long strings, with more room for stack/userAgent/detail', () => {
+    const clean = sanitizeContext({ device: 'a'.repeat(900), stack: 'b'.repeat(5000) })
+    expect(clean.device.length).toBe(300)
+    expect(clean.stack.length).toBe(1500)
+  })
+
+  it('keeps the LAST 40 trail entries, as clipped strings', () => {
+    const trail = Array.from({ length: 60 }, (_, i) => `+${i}s steg ${'x'.repeat(200)}`)
+    const clean = sanitizeContext({ trail })
+    expect(clean.trail).toHaveLength(40)
+    expect(clean.trail[0].startsWith('+20s')).toBe(true)
+    expect(clean.trail.every((t) => t.length <= 100)).toBe(true)
+  })
+
+  it('drops an empty or malformed trail', () => {
+    expect(sanitizeContext({ trail: [] })).toBe(null)
+    expect(sanitizeContext({ trail: 'not a list' })).toBe(null)
   })
 })
