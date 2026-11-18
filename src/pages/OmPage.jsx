@@ -1,3 +1,5 @@
+import { FEEDBACK_RETENTION_DAYS } from '../lib/retention'
+
 export default function OmPage() {
   return (
     <div className="max-w-2xl space-y-10">
@@ -12,11 +14,28 @@ export default function OmPage() {
         </p>
       </Section>
 
+      <Section title="Din data">
+        <ul className="space-y-3">
+          {[
+            ['Ljudet', 'Spelas in i webbläsaren och skickas till OpenAI för att bli text. Det sparas aldrig – varken i appen eller hos OpenAI.'],
+            ['Dina svar', 'Texten skickas till Claude (Anthropic) för att skapa feedbacken och sparas inte i appen. Anthropic raderar den inom 30 dagar. Varken OpenAI eller Anthropic tränar sina modeller på det du säger.'],
+            ['Feedbacken', `Betyg och kommentarer sparas privat för dig. Din säljare ser dem bara om du själv delar dem. Varje träning raderas automatiskt ${FEEDBACK_RETENTION_DAYS} dagar efter att den gjordes.`],
+            ['Driftloggen', 'Tekniska fel, till exempel vilken webbläsare som användes. Aldrig betyg eller vad du sagt.'],
+            ['CV och uppdrag', 'Sparas tills du raderar dem under Inställningar.'],
+          ].map(([name, desc]) => (
+            <li key={name} className="text-sm leading-relaxed" style={{ color: 'var(--color-text-primary)' }}>
+              <span className="font-medium text-text-primary">{name}</span>
+              {' '}— {desc}
+            </li>
+          ))}
+        </ul>
+      </Section>
+
       <Section title="Techstack">
         <ul className="space-y-2">
           {[
             ['React + Vite', 'Frontend-ramverk med snabb utvecklingsserver'],
-            ['Firebase', 'Auth, Firestore (databas) och Storage'],
+            ['Firebase', 'Inloggning och databas'],
             ['Claude API (Anthropic)', 'Kompetensextraktion, jobbanalys och intervjufeedback'],
             ['OpenAI Whisper + TTS', 'Tal-till-text och text-till-tal i intervjusimulatorn'],
             ['Vercel', 'Serverless proxy för OpenAI-anrop'],

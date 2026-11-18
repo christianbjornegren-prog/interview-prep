@@ -31,6 +31,8 @@ const COPY = {
     question:         (n) => `Fråga ${n}`,
     privacyNote:      'Din träning är privat. Den delas med din säljare endast om du själv ' +
                       'väljer det – och du kan ta tillbaka det när som helst.',
+    retentionNote:    (date) => `Ljudet och dina svar sparas inte. Den här feedbacken ` +
+                      `raderas automatiskt ${date}.`,
     shareToggle:      'Dela denna feedback med din säljare',
     shareFailed:      'Kunde inte uppdatera delningen. Försök igen.',
   },
@@ -52,6 +54,8 @@ const COPY = {
     question:         (n) => `Question ${n}`,
     privacyNote:      'Your practice is private. It is shared with your salesperson only if ' +
                       'you choose to – and you can withdraw it at any time.',
+    retentionNote:    (date) => `The audio and your answers are not stored. This feedback ` +
+                      `is deleted automatically on ${date}.`,
     shareToggle:      'Share this feedback with your salesperson',
     shareFailed:      'Could not update sharing. Please try again.',
   },

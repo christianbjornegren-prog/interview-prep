@@ -6,11 +6,13 @@ import {
   doc,
   getDoc,
   serverTimestamp,
+  Timestamp,
   updateDoc,
 } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
 import { analyzeInterviewFeedback, sanitizeCompetencies } from '../lib/claude'
 import { logSystemEvent } from '../lib/systemEvents'
+import { feedbackExpiryDate } from '../lib/retention'
 import { createSessionTrail, isAbortError } from '../lib/diagnostics'
 import { getSharedAudio, isAudioUnlocked, markAudioUnlocked, unlockAudio } from '../lib/audioUnlock'
 import { baseMimeType, micErrorCopyKey, pickRecordingMimeType } from '../lib/recording'
@@ -826,7 +828,10 @@ export default function InterviewSimulatorTTS() {
             // engelska sessioner. Äldre feedback saknar fältet och behandlas
             // överallt som svensk.
             language,
-            transcript: transcriptForAnalysis,
+            // Utskriften av svaren sparas MEDVETET inte – den gick bara till
+            // Claude för att skapa feedbacken. Sessionen raderas automatiskt
+            // (Firestore TTL på expiresAt, se lib/retention.js).
+            expiresAt: Timestamp.fromDate(feedbackExpiryDate()),
             // Delning är opt-in: ny feedback är privat tills konsulten själv delar.
             sharedWithSeller: false,
             sharedAt: null,

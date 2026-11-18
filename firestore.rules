@@ -47,8 +47,18 @@ service cloud.firestore {
         isOwner(uid) ||
         ((isSaljare() || isAdmin()) && resource.data.sharedWithSeller == true)
       )
-      allow create: if request.auth != null && isOwner(uid)
-      allow update: if request.auth != null && isOwner(uid)
+      // Integritet i praktiken: en session MÅSTE ha ett raderingsdatum högst
+      // 30 dagar fram (TTL-policyn på expiresAt raderar den) och får ALDRIG
+      // bära utskriften av svaren. 31 d ger marginal för klientens klocka.
+      allow create: if request.auth != null && isOwner(uid) &&
+        request.resource.data.expiresAt is timestamp &&
+        request.resource.data.expiresAt <= request.time + duration.value(31, 'd') &&
+        !('transcript' in request.resource.data)
+      // Ägaren får bara slå på/av delningen – inte flytta raderingsdatumet
+      // eller lägga till innehåll i efterhand.
+      allow update: if request.auth != null && isOwner(uid) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['sharedWithSeller', 'sharedAt'])
       allow delete: if request.auth != null && (isOwner(uid) || isAdmin())
     }
 

@@ -9,7 +9,7 @@ import {
 } from '@firebase/rules-unit-testing'
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc,
-  collection, getDocs, query, where,
+  collection, getDocs, query, where, Timestamp,
 } from 'firebase/firestore'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -71,6 +71,10 @@ beforeEach(async () => {
     })
   })
 })
+
+function inDays(days) {
+  return Timestamp.fromDate(new Date(Date.now() + days * 24 * 60 * 60 * 1000))
+}
 
 function ctxFor(uid) {
   return testEnv.authenticatedContext(uid).firestore()
@@ -134,13 +138,48 @@ describe('feedback writes', () => {
 
   it('konsult can create feedback under its own tree', async () => {
     await assertSucceeds(
-      setDoc(fb(ctxFor(KONSULT), 'fbNew'), { overallScore: 9, sharedWithSeller: false, sharedAt: null })
+      setDoc(fb(ctxFor(KONSULT), 'fbNew'), { overallScore: 9, sharedWithSeller: false, sharedAt: null, expiresAt: inDays(30) })
     )
   })
 
   it('säljare cannot create feedback', async () => {
     await assertFails(
-      setDoc(fb(ctxFor(SALJARE), 'fbNew2'), { overallScore: 9, sharedWithSeller: false })
+      setDoc(fb(ctxFor(SALJARE), 'fbNew2'), { overallScore: 9, sharedWithSeller: false, expiresAt: inDays(30) })
+    )
+  })
+})
+
+describe('feedback retention (integritet i praktiken)', () => {
+  it('konsult CANNOT create feedback without expiresAt', async () => {
+    await assertFails(
+      setDoc(fb(ctxFor(KONSULT), 'fbNoExpiry'), { overallScore: 9, sharedWithSeller: false, sharedAt: null })
+    )
+  })
+
+  it('konsult CANNOT create feedback that lives longer than 30 days', async () => {
+    await assertFails(
+      setDoc(fb(ctxFor(KONSULT), 'fbLong'), { overallScore: 9, sharedWithSeller: false, sharedAt: null, expiresAt: inDays(60) })
+    )
+  })
+
+  it('konsult CANNOT store the transcript of the answers', async () => {
+    await assertFails(
+      setDoc(fb(ctxFor(KONSULT), 'fbTranscript'), {
+        overallScore: 9, sharedWithSeller: false, sharedAt: null, expiresAt: inDays(30),
+        transcript: [{ question: 'Q', answer: 'A' }],
+      })
+    )
+  })
+
+  it('konsult CANNOT move the deletion date of existing feedback', async () => {
+    await assertFails(
+      updateDoc(fb(ctxFor(KONSULT), 'fbPrivate'), { expiresAt: inDays(365) })
+    )
+  })
+
+  it('konsult CANNOT add content to existing feedback', async () => {
+    await assertFails(
+      updateDoc(fb(ctxFor(KONSULT), 'fbPrivate'), { transcript: [{ question: 'Q', answer: 'A' }] })
     )
   })
 })

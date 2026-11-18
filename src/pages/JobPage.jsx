@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom'
 import {
   collection,
   doc,
@@ -30,6 +30,7 @@ import {
   normalizeLanguage,
 } from '../lib/language'
 import StartInterviewButton from '../components/StartInterviewButton'
+import { FEEDBACK_RETENTION_DAYS } from '../lib/retention'
 import JobCvPicker from '../components/JobCvPicker'
 import { createPendingCvStore, createUserCvStore } from '../lib/cvStore'
 import { READINESS_MESSAGE, cvCompetencies, resolveJobCv, trainingReadiness } from '../lib/cvs'
@@ -1065,6 +1066,23 @@ function InterviewConfigScreen({
             loadingLabel="Skapar engelska frågor..."
             fullWidth
           />
+          <div
+            className="flex items-start gap-3 rounded-lg border p-4"
+            style={{ backgroundColor: 'var(--color-background-primary)', borderColor: 'var(--color-border-default)' }}
+          >
+            <span className="mt-0.5"><TiLock size={18} color="var(--color-text-primary)" /></span>
+            <div className="space-y-1 text-sm leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+              <p className="font-medium text-text-primary">Din träning stannar hos dig</p>
+              <p>
+                Ljudet sparas aldrig och dina svar lagras inte – de används bara för att ta fram
+                din feedback. Feedbacken syns bara för dig, delas bara om du själv väljer det och
+                raderas automatiskt efter {FEEDBACK_RETENTION_DAYS} dagar.
+              </p>
+              <Link to="/om" className="tap-target inline-block text-link-text hover:underline">
+                Så hanteras din data →
+              </Link>
+            </div>
+          </div>
         </div>
 
         {/* Right – question preview */}
@@ -1174,6 +1192,15 @@ function TiChartPie({ size, color }) {
     <Svg size={size} color={color}>
       <path d="M10 3.2a9 9 0 1 0 10.8 10.8a1 1 0 0 0 -1 -1h-6.8a1 1 0 0 1 -1 -1v-7a.9 .9 0 0 0 -1 -.8" />
       <path d="M15 3.5a9 9 0 0 1 5.5 5.5h-4.5a1 1 0 0 1 -1 -1z" />
+    </Svg>
+  )
+}
+
+function TiLock({ size, color }) {
+  return (
+    <Svg size={size} color={color}>
+      <path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z" />
+      <path d="M8 11v-4a4 4 0 1 1 8 0v4" />
     </Svg>
   )
 }

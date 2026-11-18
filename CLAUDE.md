@@ -56,6 +56,9 @@ users/{uid}/jobs/{jobId}/feedback/{feedbackId}
   → cvId + cvLabel = vilket CV sessionen bedömdes mot (snapshot, överlever CV-byte).
   → language ('sv'|'en') = språket intervjun hölls på. Saknat fält behandlas
     överallt som 'sv'. Styr EN-märkningen i Historik och säljarens delade vy.
+  → expiresAt (timestamp) = raderingsdatum, 30 dagar efter träningen. Firestores TTL-policy
+    raderar dokumentet automatiskt. INGEN `transcript` (utskriften av svaren sparas inte).
+    Se "Integritet och lagringstid".
 pendingProfiles/{email} → { name, email, createdAt, cvs: [{ id, label, fileName, competencies, ... }], jobs: [{ id, cvId, ... }] }
   → cvs[].id genereras klientsidigt (generateCvId) och BEHÅLLS som dokument-id vid
     överlämningen, så jobs[].cvId fortsätter peka rätt. Äldre profiler med `competencies[]`
@@ -70,6 +73,28 @@ systemEvents/{eventId} → { type, severity: 'info'|'error', step, message, uid,
     läge i intervjun, HTTP-status, inspelningsformat, förloppet fram till felet (trail).
     VITLISTA (CONTEXT_FIELDS i lib/diagnostics.js) – allt annat kastas i sanitizeContext().
     Äldre händelser saknar fältet; allt som läser det måste tåla null.
+
+## Integritet och lagringstid (2026-11-18)
+Bakgrund: en konsult frågade om ljudfilerna sparas. Svaret ska vara nej, och det ska gälla i praktiken.
+- LJUD: sparas aldrig. Finns i webbläsarens minne, går via api/whisper.js (loggar bara storlek)
+  till OpenAI /v1/audio/transcriptions (ingen lagring enligt OpenAIs datatabell, ingen träning).
+  Firebase Storage används inte.
+- SVAREN (text): skickas till Claude för feedbacken och sparas INTE. Tidigare sparades
+  `transcript` på feedback-dokumentet utan att visas någonstans – borttaget. Anthropic raderar
+  API-data inom 30 dagar och tränar inte på den.
+- FEEDBACK: raderas 30 dagar efter träningen (`lib/retention.js`, FEEDBACK_RETENTION_DAYS).
+  - Simulatorn sätter `expiresAt`. TTL-policyn ligger i `firestore.indexes.json` (fieldOverrides,
+    collectionGroup feedback, `ttl: true`) och deployas med `firebase deploy --only firestore:indexes`.
+    TTL raderar normalt inom ett dygn efter utgångsdatumet.
+  - firestore.rules TVINGAR det: create kräver expiresAt ≤ nu + 31 d och nekar `transcript`;
+    update får bara röra sharedWithSeller/sharedAt (raderingsdatumet kan inte flyttas).
+  - Befintliga sessioner: `scripts/retention-backfill.mjs` (torrkörning, `--apply` ändrar) ger dem
+    raderingsdatum 30 dagar från körningen och tar bort transcript. Kräver Google-inloggning
+    (`gcloud auth application-default login`) – Firebase CLI:ts inloggning räcker inte.
+  - Även delad feedback försvinner för säljaren efter 30 dagar. Medvetet val av ägaren.
+- TEXT: konfigurationsskärmen (före start), FeedbackPage (raderingsdatum, sv+en via
+  feedbackCopy.retentionNote) och Om-sidan ("Din data"). Håll dem sanna om något ändras.
+- CV och uppdrag har ingen automatisk radering (rensas under Inställningar).
 
 ## Viktiga beslut
 - CV PER UPPDRAG (ersätter den kumulativa kompetensbanken, 2026-11-06): varje uppladdning blir
@@ -621,8 +646,8 @@ kan tas bort när Realtime är ute.
   (annars får CV-vyerna PERMISSION_DENIED): `firebase deploy --only firestore:rules`.
 - feedback-subcollection (SAMTYCKESSTYRD, specifik path-regel):
   - read:   owner ELLER ((säljare||admin) OCH resource.data.sharedWithSeller == true)
-  - create: owner
-  - update: owner (konsulten slår på/av delning)
+  - create: owner, MED expiresAt ≤ nu + 31 d och UTAN transcript
+  - update: owner, ENBART sharedWithSeller/sharedAt (konsulten slår på/av delning)
   - delete: owner ELLER admin
   - Admins GENERELLA läsrätt till all feedback är BORTTAGEN. Admin ser bara delad feedback.
 - Den gamla rekursiva `/{path=**}/feedback`-regeln (admin läser ALL feedback) är
@@ -691,7 +716,7 @@ kan tas bort när Realtime är ute.
     + jobCreation.test.js (svep-orkestrering + progressSteps)
     + diagnostics.test.js (enhetstolkning, diagnoser för de verkliga produktionsfelen, tratt,
       felrapport) + recording.test.js (inspelningsformat, mikrofonfel, tyst WAV, proxyns format).
-    507 tester i 19 filer. (vite.config.js sätter dummy VITE_FIREBASE_*-env för test så moduler som
+    + retention.test.js (lagringstid, raderingstext). 511 tester i 20 filer. (vite.config.js sätter dummy VITE_FIREBASE_*-env för test så moduler som
     initierar Firebase-SDK:t vid import laddar utan .env – rör INTE `vite build`.)
   - VIKTIGT: testmiljön har INGEN DOM-rigg (ingen jsdom, inga setupFiles). Alla
     tester måste vara rena Node-tester – inget får bero på React-rendering.
@@ -701,7 +726,8 @@ kan tas bort när Realtime är ute.
 - Firestore-regeltester (@firebase/rules-unit-testing mot emulatorn): `npm run test:rules`
   - test/rules/firestore.rules.test.js bevisar samtyckesgrindning + systemEvents-åtkomst
     + pendingProfiles-migreringsåtkomst (konsult self-read/delete) + CV-åtkomst
-    (users/{uid}/cvs: ägare/säljare/admin ja, annan konsult/utloggad nej). 47 tester.
+    (users/{uid}/cvs: ägare/säljare/admin ja, annan konsult/utloggad nej) + lagringstid
+    (feedback utan/för långt expiresAt, med transcript, flyttat datum nekas). 52 tester.
   - Kräver Java/Firestore-emulatorn; körs via `firebase emulators:exec --only firestore`.
 - END-TO-END (test/integration/cvFlow.e2e.test.js): `npm run test:e2e`. RIKTIGA Claude-anrop
   (nyckel från .env.local, kostar ~6 anrop, tar ~5 min) + Firestore-emulatorn med RIKTIGA regler,

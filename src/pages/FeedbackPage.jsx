@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { auth, db, doc, getDoc, updateDoc, serverTimestamp } from '../lib/firebase'
-import { describeShareStatus } from '../lib/sharing'
+import { describeShareStatus, toDate } from '../lib/sharing'
 import { feedbackCopy } from '../lib/feedbackCopy'
 
 export default function FeedbackPage() {
@@ -162,6 +162,7 @@ export default function FeedbackPage() {
         error={shareError}
         onToggle={handleToggleShare}
         copy={copy}
+        deletesOn={formatDeletionDate(feedback.expiresAt, copy.locale)}
       />}
 
       {/* Overall Score */}
@@ -311,7 +312,16 @@ export default function FeedbackPage() {
 
 // ── Share card ────────────────────────────────────────────────────────────
 
-function ShareCard({ status, saving, error, onToggle, copy }) {
+// Äldre sessioner saknar expiresAt tills de fått ett raderingsdatum – då
+// visas ingen raderingsrad hellre än en felaktig.
+function formatDeletionDate(expiresAt, locale) {
+  const date = toDate(expiresAt)
+  return date
+    ? date.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })
+    : null
+}
+
+function ShareCard({ status, saving, error, onToggle, copy, deletesOn }) {
   const on = status.shared
   return (
     <div
@@ -320,6 +330,7 @@ function ShareCard({ status, saving, error, onToggle, copy }) {
     >
       <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
         {copy.privacyNote}
+        {deletesOn && <> {copy.retentionNote(deletesOn)}</>}
       </p>
 
       <div className="flex items-center justify-between gap-4">
